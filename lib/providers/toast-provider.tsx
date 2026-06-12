@@ -14,10 +14,12 @@ export type ToastKind = 'success' | 'warning' | 'danger';
 interface Toast {
   id: string;
   msg: string;
-  kind: ToastKind;
+  kind: string;
 }
 
-type PushFn = (msg: string, kind?: ToastKind) => void;
+// Legacy onAction(label, severity) accepted any string severity; ToastHost special-cases
+// 'warning'/'danger' and defaults the rest to success styling. Keep the public signature wide.
+type PushFn = (msg: string, kind?: string) => void;
 
 const ToastContext = createContext<PushFn | null>(null);
 

@@ -1,54 +1,86 @@
 # System Architecture — Agents Verse
 
-**Status (June 2026):** Agents Verse is undergoing a managed migration from a buildless prototype to a Next.js app. This document covers both architectures:
+**Status (June 2026):** Agents Verse migration to Next.js is **functionally complete**. This document covers:
 
-- **Section 1–8:** The **legacy buildless prototype** (root `*.jsx`, `index.html`, `styles.css`; still in repo, being migrated away).
-- **Section 9:** The **new Next.js app (Set 1 — marketing live)** — cookie-SSR architecture, TypeScript, App Router, context providers.
+- **Sections 1–10:** The **Next.js app (Sets 1 + 2 — LIVE)** — cookie-SSR, TypeScript, App Router, context providers, workspace shell, 14 authenticated routes.
+- **Sections 11+:** The **legacy buildless prototype** (root `*.jsx`, `index.html`, `styles.css`; still in repo for reference, not used).
 
 ---
 
-## NEXT.JS ARCHITECTURE (SET 1 — LIVE) — Start here
+## NEXT.JS ARCHITECTURE (SETS 1 + 2 — LIVE) — Start here
 
-Agents Verse now uses **Next.js 16.2.9 + React 19.2.7 + TypeScript** for the marketing surface. This replaces the buildless prototype for public routes and will be extended to the entire app in Set 2.
+Agents Verse now runs **entirely on Next.js 16.2.9 + React 19.2.7 + TypeScript**. Both the marketing surface (Set 1) and the full authenticated workspace (Set 2) are deployed and operational.
 
 ### 9.1 Stack & Project Structure
 
 ```
-app/                          # Next.js App Router
-├── layout.tsx               # Root layout: SSR cookie read, providers wired
-├── page.tsx                 # Landing page (/)
-├── providers.tsx            # ThemeProvider, I18nProvider, ToastProvider, AuthProvider
-├── (marketing)/             # Route group for marketing pages
-│   └── [slug]/page.tsx      # 9 info pages (about, careers, contact, …)
+app/                                    # Next.js App Router (17 routes)
+├── layout.tsx                         # Root layout: SSR cookie read, providers wired
+├── page.tsx                           # Landing page (/)
+├── providers.tsx                      # ThemeProvider, I18nProvider, ToastProvider, AuthProvider
+├── (marketing)/                       # Set 1: marketing pages
+│   └── [slug]/page.tsx               # 9 info pages (about, careers, contact, …)
 ├── login/
-│   └── page.tsx             # Auth gate (email/password)
-└── (workspace)/             # Set 2: workspace routes (not yet)
-    ├── layout.tsx           # Workspace shell (Sidebar, TopBar, CommandPalette)
-    ├── overview/page.tsx    # Floor overview (pending)
-    ├── rooms/[id]/page.tsx  # Room detail (pending)
-    └── …
+│   └── page.tsx                       # Auth gate (email/password)
+└── (workspace)/                       # Set 2: workspace screens (14 routes, all live)
+    ├── layout.tsx                     # Workspace shell (Sidebar, TopBar, CommandPalette, scroll-reset)
+    ├── overview/page.tsx              # Floor overview + escalations + activity
+    ├── command/page.tsx               # Escalation review / approvals
+    ├── rooms/
+    │   ├── page.tsx                   # Rooms index (filterable grid)
+    │   └── [id]/page.tsx              # Room detail + projects + agents + timeline
+    ├── agents/
+    │   ├── page.tsx                   # Agents index (confidence rings)
+    │   └── [id]/page.tsx              # Agent detail + skills + chat
+    ├── leads/page.tsx                 # Lead pipeline (kanban board)
+    ├── audits/
+    │   └── [id]/page.tsx              # Audit detail report (8 dimensions + problems)
+    ├── demos/
+    │   └── [id]/page.tsx              # Demo manager (before/after, checklist, templates)
+    ├── deals/
+    │   └── [id]/page.tsx              # Deal approval + production tracking
+    ├── settings/page.tsx              # Brand, autonomy, pricing, guardrails, budgets
+    ├── activity/page.tsx              # Cross-room activity timeline
+    └── requests/page.tsx              # Demo requests (public inbox + triage)
 
 components/
-├── brand/                   # Mark, Logo, Icon (45+ SVG icons)
-├── ui/                      # Primitives: Button, Card, Badge, Breadcrumb, etc.
-├── landing/                 # LandingNav, Hero, sections, Pricing, etc.
-├── marketing/               # MarketingFrame, ChatWidget, DemoRequestModal
-├── site-mock.tsx            # Before/after device wireframes
-└── floor-map.tsx            # Animated room schematic
+├── brand/                             # Mark, Logo, Icon (45+ SVG icons)
+├── ui/                                # Primitives: Button, Card, Badge, Breadcrumb, etc.
+├── landing/                           # LandingNav, Hero, sections, Pricing, etc.
+├── marketing/                         # MarketingFrame, ChatWidget, DemoRequestModal
+├── workspace/                         # Workspace shell components
+│   ├── sidebar.tsx                    # Nav tree, autonomy selector, badges
+│   ├── top-bar.tsx                    # Breadcrumbs, theme/language toggles, review drawer
+│   ├── command-palette.tsx            # Cmd/Ctrl+K search
+│   ├── autonomy-control.tsx           # Mode selector
+│   ├── review-center.tsx              # Right drawer for escalations
+│   ├── coming-soon.tsx                # Placeholder for future routes
+│   └── route-meta.tsx                 # Route metadata (labels, icons, descriptions)
+├── site-mock.tsx                      # Before/after device wireframes
+└── floor-map.tsx                      # Animated room schematic
 
 lib/
-├── data/                    # Base AV types & data (data.js ported)
-├── i18n/                    # Dictionary en/vi, I18nProvider, useI18n
-├── providers/               # ThemeProvider, ToastProvider, AuthProvider
-├── cookies.ts               # Helper to read/write av-* cookies
-└── info-slugs.ts            # Marketing page route mapping
+├── data/                              # Base + extended AV types & data
+│   ├── index.ts                       # rooms, agents, leads, metrics, escalations, activity
+│   ├── data-2.ts                      # agentDetail, roomProjects, roomTimeline, roomMetrics helpers
+│   ├── data-3.ts                      # REDESIGN templates, SCORE_PROFILES, demos, audits
+│   ├── data-4.ts                      # deals, demoRequests
+│   └── types.ts                       # Room, Agent, Lead, Metrics, Escalation, Activity, etc.
+├── i18n/                              # Dictionary en/vi, I18nProvider, useI18n
+├── providers/                         # Context providers
+│   ├── theme.tsx                      # ThemeProvider + useTheme
+│   ├── toast.tsx                      # ToastProvider + useToast
+│   ├── auth.tsx                       # AuthProvider + useAuth
+│   └── workspace-state.tsx            # WorkspaceStateProvider (mode, requests, leads)
+├── cookies.ts                         # Helper to read/write av-* cookies
+└── info-slugs.ts                      # Marketing page route mapping
 
 styles/
-└── globals.css              # Design system: tokens, theme, utilities (byte-identical to root styles.css)
+└── globals.css                        # Design system: tokens, theme, utilities (byte-identical to root styles.css)
 
-middleware.ts                # Auth gate: redirects /overview, /rooms, etc. to /login if !av-auth
+middleware.ts                          # Auth gate: redirects workspace routes to /login if !av-auth
 
-public/                      # Static assets (fonts, icons, etc. from Google CDN via CSS @import)
+public/                                # Static assets (fonts, icons, etc. from Google CDN via CSS @import)
 ```
 
 ### 9.2 Render Model: Cookie-SSR (No Flash-of-Unstyled-Content)
@@ -85,64 +117,111 @@ Files use **ES modules with TypeScript**. The buildless global-scope pattern is 
 
 ```tsx
 // Old: window.AV = { rooms: [...], agents: [...], ... }
-// New: lib/data/index.ts
+// New: lib/data/index.ts (fully typed)
 export const AV = {
   rooms: [...],
   agents: [...],
-  // ... (typed)
+  leads: [...],
+  metrics: { ... },
+  escalations: [...],
+  activity: [...],
+  // helpers from data-2.ts, data-3.ts, data-4.ts:
+  agentById: (id) => Agent | undefined,
+  roomById: (id) => Room | undefined,
+  demoByLead: (leadId) => Demo | undefined,
+  dealByLead: (leadId) => Deal | undefined,
+  audit: (siteUrl) => AuditReport,
+  // data3: REDESIGN templates, SCORE_PROFILES, demos array
+  // data4: deals, demoRequests
 };
 
 // Consumers:
 import { AV } from '@/lib/data';
 const agent = AV.agentById(id);
+const demo = AV.demoByLead(leadId);
 ```
 
-**Context providers** replace window-globals for mutable app state:
+**Context providers** manage mutable app state (replaces window-globals):
 
 ```tsx
-// App-level state (theme, language, auth, toasts) flows via React Context
+// Theme, language, auth, toast, workspace state flow via React Context
 import { useTheme } from '@/lib/providers/theme';
 import { useI18n } from '@/lib/i18n';
 import { useToast } from '@/lib/providers/toast';
+import { useAuth } from '@/lib/providers/auth';
+import { useWorkspaceState } from '@/lib/providers/workspace-state'; // Set 2
 
 // Any component can call these hooks (no prop drilling)
 const { theme, toggleTheme } = useTheme();
 const { t, lang, setLang } = useI18n();
 const { pushToast } = useToast();
+const { isAuthed, login, logout, user } = useAuth();
+const { mode, setMode, requests, addRequest, leads, updateLead } = useWorkspaceState(); // Set 2
 ```
+
+**WorkspaceStateProvider (Set 2)** manages session state unique to the workspace:
+- `mode` (autonomy: guarded / review / autopilot / manual), persisted to `av-mode`
+- `requests` (demo request inbox, seeded from `AV.demoRequests`), persisted to `av-requests`
+- `leads` (lead pipeline, seeded from `AV.leads`), persisted to `av-leads`
 
 ### 9.4 Routing (Next.js App Router)
 
-Routes are file-based under `app/`:
+Routes are file-based under `app/`. All 17 routes are live:
 
-| Route | File | Behavior |
-|-------|------|----------|
-| `/` | `app/page.tsx` | Landing page |
-| `/(marketing)/about` | `app/(marketing)/[slug]/page.tsx` | Public info pages (9 total) |
-| `/login` | `app/login/page.tsx` | Auth gate |
-| `/overview` (Set 2) | `app/(workspace)/overview/page.tsx` | Floor overview (pending) |
-| Workspace routes | `app/(workspace)/*/page.tsx` | 14 screens, gated by middleware |
+| Category | Route | File | Behavior |
+|----------|-------|------|----------|
+| **Marketing** | `/` | `app/page.tsx` | Landing page |
+| | `/(marketing)/{slug}` | `app/(marketing)/[slug]/page.tsx` | 9 info pages (about, careers, contact, cases, guarantees, privacy, terms, security, status) |
+| | `/login` | `app/login/page.tsx` | Auth gate (email/password) |
+| **Workspace** | `/overview` | `app/(workspace)/overview/page.tsx` | Floor overview (headline metrics, escalations, activity) |
+| | `/command` | `app/(workspace)/command/page.tsx` | Escalation review / CEO decisions |
+| | `/rooms` | `app/(workspace)/rooms/page.tsx` | Rooms index (grid, filters) |
+| | `/rooms/[id]` | `app/(workspace)/rooms/[id]/page.tsx` | Room detail (projects, agents, timeline, metrics) |
+| | `/agents` | `app/(workspace)/agents/page.tsx` | Agents index (confidence rings, grid) |
+| | `/agents/[id]` | `app/(workspace)/agents/[id]/page.tsx` | Agent detail (skills, outputs, chat) |
+| | `/leads` | `app/(workspace)/leads/page.tsx` | Lead pipeline (kanban board: found → audited → demo → contacted → replied → won) |
+| | `/audits/[id]` | `app/(workspace)/audits/[id]/page.tsx` | Audit detail (8-dimension scores, problems, redesign direction) |
+| | `/demos/[id]` | `app/(workspace)/demos/[id]/page.tsx` | Demo manager (before/after, quality checklist, outreach templates) |
+| | `/deals/[id]` | `app/(workspace)/deals/[id]/page.tsx` | Deal approval (escalation flags, client reply, production timeline) |
+| | `/settings` | `app/(workspace)/settings/page.tsx` | Settings (brand, autonomy mode, pricing, guardrails, AI budgets) |
+| | `/activity` | `app/(workspace)/activity/page.tsx` | Activity timeline (filterable, searchable, type badges) |
+| | `/requests` | `app/(workspace)/requests/page.tsx` | Demo requests inbox (triage, reply, convert-to-lead, decline) |
 
-**Auth gate (middleware.ts):** Workspace routes are protected by `middleware.ts` — if `av-auth` cookie is absent, redirect to `/login`. This activation is automatic when Set 2 adds the route files.
+**Detail routes with query params:**
+- `/requests?lead=leadId` — demo request detail
+- `/leads` with sidebar selection — lead card expanded
+
+**Auth gate (middleware.ts):** Workspace routes (`/overview`, `/rooms`, `/agents`, `/leads`, `/audits`, `/demos`, `/deals`, `/settings`, `/activity`, `/requests`) are protected — if `av-auth` cookie is absent, redirect to `/login`.
 
 ### 9.5 Providers & Hooks
 
-Four stacked providers wire app-level state:
+Five stacked providers wire app-level and workspace state:
 
 1. **ThemeProvider** → `useTheme()` → reads/writes `av-theme` cookie; sets `data-theme` on `<html>`.
 2. **I18nProvider** → `useI18n()` → reads `av-lang` cookie; manages `en`/`vi` dictionary; provides `t()` helper.
 3. **ToastProvider** → `useToast()` → global toast queue; mounts `ToastHost` once at root.
 4. **AuthProvider** → `useAuth()` → reads `av-auth`/`av-user` cookies; provides `login(email)`, `logout()`, `isAuthed`.
+5. **WorkspaceStateProvider** → `useWorkspaceState()` → manages mode, requests, leads (Set 2 only). Seeded from `AV` and persisted to `localStorage`.
 
 Wired in `app/providers.tsx` and composed in `app/layout.tsx`:
 
 ```tsx
-<Providers initialTheme={...} initialLang={...}>
-  {children}
-</Providers>
+<ThemeProvider initialTheme={...}>
+  <I18nProvider initialLang={...}>
+    <AuthProvider initialAuth={...}>
+      <ToastProvider>
+        <WorkspaceStateProvider>
+          {children}
+        </WorkspaceStateProvider>
+      </ToastProvider>
+    </AuthProvider>
+  </I18nProvider>
+</ThemeProvider>
 ```
 
-All hooks are safe to call from any component (client or server-component children).
+All hooks are safe to call from any client component:
+- Marketing routes use Theme, I18n, Toast, Auth.
+- Workspace routes additionally use WorkspaceState to manage session state (autonomy mode, demo request inbox, lead pipeline).
 
 ### 9.6 Component Reuse: Primitives & UI Library
 
@@ -164,24 +243,27 @@ All hooks are safe to call from any component (client or server-component childr
 
 Cookies are read in the server layout for initial HTML; providers sync them on client-side changes.
 
-### 9.8 Set 1 (Marketing) vs Set 2 (Workspace)
+### 9.8 Set 1 (Marketing) + Set 2 (Workspace) — BOTH LIVE
 
-**Set 1 now live:**
+**Set 1 (Marketing) — Complete:**
 - 11 routes: landing, 9 info pages, login.
 - Base `AV` from `lib/data`.
-- All primitives ported and tested.
-- UI parity with legacy verified (incl. punctuation).
+- All primitives (brand, ui, landing, marketing) ported and tested.
+- UI parity with legacy buildless verified (including punctuation, spacing, colors).
 
-**Set 2 incoming:**
-- 14 workspace screens: overview, rooms, agents, leads, audits, demos, deals, settings, activity, requests, command center, audit detail, etc.
-- Extend `lib/data` with `data2.js`/`data3.js`/`data4.js` logic (typed).
-- Workspace shell layout: Sidebar, TopBar, CommandPalette, scroll-reset, Cmd+K/ESC handlers.
-- Auth-gated via middleware (auto-activated when routes are added).
-- Reuses all Set 1 infrastructure (providers, primitives, theming, i18n, toast, auth).
+**Set 2 (Workspace) — Complete:**
+- 14 authenticated routes: overview, command, rooms (index + detail), agents (index + detail), leads, audits, demos, deals, settings, activity, requests.
+- `lib/data` extended with typed versions of `data2.js`, `data3.js`, `data4.js` (agentDetail, roomProjects, roomTimeline, roomMetrics, REDESIGN templates, SCORE_PROFILES, demos, audits, deals, demoRequests).
+- Workspace shell layout (`app/(workspace)/layout.tsx`): Sidebar, TopBar, CommandPalette, scroll-reset, global keyboard handlers (Cmd/Ctrl+K palette, ESC).
+- WorkspaceStateProvider manages autonomy mode, demo requests inbox, lead pipeline (all persisted to localStorage).
+- Auth-gated via middleware: workspace routes redirect to `/login` if `av-auth` cookie absent.
+- Reuses all Set 1 infrastructure: providers, primitives, theming, i18n, toast, auth.
 
 ---
 
-## LEGACY BUILDLESS ARCHITECTURE (BEING MIGRATED) — See below
+## LEGACY BUILDLESS ARCHITECTURE (RETAINED FOR REFERENCE, NOT USED) — See below
+
+The following sections document the original buildless prototype (`index.html`, `*.jsx`, `*.js`, `styles.css` in repo root) for historical reference. **This code is not loaded by the Next.js app.** It is intentionally retained in the repo for visual review before cleanup.
 
 ---
 
@@ -449,6 +531,5 @@ Agents Verse is a single-page React prototype whose architecture optimizes for *
 
 ## Unresolved Questions
 
-- The buildless prototype (Sections 1–8) is being actively migrated and will be removed after Set 2 reaches parity. Legacy files remain in repo root for reference during the transition.
-- Set 2 will inherit the cookie-SSR render model and context-provider architecture from Set 1. Confirm whether the post-login redirect should go to `/overview` (currently a TODO in `app/login/page.tsx`).
+- Legacy buildless files (root `*.jsx`, `*.js`, `index.html`, `styles.css`) remain in repo for visual review before deletion. Plan cleanup after stakeholder sign-off.
 - `middleware.ts` will be renamed to `proxy.ts` in a future Next.js upgrade (deprecation only; functional as-is).

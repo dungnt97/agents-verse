@@ -77,7 +77,7 @@ export function DemoRequestModal({ open, onClose }: DemoRequestModalProps) {
                 <button className="btn btn-icon btn-ghost focusable" onClick={onClose} style={{ borderColor:'var(--border)', width:32, height:32 }}><Icon name="x" size={16} /></button>
               </div>
               <h2 style={{ fontSize:24, letterSpacing:'-0.03em', marginTop:14, marginBottom:8 }}>See your new website first.</h2>
-              <p style={{ fontSize:14.5, color:'var(--ink-2)', lineHeight:1.5 }}>Tell us about your business. We'll audit your current site and send back a working redesign demo — free, no obligation.</p>
+              <p style={{ fontSize:14.5, color:'var(--ink-2)', lineHeight:1.5 }}>Tell us about your business. We’ll audit your current site and send back a working redesign demo — free, no obligation.</p>
             </div>
             <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:14 }}>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
@@ -110,7 +110,7 @@ export function DemoRequestModal({ open, onClose }: DemoRequestModalProps) {
             <div style={{ width:64, height:64, borderRadius:18, margin:'0 auto 22px', display:'grid', placeItems:'center', background:'var(--success-soft)', color:'var(--success)' }}><Icon name="check" size={32} sw={2.4} /></div>
             <h2 style={{ fontSize:24, letterSpacing:'-0.03em', marginBottom:12 }}>Request received.</h2>
             <p style={{ fontSize:15.5, color:'var(--ink-2)', lineHeight:1.55, maxWidth:380, margin:'0 auto 26px' }}>
-              Our research room is already on it. We'll audit <strong style={{color:'var(--ink)'}}>{f.business||'your site'}</strong> and send a working demo to <strong style={{color:'var(--ink)'}}>{f.email}</strong> within 48 hours.
+              Our research room is already on it. We’ll audit <strong style={{color:'var(--ink)'}}>{f.business||'your site'}</strong> and send a working demo to <strong style={{color:'var(--ink)'}}>{f.email}</strong> within 48 hours.
             </p>
             <button className="btn btn-primary btn-lg" onClick={onClose}>Done</button>
           </div>

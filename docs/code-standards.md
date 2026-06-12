@@ -1,9 +1,9 @@
 # Code Standards — Agents Verse
 
-**Status (June 2026):** Agents Verse is migrating from a buildless prototype to Next.js. This document covers both.
+**Status (June 2026):** Agents Verse has fully migrated to Next.js. The workspace (Set 2) is now live. This document covers:
 
-- **Sections 1–10:** **Legacy buildless** code standards (root `*.jsx`, `index.html` — being migrated away).
-- **Section 11:** **New Next.js (Set 1, live)** code standards (App Router, TypeScript, ESM, providers).
+- **Sections 1–7:** **Next.js code standards (Sets 1 + 2, live)** — App Router, TypeScript, ESM, providers, workspace patterns.
+- **Sections 8+:** **Legacy buildless code standards** (root `*.jsx`, `index.html` — retained for reference, not used).
 
 ## NEXT.JS CODE STANDARDS (SET 1, LIVE) — Start here if building in `app/`, `lib/`, `components/`
 
@@ -57,24 +57,65 @@
 - **Type-check:** Run `npm run typecheck` before commit. Resolve all `tsc` errors.
 - **No test framework currently.** Manual browser testing is the standard. Add tests (Jest/Vitest) if needed, but do not require them in CI.
 
-### Example: Adding a New Page
+### Workspace-Specific Patterns (Set 2)
+
+Workspace screens use `WorkspaceStateProvider` to manage autonomy mode, demo requests, and lead pipeline:
 
 ```tsx
-// app/(workspace)/my-page/page.tsx
+// app/(workspace)/settings/page.tsx
+'use client';
+
+import { useWorkspaceState } from '@/lib/providers/workspace-state';
+import { useI18n } from '@/lib/i18n';
+
+export default function SettingsPage() {
+  const { mode, setMode } = useWorkspaceState();
+  const { t } = useI18n();
+  
+  return (
+    <div>
+      <h1>{t('set.title')}</h1>
+      <label>
+        <input type="radio" value="guarded" checked={mode === 'guarded'} onChange={(e) => setMode(e.target.value)} />
+        {t('set.mode.guarded')}
+      </label>
+    </div>
+  );
+}
+```
+
+### Workspace Shell Integration
+
+The workspace shell (`app/(workspace)/layout.tsx`) wraps all workspace routes. It renders:
+- Sidebar (NAV tree, autonomy selector, status badges)
+- TopBar (breadcrumbs, theme/language toggles, review drawer button)
+- CommandPalette (Cmd/Ctrl+K search)
+- Global keyboard handlers (Escape closes palette and review drawer)
+- Scroll-reset effect on route change
+
+Child routes render inside `<main id="app-scroll">` and inherit all providers.
+
+### Example: Adding a Workspace Detail Route
+
+```tsx
+// app/(workspace)/rooms/[id]/page.tsx
 'use client';
 
 import { useI18n } from '@/lib/i18n';
-import { useToast } from '@/lib/providers/toast';
 import { AV } from '@/lib/data';
+import { useParams } from 'next/navigation';
 
-export default function MyPage() {
+export default function RoomDetailPage() {
+  const params = useParams();
+  const roomId = params.id as string;
+  const room = AV.roomById(roomId) || AV.roomById('design'); // fallback
   const { t } = useI18n();
-  const { pushToast } = useToast();
   
   return (
-    <div style={{ color: 'var(--ink)' }}>
-      <h1>{t('my-page.title')}</h1>
-      <p>Found {AV.agents.length} agents</p>
+    <div>
+      <h1>{room.name}</h1>
+      <p>{room.purpose}</p>
+      {/* Render room projects, agents, timeline, metrics */}
     </div>
   );
 }
@@ -82,7 +123,7 @@ export default function MyPage() {
 
 ---
 
-## LEGACY BUILDLESS CODE STANDARDS — See below (being migrated away)
+## LEGACY BUILDLESS CODE STANDARDS — See below (retained for reference, not used)
 
 These standards describe how the buildless prototype is built. The project is a **buildless single-page app**: there is no bundler, no
 package manager, no compile step, and no test runner. The browser loads CDN React
@@ -370,9 +411,9 @@ Screens that are not yet built should render the existing `ComingSoon` placehold
 
 ## Unresolved Questions
 
-**Next.js (Set 1, live):**
+**Next.js (Sets 1 + 2, live):**
 - Fonts are still loaded via CSS `@import` in `styles/globals.css` (parity with legacy). Migration to `next/font` is optional.
 - `middleware.ts` will be renamed to `proxy.ts` in Next.js 17+. No action needed now; rename when convenient.
 
-**Legacy (buildless, being migrated away):**
-- `INFO_PAGES` (public marketing routes in `pages.jsx`) follow a parallel routing path to the workspace screens. This pattern is now replaced by `app/(marketing)/[slug]/page.tsx` in Set 1; legacy file can be removed after migration.
+**Legacy buildless (retained for reference):**
+- Legacy files in repo root (`*.jsx`, `*.js`, `index.html`, `styles.css`) remain for visual review before cleanup. Plan removal after stakeholder approval.

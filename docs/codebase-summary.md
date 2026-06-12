@@ -171,40 +171,37 @@ Everything hangs off the single global `window.AV`. Core entities:
 | `data3.js` | data | Redesign templates, audit scores, demos |
 | `data4.js` | data | Deals, demo requests |
 
-## Migration Status: Dual-Mode Architecture (Set 1 of 2)
+## Migration Status: FUNCTIONALLY COMPLETE (Dual-Stack, Pending Cleanup)
 
-**As of June 2026, this project is undergoing a managed migration from buildless to Next.js.** The following describes the current state:
+**As of June 2026, the Agents Verse buildless→Next.js migration is functionally complete.** The full app now runs on Next.js; legacy buildless files remain in the repo root **pending visual review and cleanup**.
 
-### Legacy Buildless Prototype (Being Migrated)
-The original **buildless prototype** still exists in the repo root (`*.jsx` / `*.js` / `index.html` / `styles.css`). This is NOT being removed yet and serves as a reference for the migration. See **System Architecture → Section 2 (Buildless)** for its design.
+### Next.js App (Sets 1 + 2 — LIVE)
+**Next.js 16.2.9 + React 19.2.7 + TypeScript** handles all 17 routes (marketing + workspace):
 
-### Next.js App (Set 1 — Live)
-A new **Next.js 16.2.9 + React 19.2.7 + TypeScript** app now lives alongside the legacy files. It is deployed and handles the **marketing surface only**:
+- **Set 1 (Marketing, live):** 11 routes: `/` (landing), `/(marketing)/[slug]` (9 info pages), `/login`.
+- **Set 2 (Workspace, live):** 14 routes: `/overview`, `/command`, `/rooms`, `/rooms/[id]`, `/agents`, `/agents/[id]`, `/leads`, `/audits`, `/demos`, `/deals`, `/settings`, `/activity`, `/requests` (detail/initial-lead via `?lead=` query).
+- **Render model:** Cookie-SSR (root layout reads `av-theme`, `av-lang`, `av-auth` cookies on server → no flash). All routes are dynamic (`ƒ`).
+- **Auth gate:** `middleware.ts` protects workspace routes; unauthenticated users redirect to `/login`.
+- **Data layer:** `lib/data/` includes base `AV` (rooms, agents, leads, metrics, escalations, activity) + extended helpers (`agentDetail`, `roomProjects`, `roomTimeline`, `roomMetrics`, demos, audits, deals, demoRequests).
+- **Workspace shell:** `app/(workspace)/layout.tsx` wires Sidebar, TopBar, CommandPalette, scroll-reset, and global keyboard handlers (Cmd/Ctrl+K palette, Escape).
+- **State management:** `WorkspaceStateProvider` manages mode (autonomy), requests (demo inbox), and leads (pipeline), seeded from extended `lib/data` and persisted to localStorage (`av-mode`, `av-requests`, `av-leads`).
 
-- **Routes:** `/` (landing), `/(marketing)/[slug]` (9 info pages: about, careers, contact, cases, guarantees, privacy, terms, security, status), `/login`.
-- **Marketing frame:** Shared chrome (header, footer, theme, language, i18n) via `MarketingFrame` component.
-- **Chat widget & demo request modal:** Present on all marketing routes.
-- **Data:** `lib/data/` ports only the base `AV` from `data.js` (rooms, agents, leads, metrics, escalations, activity, helpers). Extended data (`data2.js`/`data3.js`/`data4.js`) is **Set 2**.
-- **Render model:** Cookie-SSR (root layout reads `av-theme`/`av-lang`/`av-auth` cookies on server → no flash-of-unstyled). Deploy target = Node/edge (Vercel/Netlify), not static export.
-- **Auth gate:** `middleware.ts` gates future workspace routes (`/overview`, `/rooms`, `/agents`, etc.) → redirects to `/login` if `av-auth` cookie absent.
-
-### Set 2 (Pending)
-The **workspace screens** (14 routes: floor overview, command center, rooms, agents, pipeline, audits, demos, deals, settings, activity, requests) will be added in Set 2. They will reuse all Set 1 infrastructure: providers, primitives, theme, i18n, auth, and toast system. Load data from extended `lib/data` (types for `data2.js`/`data3.js`/`data4.js`).
+### Legacy Buildless Files (Retained, Not Removed)
+The original buildless prototype (`index.html`, `*.jsx`, `*.js`, `styles.css` in repo root) **still exists** as a complete reference. It is not loaded by the Next.js app and is intentionally retained in git history for visual review before deletion. **Do not use or modify**; the codebase is now Next.js-first.
 
 ### Build-out Status
-**Set 1 (marketing) — Complete.** `tsc` + lint + `next build` pass; 11 routes live; UI parity verified.
+**Set 1 (marketing) — Complete.** 11 routes live; `tsc` + lint + `next build` pass.
+**Set 2 (workspace) — Complete.** 14 routes live; all workspace screens operational (14 total: overview, command, rooms detail, agents detail, leads pipeline, audits, demos, deals, settings, activity, requests, + 2 layout routes).
 
-**Set 2 (workspace) — Pending.** Will inherit providers, middleware, auth gate, and all primitives from Set 1. See `plans/260612-1638-agents-verse-nextjs-marketing/set-1-to-set-2-seams-and-deviations.md`.
-
-**Mock-only / known gaps:**
-- No backend — all data lives in `window.AV` (buildless) or `lib/data` types (Next.js); mutations are local state or `localStorage` only. No fetch/API integration.
+**Known gaps (mock-only, expected):**
+- No backend — all data is `lib/data` types (Next.js); mutations are local state or `localStorage` only.
 - Outreach/reply/demo "send" actions trigger toast callbacks, not real sends.
 - Chat widget is static rule-based (`setTimeout`), not streaming AI.
 - Demo URLs are placeholders (e.g. `demo.agentsverse.ai/[leadId]`).
 - Agent history/outputs are richly seeded only for a couple of roles; others fall back to defaults.
 - No per-agent real-time spend tracking; settings expose config only.
 - Production timelines and `demoRequests` lifecycles are partially seeded, not fully interactive.
-- No automated test framework in the repo; linting and type-checking are optional (no CI enforced).
+- No automated test framework; linting and type-checking pre-commit (no CI enforced).
 
 ## Unresolved Questions
 

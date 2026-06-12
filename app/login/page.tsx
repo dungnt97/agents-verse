@@ -18,8 +18,7 @@ export default function LoginPage() {
     <LoginScreen
       onLogin={(email) => {
         login(email);
-        // TODO: change post-login target to /overview once workspace routes are migrated
-        router.push('/');
+        router.push('/overview');
       }}
       onBack={() => router.push('/')}
     />

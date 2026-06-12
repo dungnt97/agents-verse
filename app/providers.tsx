@@ -5,6 +5,7 @@ import { ThemeProvider, type Theme } from '@/lib/providers/theme-provider';
 import { I18nProvider, type Lang } from '@/lib/i18n';
 import { ToastProvider } from '@/lib/providers/toast-provider';
 import { AuthProvider } from '@/lib/providers/auth-provider';
+import { WorkspaceStateProvider } from '@/lib/providers/workspace-state-provider';
 
 // Client provider stack seeded from server-read cookie values so client hydration matches
 // the server-rendered theme/language/auth state exactly.
@@ -26,7 +27,9 @@ export function Providers({
     <ThemeProvider initialTheme={theme}>
       <I18nProvider initialLang={lang}>
         <AuthProvider initialAuthed={initialAuthed} initialUser={initialUser}>
-          <ToastProvider>{children}</ToastProvider>
+          <WorkspaceStateProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </WorkspaceStateProvider>
         </AuthProvider>
       </I18nProvider>
     </ThemeProvider>
