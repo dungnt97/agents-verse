@@ -17,6 +17,7 @@ import { CountUp } from '@/components/ui/count-up';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { FloorMap } from '@/components/floor-map';
 import { LangToggle, useI18n } from '@/lib/i18n';
+import { useLandingInfoT } from '@/lib/i18n/keys/landing-info';
 
 /* ---- Fixed top navigation ---- */
 interface LandingNavProps {
@@ -90,6 +91,13 @@ export function FloatCard({ icon, iconColor, iconBg, title, sub, badge, badgeCls
 
 /* ---- Hero product visual — floor screen + floating cards ---- */
 export function HeroVisual() {
+  const { t } = useLandingInfoT();
+  const metrics: [string, string][] = [
+    [t('land.metricScanned'), '148'],
+    [t('land.metricDemos'),   '12'],
+    [t('land.metricReplies'), '7'],
+    [t('land.metricForecast'),'$8.4k'],
+  ];
   return (
     <div style={{ position: 'relative', width: '100%', minHeight: 520 }}>
       {/* glow */}
@@ -106,13 +114,13 @@ export function HeroVisual() {
             <span style={{ width: 9, height: 9, borderRadius: 99, background: 'var(--border-strong)' }} />
             <span style={{ width: 9, height: 9, borderRadius: 99, background: 'var(--border-strong)' }} />
           </div>
-          <span className="row" style={{ gap: 7, fontSize: 12, color: 'var(--ink-3)' }}><Logo size={16} mono /> <span className="mono">Floor Overview</span></span>
-          <span className="row" style={{ gap: 6, fontSize: 11.5, color: 'var(--ink-3)' }}><span className="pulse" /> 17 online</span>
+          <span className="row" style={{ gap: 7, fontSize: 12, color: 'var(--ink-3)' }}><Logo size={16} mono /> <span className="mono">{t('land.floorOverview')}</span></span>
+          <span className="row" style={{ gap: 6, fontSize: 11.5, color: 'var(--ink-3)' }}><span className="pulse" /> 17 {t('land.online')}</span>
         </div>
         <div style={{ padding: 16 }}>
           {/* mini metric strip */}
           <div className="row" style={{ gap: 8, marginBottom: 14 }}>
-            {[['Scanned','148'],['Demos','12'],['Replies','7'],['Forecast','$8.4k']].map(([l,v],i)=>(
+            {metrics.map(([l, v], i) => (
               <div key={i} style={{ flex: 1, padding: '8px 11px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 10, color: 'var(--ink-3)', marginBottom: 2 }}>{l}</div>
                 <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.02em' }} className="tabular">{v}</div>
@@ -125,13 +133,13 @@ export function HeroVisual() {
 
       {/* floating cards */}
       <FloatCard icon="layers" iconColor="var(--primary)" iconBg="var(--primary-soft)"
-        title="Demo generated" sub="Lumi Spa Studio · 41 → 92" badge="Approved" badgeCls="badge-success"
+        title={t('land.cardDemoTitle')} sub={t('land.cardDemoSub')} badge={t('land.cardApproved')} badgeCls="badge-success"
         style={{ position: 'absolute', left: -28, top: 150, zIndex: 3, width: 248 }} delay={0} />
       <FloatCard icon="activity" iconColor="var(--info)" iconBg="var(--info-soft)"
-        title="Client replied" sub="Nova Realty Group · interested" badge="New" badgeCls="badge-info"
+        title={t('land.cardReplyTitle')} sub={t('land.cardReplySub')} badge={t('land.cardNew')} badgeCls="badge-info"
         style={{ position: 'absolute', right: -22, top: 70, zIndex: 3, width: 250 }} delay={1.4} />
       <FloatCard icon="user" iconColor="var(--warning)" iconBg="var(--warning-soft)"
-        title="Founder review required" sub="Deal above approval threshold" badge="$5.2k" badgeCls="badge-warning"
+        title={t('land.cardFounderTitle')} sub={t('land.cardFounderSub')} badge="$5.2k" badgeCls="badge-warning"
         style={{ position: 'absolute', right: 10, bottom: 18, zIndex: 3, width: 252 }} delay={2.6} />
     </div>
   );

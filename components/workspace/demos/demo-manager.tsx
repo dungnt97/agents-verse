@@ -7,13 +7,14 @@
 
 import { useState } from 'react';
 import { Icon } from '@/components/brand/icon';
+import { CountUp } from '@/components/ui/count-up';
 import { AgentAvatar, AvatarStack } from '@/components/ui/agent-avatar';
 import { SiteMock, NewSite } from '@/components/site-mock';
 import { useI18n } from '@/lib/i18n/i18n-provider';
 import { AV } from '@/lib/data';
 import type { Demo } from '@/lib/data/types';
 
-/* ---- OverviewBand (local — matches rooms.jsx:5 verbatim) ---- */
+/* ---- OverviewBand (local) — value via CountUp (rounds, ignores prefix), like the shared original ---- */
 
 interface BandItem {
   label: string;
@@ -35,7 +36,7 @@ function OverviewBand({ items }: { items: BandItem[] }) {
             <span style={{ fontSize:12, color:'var(--ink-3)', fontWeight:500 }}>{it.label}</span>
           </div>
           <div style={{ fontSize:24, fontWeight:600, letterSpacing:'-0.03em' }}>
-            {it.prefix||''}{it.value.toLocaleString('en-US')}{it.suffix||''}
+            <CountUp end={it.value} suffix={it.suffix || ''} />
           </div>
         </div>
       ))}
@@ -115,22 +116,23 @@ function DemoCard({ d, onOpen, onAction }: { d: Demo; onOpen: (id: string) => vo
 /* ---- DemoDrawer ---- */
 
 function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => void; onAction: (msg: string, kind?: string) => void }) {
+  const { t } = useI18n();
   const d = demo;
   const hue = AV.hueFor(d.industry);
   const first = d.business.split(' ')[0];
 
   /* Outreach tone variants — body text for each tone */
   const tones: Record<string, string> = {
-    Friendly: d.outreach.body,
-    Premium:  `Hi ${first} team — we took the liberty of rebuilding your homepage as a working concept. It's fast, refined and built to convert. No charge, no obligation — we'd genuinely value your eye on it.`,
-    Direct:   `Hi ${first} team — we rebuilt your homepage. It loads faster, works on mobile, and drives more enquiries. Live demo inside. Worth two minutes?`,
-    Local:    `Hi ${first} team — we're local and we rebuilt your ${d.city} homepage as a free working demo. Mobile-ready and easy for your customers. Mind taking a look?`,
+    [t('demos.toneFriendly')]: d.outreach.body,
+    [t('demos.tonePremium')]:  `Hi ${first} team — we took the liberty of rebuilding your homepage as a working concept. It's fast, refined and built to convert. No charge, no obligation — we'd genuinely value your eye on it.`,
+    [t('demos.toneDirect')]:   `Hi ${first} team — we rebuilt your homepage. It loads faster, works on mobile, and drives more enquiries. Live demo inside. Worth two minutes?`,
+    [t('demos.toneLocal')]:    `Hi ${first} team — we're local and we rebuilt your ${d.city} homepage as a free working demo. Mobile-ready and easy for your customers. Mind taking a look?`,
   };
 
-  const [tone, setTone] = useState('Friendly');
-  const [body, setBody] = useState(tones.Friendly);
+  const [tone, setTone] = useState(t('demos.toneFriendly'));
+  const [body, setBody] = useState(tones[t('demos.toneFriendly')]);
 
-  const pickTone = (t: string) => { setTone(t); setBody(tones[t]); };
+  const pickTone = (tk: string) => { setTone(tk); setBody(tones[tk]); };
   const checks = Object.entries(d.checklist);
   const passed = checks.filter(([, v]) => v).length;
 
@@ -160,14 +162,14 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:10 }}>
             <div>
               <div className="row between" style={{ marginBottom:8 }}>
-                <span className="eyebrow" style={{color:'var(--ink-3)'}}>Before</span>
+                <span className="eyebrow" style={{color:'var(--ink-3)'}}>{t('demos.sectionBefore')}</span>
                 <span className="badge badge-danger" style={{height:20}}>{d.oldScore}</span>
               </div>
               <SiteMock variant="old" hue={hue} chrome={false} ratio="64%" />
             </div>
             <div>
               <div className="row between" style={{ marginBottom:8 }}>
-                <span className="eyebrow" style={{color:'var(--primary)'}}>After</span>
+                <span className="eyebrow" style={{color:'var(--primary)'}}>{t('demos.sectionAfter')}</span>
                 <span className="badge badge-success" style={{height:20}}>{d.newScore}</span>
               </div>
               <SiteMock variant="new" hue={hue} chrome={false} ratio="64%" />
@@ -175,17 +177,17 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
           </div>
           <div className="row between" style={{ padding:'10px 14px', borderRadius:11, background:'var(--success-soft)', marginBottom:20 }}>
             <span className="row" style={{ gap:8, fontSize:13, color:'var(--ink)', fontWeight:600 }}>
-              <Icon name="arrowUR" size={15} style={{color:'var(--success)'}}/> +{d.newScore-d.oldScore} point lift in conversion potential
+              <Icon name="arrowUR" size={15} style={{color:'var(--success)'}}/> +{d.newScore-d.oldScore} {t('demos.liftSuffix')}
             </span>
             <button className="btn btn-soft btn-sm" onClick={() => onAction('Opened live demo · '+d.business)}>
-              Open demo <Icon name="external" size={13}/>
+              {t('demos.btnOpenDemo')} <Icon name="external" size={13}/>
             </button>
           </div>
 
           {/* Key changes + checklist */}
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:18, marginBottom:20 }}>
             <div>
-              <h3 style={{ fontSize:14, marginBottom:12 }}>Key redesign changes</h3>
+              <h3 style={{ fontSize:14, marginBottom:12 }}>{t('demos.sectionKeyChanges')}</h3>
               <div className="col" style={{ gap:9 }}>
                 {d.changes.map((c, i) => (
                   <div key={i} className="row" style={{ gap:10, alignItems:'flex-start' }}>
@@ -197,7 +199,7 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
             </div>
             <div>
               <div className="row between" style={{ marginBottom:12 }}>
-                <h3 style={{ fontSize:14 }}>Quality checklist</h3>
+                <h3 style={{ fontSize:14 }}>{t('demos.sectionChecklist')}</h3>
                 <span className="mono" style={{ fontSize:11.5, color: passed===checks.length ? 'var(--success)' : 'var(--warning)' }}>
                   {passed}/{checks.length}
                 </span>
@@ -228,15 +230,15 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
           </div>
 
           {/* Outreach */}
-          <h3 style={{ fontSize:14, marginBottom:12 }}>Outreach message</h3>
+          <h3 style={{ fontSize:14, marginBottom:12 }}>{t('demos.sectionOutreach')}</h3>
           <div className="row" style={{ gap:7, marginBottom:12, flexWrap:'wrap' }}>
-            {Object.keys(tones).map(t => (
-              <button key={t} className={'chip'+(tone===t?' active':'')} onClick={() => pickTone(t)} style={{ height:30 }}>{t}</button>
+            {Object.keys(tones).map(tk => (
+              <button key={tk} className={'chip'+(tone===tk?' active':'')} onClick={() => pickTone(tk)} style={{ height:30 }}>{tk}</button>
             ))}
           </div>
           <div style={{ border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
             <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border-soft)', fontSize:13 }}>
-              <span style={{ color:'var(--ink-3)' }}>Subject: </span>
+              <span style={{ color:'var(--ink-3)' }}>{t('demos.subjectLabel')}</span>
               <span style={{ fontWeight:600 }}>{d.outreach.subject}</span>
             </div>
             <textarea value={body} onChange={e => setBody(e.target.value)} rows={4}
@@ -247,7 +249,7 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
                 <Icon name="globe" size={13}/> {d.demoUrl}
               </span>
               <span className="row" style={{ gap:6, fontSize:11.5, color:'var(--success)', marginLeft:'auto' }}>
-                <Icon name="shield" size={13}/> Within outreach guardrails
+                <Icon name="shield" size={13}/> {t('demos.guardrail')}
               </span>
             </div>
           </div>
@@ -255,15 +257,15 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
 
         {/* Footer actions */}
         <div className="row" style={{ gap:10, padding:'14px 20px', borderTop:'1px solid var(--border)', flex:'none', flexWrap:'wrap' }}>
-          {d.status==='review'   && <button className="btn btn-primary grow" onClick={() => onAction('Demo approved · '+d.business,'success')}><Icon name="check" size={16}/> Approve demo</button>}
-          {d.status==='approved' && <button className="btn btn-primary grow" onClick={() => onAction('Outreach prepared · '+d.business,'success')}><Icon name="send" size={15}/> Prepare outreach</button>}
-          {(d.status==='sent'||d.status==='replied') && <button className="btn btn-primary grow" onClick={() => onAction('Reply handling opened · '+d.business)}>Handle reply</button>}
-          {d.status==='won'      && <button className="btn btn-primary grow" onClick={() => onAction('Production started · '+d.business,'success')}>Start production</button>}
-          {d.status==='draft'    && <button className="btn btn-primary grow" onClick={() => onAction('Sent for review · '+d.business,'success')}>Send for review</button>}
+          {d.status==='review'   && <button className="btn btn-primary grow" onClick={() => onAction('Demo approved · '+d.business,'success')}><Icon name="check" size={16}/> {t('demos.btnApprove')}</button>}
+          {d.status==='approved' && <button className="btn btn-primary grow" onClick={() => onAction('Outreach prepared · '+d.business,'success')}><Icon name="send" size={15}/> {t('demos.btnPrepareOutreach')}</button>}
+          {(d.status==='sent'||d.status==='replied') && <button className="btn btn-primary grow" onClick={() => onAction('Reply handling opened · '+d.business)}>{t('demos.btnHandleReply')}</button>}
+          {d.status==='won'      && <button className="btn btn-primary grow" onClick={() => onAction('Production started · '+d.business,'success')}>{t('demos.btnStartProduction')}</button>}
+          {d.status==='draft'    && <button className="btn btn-primary grow" onClick={() => onAction('Sent for review · '+d.business,'success')}>{t('demos.btnSendReview')}</button>}
           <button className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Improvement requested')}>
-            <Icon name="spark" size={15}/> Improve with AI
+            <Icon name="spark" size={15}/> {t('demos.btnImproveAI')}
           </button>
-          <button className="btn btn-soft" onClick={() => onAction('Demo link copied','success')}>Copy link</button>
+          <button className="btn btn-soft" onClick={() => onAction('Demo link copied','success')}>{t('demos.btnCopyLink')}</button>
         </div>
       </div>
     </>
@@ -285,14 +287,38 @@ export function DemoManager({ initialLead, onAction }: DemoManagerProps) {
   // Open demo-<leadId> if initialLead supplied, else null
   const [open, setOpen] = useState<string | null>(initialLead ? ('demo-'+initialLead) : null);
 
-  const STAT = ['All','Needs review','Approved','Sent','Client replied','Won'];
-  const matchStat = (d: Demo) => status === 'All' || d.statusLabel === status;
-  const industries = ['All industries', ...Array.from(new Set(AV.demos.map(d => d.industry)))];
+  const STAT = [
+    t('demos.fAll'),
+    t('demos.fNeedsReview'),
+    t('demos.fApproved'),
+    t('demos.fSent'),
+    t('demos.fReplied'),
+    t('demos.fWon'),
+  ];
+
+  // Status matching uses English status labels from data (d.statusLabel is data, not chrome)
+  const EN_STAT_MAP: Record<string, string> = {
+    [t('demos.fAll')]:         'All',
+    [t('demos.fNeedsReview')]: 'Needs review',
+    [t('demos.fApproved')]:    'Approved',
+    [t('demos.fSent')]:        'Sent',
+    [t('demos.fReplied')]:     'Client replied',
+    [t('demos.fWon')]:         'Won',
+  };
+
+  const matchStat = (d: Demo) => {
+    const enStatus = EN_STAT_MAP[status] ?? status;
+    return enStatus === 'All' || d.statusLabel === enStatus;
+  };
+
+  const industries = [t('demos.fAll') === status ? ind : ind, ...Array.from(new Set(AV.demos.map(d => d.industry)))];
+  const allIndustriesLabel = 'All industries';
+  const industryList = [allIndustriesLabel, ...Array.from(new Set(AV.demos.map(d => d.industry)))];
 
   const list = AV.demos.filter(d =>
     d.business.toLowerCase().includes(q.toLowerCase()) &&
     matchStat(d) &&
-    (ind === 'All industries' || d.industry === ind)
+    (ind === allIndustriesLabel || d.industry === ind)
   );
 
   const counts = {
@@ -314,18 +340,18 @@ export function DemoManager({ initialLead, onAction }: DemoManagerProps) {
       </div>
 
       <OverviewBand items={[
-        { label:'Total demos',  value:counts.total,  icon:'layers' },
-        { label:'Need review',  value:counts.review, icon:'alert',  accent:'var(--warning)' },
-        { label:'Sent',         value:counts.sent,   icon:'send',   accent:'var(--info)' },
-        { label:'Won',          value:counts.won,    icon:'deals',  accent:'var(--success)' },
-        { label:'Avg lift',     value:51, suffix:' pts', icon:'arrowUR', accent:'var(--success)' },
-        { label:'Pipeline',     value:23.7, prefix:'$', suffix:'k', icon:'dollar' },
+        { label:t('demos.mTotal'),    value:counts.total,  icon:'layers' },
+        { label:t('demos.mReview'),   value:counts.review, icon:'alert',  accent:'var(--warning)' },
+        { label:t('demos.mSent'),     value:counts.sent,   icon:'send',   accent:'var(--info)' },
+        { label:t('demos.mWon'),      value:counts.won,    icon:'deals',  accent:'var(--success)' },
+        { label:t('demos.mAvgLift'),  value:51, suffix:' pts', icon:'arrowUR', accent:'var(--success)' },
+        { label:t('demos.mPipeline'), value:23.7, prefix:'$', suffix:'k', icon:'dollar' },
       ]} />
 
       <div className="row wrap" style={{ gap:10, marginBottom:20 }}>
         <div className="row" style={{ gap:9, height:38, padding:'0 13px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', width:230, maxWidth:'70vw' }}>
           <Icon name="search" size={16} style={{ color:'var(--ink-3)' }} />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search business…"
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder={t('demos.searchPlaceholder')}
             style={{ border:'none', outline:'none', background:'transparent', fontSize:13.5, width:'100%', color:'var(--ink)' }} />
         </div>
         <div className="row" style={{ gap:6, flexWrap:'wrap' }}>
@@ -335,12 +361,12 @@ export function DemoManager({ initialLead, onAction }: DemoManagerProps) {
         </div>
         <select value={ind} onChange={e => setInd(e.target.value)} className="focusable"
           style={{ height:38, padding:'0 12px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', fontSize:13.5, color:'var(--ink)', fontWeight:500, marginLeft:'auto' }}>
-          {industries.map(o => <option key={o}>{o}</option>)}
+          {industryList.map(o => <option key={o}>{o}</option>)}
         </select>
       </div>
 
       {list.length === 0
-        ? <EmptyState icon="layers" title="No demos match" sub="Try a different status or search term." />
+        ? <EmptyState icon="layers" title={t('demos.emptyTitle')} sub={t('demos.emptySub')} />
         : (
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:18 }}>
             {list.map(d => <DemoCard key={d.id} d={d} onOpen={id => setOpen(id)} onAction={onAction} />)}

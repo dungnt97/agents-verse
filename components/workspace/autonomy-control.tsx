@@ -8,31 +8,48 @@
 import { useState } from 'react';
 import { Icon } from '@/components/brand/icon';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
+import { useI18n } from '@/lib/i18n/i18n-provider';
 
-/* Verbatim constant from app-shell.jsx */
+/* Stable IDs for each mode; labels/desc resolved via t() at render time */
 export const AUTONOMY = [
-  { id: 'manual',  label: 'Manual',                  short: 'Manual',           desc: 'AI suggests. You approve every action.' },
-  { id: 'review',  label: 'Review before action',    short: 'Review first',     desc: 'AI prepares work. You approve anything external.' },
-  { id: 'guarded', label: 'Autonomous + guardrails', short: 'Guardrailed',      desc: 'AI completes low-risk work. You approve risk.' },
-  { id: 'full',    label: 'Fully autonomous',        short: 'Fully autonomous', desc: 'AI acts within rules. Escalates critical issues.' },
-];
+  { id: 'manual' },
+  { id: 'review' },
+  { id: 'guarded' },
+  { id: 'full' },
+] as const;
+
+export type AutonomyId = typeof AUTONOMY[number]['id'];
 
 export function AutonomyControl() {
   const { mode, setMode } = useWorkspaceState();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const cur = AUTONOMY.find(a => a.id === mode) ?? AUTONOMY[2];
+
+  /* Resolve display strings via i18n at render time */
+  function label(id: string) {
+    return t(`shell.autonomy${id.charAt(0).toUpperCase() + id.slice(1)}Label` as never);
+  }
+  function short(id: string) {
+    return t(`shell.autonomy${id.charAt(0).toUpperCase() + id.slice(1)}Short` as never);
+  }
+  function desc(id: string) {
+    return t(`shell.autonomy${id.charAt(0).toUpperCase() + id.slice(1)}Desc` as never);
+  }
+
   const idx = AUTONOMY.findIndex(a => a.id === mode);
+  const curShort = short(mode ?? 'guarded');
+
   return (
     <div style={{ position: 'relative' }}>
       <button onClick={() => setOpen(o => !o)} className="focusable" style={{ width: '100%', textAlign: 'left',
         padding: '11px 12px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface-elev)', boxShadow: 'var(--sh-xs)' }}>
         <div className="row between" style={{ marginBottom: 9 }}>
-          <span className="eyebrow" style={{ fontSize: 10 }}>Autonomy</span>
+          <span className="eyebrow" style={{ fontSize: 10 }}>{t('shell.autonomy')}</span>
           <Icon name="chevD" size={13} style={{ color: 'var(--ink-3)', transform: open ? 'rotate(180deg)' : 'none', transition: '.2s' }} />
         </div>
         <div className="row" style={{ gap: 8 }}>
           <span className="pulse" style={{ background: 'var(--primary)' }} />
-          <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{cur.short}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>{curShort}</span>
         </div>
         <div className="row" style={{ gap: 3, marginTop: 9 }}>
           {AUTONOMY.map((a, i) => (
@@ -50,10 +67,10 @@ export function AutonomyControl() {
                 onMouseEnter={e => { if (a.id !== mode) (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-muted)'; }}
                 onMouseLeave={e => { if (a.id !== mode) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
                 <div className="row between">
-                  <span style={{ fontSize: 13, fontWeight: 600, color: a.id === mode ? 'var(--primary)' : 'var(--ink)' }}>{a.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: a.id === mode ? 'var(--primary)' : 'var(--ink)' }}>{label(a.id)}</span>
                   {a.id === mode && <Icon name="check" size={14} style={{ color: 'var(--primary)' }} />}
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 2, lineHeight: 1.35 }}>{a.desc}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 2, lineHeight: 1.35 }}>{desc(a.id)}</div>
               </button>
             ))}
           </div>

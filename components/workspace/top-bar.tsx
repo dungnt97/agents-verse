@@ -21,7 +21,7 @@ import { AV } from '@/lib/data';
 /* Build breadcrumb label array from a pathname like /rooms/design.
    Rule: first crumb is always "Agents Verse"; subsequent crumbs come from
    ROUTE_META; dynamic [id] segments resolve to entity name if available. */
-function buildCrumbs(pathname: string): string[] {
+function buildCrumbs(pathname: string, t: (k: string) => string): string[] {
   const parts = pathname.split('/').filter(Boolean);
   if (parts.length === 0) return ['Agents Verse'];
 
@@ -30,7 +30,11 @@ function buildCrumbs(pathname: string): string[] {
     const seg = parts[i];
     const meta = ROUTE_META[seg];
     if (meta) {
-      crumbs.push(meta.label);
+      // Route labels are localized via the existing app.* keys (sidebar nav uses the same);
+      // fall back to the English ROUTE_META label if a key is missing.
+      const k = 'app.' + seg;
+      const tr = t(k);
+      crumbs.push(tr !== k ? tr : meta.label);
     } else {
       // Attempt to resolve dynamic [id] segments using AV data helpers
       const parent = parts[i - 1];
@@ -59,7 +63,7 @@ export function TopBar({ onSearch, onReview, onMenu }: TopBarProps) {
   const { t } = useI18n();
   const { mode } = useWorkspaceState();
   const pathname = usePathname();
-  const crumbs = buildCrumbs(pathname);
+  const crumbs = buildCrumbs(pathname, t);
   /* cur kept for parity with app-shell.jsx — available for future use */
   const _cur = AUTONOMY.find(a => a.id === mode);
 

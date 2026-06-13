@@ -10,25 +10,9 @@
 import { useState } from 'react';
 import { Icon } from '@/components/brand/icon';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
-import { useI18n } from '@/lib/i18n';
+import { useI18n } from '@/lib/i18n/i18n-provider';
 import { AV } from '@/lib/data';
 import type { ToastKind } from '@/lib/providers/toast-provider';
-
-/* -------------------------------------------------------------------------
-   Type-dot color map — verbatim from activity.jsx:5-15
-   ------------------------------------------------------------------------- */
-
-const ACT_TYPE: Record<string, { label: string; icon: string; color: string }> = {
-  lead:       { label: 'Lead',       icon: 'leads',    color: 'var(--info)'    },
-  audit:      { label: 'Audit',      icon: 'audits',   color: 'var(--info)'    },
-  demo:       { label: 'Demo',       icon: 'layers',   color: 'var(--violet)'  },
-  outreach:   { label: 'Outreach',   icon: 'send',     color: 'var(--primary)' },
-  reply:      { label: 'Reply',      icon: 'activity', color: 'var(--success)' },
-  deal:       { label: 'Deal',       icon: 'deals',    color: 'var(--success)' },
-  escalate:   { label: 'Escalation', icon: 'alert',    color: 'var(--danger)'  },
-  cost:       { label: 'Cost',       icon: 'dollar',   color: 'var(--warning)' },
-  production: { label: 'Production', icon: 'bolt',     color: 'var(--primary)' },
-};
 
 /* -------------------------------------------------------------------------
    Prop types
@@ -47,12 +31,38 @@ export interface ActivityScreenProps {
 export function ActivityScreen({ onAction, goAgent, goRoom }: ActivityScreenProps) {
   const { t } = useI18n();
 
+  /* ACT_TYPE: labels resolved via t() so badges switch language at runtime.
+     The map is rebuilt inside the component so t() is in scope. */
+  const ACT_TYPE: Record<string, { label: string; icon: string; color: string }> = {
+    lead:       { label: t('act.typeLead'),       icon: 'leads',    color: 'var(--info)'    },
+    audit:      { label: t('act.typeAudit'),      icon: 'audits',   color: 'var(--info)'    },
+    demo:       { label: t('act.typeDemo'),       icon: 'layers',   color: 'var(--violet)'  },
+    outreach:   { label: t('act.typeOutreach'),   icon: 'send',     color: 'var(--primary)' },
+    reply:      { label: t('act.typeReply'),      icon: 'activity', color: 'var(--success)' },
+    deal:       { label: t('act.typeDeal'),       icon: 'deals',    color: 'var(--success)' },
+    escalate:   { label: t('act.typeEscalation'), icon: 'alert',    color: 'var(--danger)'  },
+    cost:       { label: t('act.typeCost'),       icon: 'dollar',   color: 'var(--warning)' },
+    production: { label: t('act.typeProduction'), icon: 'bolt',     color: 'var(--primary)' },
+  };
+
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('All');
 
-  const filters = ['All', 'Leads', 'Demos', 'Outreach', 'Replies', 'Deals', 'Escalations', 'Cost', 'Production'];
+  /* Filter labels keyed to stable internal IDs so FMAP lookup stays correct
+     regardless of translated display label. */
+  const FILTERS: { key: string; label: string }[] = [
+    { key: 'All',         label: t('act.filterAll')         },
+    { key: 'Leads',       label: t('act.filterLeads')       },
+    { key: 'Demos',       label: t('act.filterDemos')       },
+    { key: 'Outreach',    label: t('act.filterOutreach')    },
+    { key: 'Replies',     label: t('act.filterReplies')     },
+    { key: 'Deals',       label: t('act.filterDeals')       },
+    { key: 'Escalations', label: t('act.filterEscalations') },
+    { key: 'Cost',        label: t('act.filterCost')        },
+    { key: 'Production',  label: t('act.filterProduction')  },
+  ];
 
-  // Maps filter label → activity type key — verbatim from activity.jsx:21
+  // Maps filter key → activity type key — verbatim from activity.jsx:21
   const FMAP: Record<string, string> = {
     Leads: 'lead', Demos: 'demo', Outreach: 'outreach',
     Replies: 'reply', Deals: 'deal', Escalations: 'escalate',
@@ -89,24 +99,24 @@ export function ActivityScreen({ onAction, goAgent, goRoom }: ActivityScreenProp
           style={{ borderColor: 'var(--border)' }}
           onClick={() => onAction('Activity exported')}
         >
-          <Icon name="doc" size={16} /> Export log
+          <Icon name="doc" size={16} /> {t('act.exportLog')}
         </button>
       </div>
 
       {/* Filter chips + search */}
       <div className="row between wrap" style={{ gap: 12, marginBottom: 22 }}>
         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-          {filters.map(f => {
-            const typeKey = FMAP[f];
-            const c = f === 'All' ? AV.activity.length : (counts[typeKey] || 0);
+          {FILTERS.map(f => {
+            const typeKey = FMAP[f.key];
+            const c = f.key === 'All' ? AV.activity.length : (counts[typeKey] || 0);
             return (
               <button
-                key={f}
-                className={'chip' + (filter === f ? ' active' : '')}
-                onClick={() => setFilter(f)}
+                key={f.key}
+                className={'chip' + (filter === f.key ? ' active' : '')}
+                onClick={() => setFilter(f.key)}
                 style={{ height: 34 }}
               >
-                {f}<span className="mono" style={{ fontSize: 11, opacity: 0.7, marginLeft: 2 }}>{c}</span>
+                {f.label}<span className="mono" style={{ fontSize: 11, opacity: 0.7, marginLeft: 2 }}>{c}</span>
               </button>
             );
           })}
@@ -116,7 +126,7 @@ export function ActivityScreen({ onAction, goAgent, goRoom }: ActivityScreenProp
           <input
             value={q}
             onChange={e => setQ(e.target.value)}
-            placeholder="Search activity…"
+            placeholder={t('act.searchPlaceholder')}
             style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13.5, width: '100%', color: 'var(--ink)' }}
           />
         </div>
@@ -129,15 +139,15 @@ export function ActivityScreen({ onAction, goAgent, goRoom }: ActivityScreenProp
             <span style={{ width: 52, height: 52, borderRadius: 14, display: 'grid', placeItems: 'center', background: 'var(--surface-muted)', color: 'var(--ink-3)', marginBottom: 16 }}>
               <Icon name="activity" size={24} />
             </span>
-            <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>No activity</div>
+            <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>{t('act.noActivity')}</div>
             <p style={{ fontSize: 14, color: 'var(--ink-3)', maxWidth: 340, lineHeight: 1.45 }}>
-              Nothing matches this filter yet. Events stream in as your agents work.
+              {t('act.noActivityDesc')}
             </p>
           </div>
         )
         : (
           <div className="card" style={{ padding: '8px 22px' }}>
-            <div className="eyebrow" style={{ padding: '14px 0 6px' }}>Today</div>
+            <div className="eyebrow" style={{ padding: '14px 0 6px' }}>{t('act.today')}</div>
             {list.map((a, i) => {
               const tType = ACT_TYPE[a.type] || ACT_TYPE.lead;
               const ag = AV.agentById(a.agent);

@@ -8,37 +8,39 @@
 import { useState, useEffect, useRef } from 'react';
 import { Icon } from '@/components/brand/icon';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
-import { useI18n } from '@/lib/i18n/i18n-provider';
+import { usePipelineAuditT } from '@/lib/i18n/keys/pipeline-audit';
 import { AV } from '@/lib/data';
 import type { Lead } from '@/lib/data/types';
 
 /* ---- Stage metadata — colours match CSS custom properties exactly ---- */
 
 interface StageMeta {
-  label: string;
+  labelKey: string;
   dot: string;
   tint: string;
 }
 
 const STAGE_META: Record<string, StageMeta> = {
-  found:     { label:'Found',      dot:'var(--ink-3)',   tint:'var(--surface-muted)' },
-  audited:   { label:'Audited',    dot:'var(--info)',    tint:'var(--info-soft)' },
-  demo:      { label:'Demo',       dot:'var(--violet)',  tint:'var(--violet-soft)' },
-  contacted: { label:'Contacted',  dot:'var(--primary)', tint:'var(--primary-soft)' },
-  replied:   { label:'Replied',    dot:'var(--warning)', tint:'var(--warning-soft)' },
-  won:       { label:'Won',        dot:'var(--success)', tint:'var(--success-soft)' },
-  lost:      { label:'Lost',       dot:'var(--danger)',  tint:'var(--danger-soft)' },
+  found:     { labelKey:'leads.stageFound',     dot:'var(--ink-3)',   tint:'var(--surface-muted)' },
+  audited:   { labelKey:'leads.stageAudited',   dot:'var(--info)',    tint:'var(--info-soft)' },
+  demo:      { labelKey:'leads.stageDemo',      dot:'var(--violet)',  tint:'var(--violet-soft)' },
+  contacted: { labelKey:'leads.stageContacted', dot:'var(--primary)', tint:'var(--primary-soft)' },
+  replied:   { labelKey:'leads.stageReplied',   dot:'var(--warning)', tint:'var(--warning-soft)' },
+  won:       { labelKey:'leads.stageWon',       dot:'var(--success)', tint:'var(--success-soft)' },
+  lost:      { labelKey:'leads.stageLost',      dot:'var(--danger)',  tint:'var(--danger-soft)' },
 };
 
 const BOARD: string[] = ['found','audited','demo','contacted','replied','won','lost'];
 
-const NEXT: Record<string, { to: string; label: string } | undefined> = {
-  found:     { to:'audited',   label:'Run audit' },
-  audited:   { to:'demo',      label:'Generate demo' },
-  demo:      { to:'contacted', label:'Prepare outreach' },
-  contacted: { to:'replied',   label:'Mark replied' },
-  replied:   { to:'won',       label:'Mark won' },
-  won:       { to:'won',       label:'Start production' },
+/* Next-action: `to` is the destination stage; `labelKey` is the i18n key for
+   the button label. The EN label (verbatim) is kept in pipeline-audit.ts. */
+const NEXT: Record<string, { to: string; labelKey: string } | undefined> = {
+  found:     { to:'audited',   labelKey:'leads.actionRunAudit' },
+  audited:   { to:'demo',      labelKey:'leads.actionGenerateDemo' },
+  demo:      { to:'contacted', labelKey:'leads.actionPrepareOutreach' },
+  contacted: { to:'replied',   labelKey:'leads.actionMarkReplied' },
+  replied:   { to:'won',       labelKey:'leads.actionMarkWon' },
+  won:       { to:'won',       labelKey:'leads.actionStartProduction' },
 };
 
 /* ---- LeadCard ---- */
@@ -59,6 +61,7 @@ interface LeadCardProps {
 }
 
 function LeadCard({ lead, stage, onMove, onAction, onOpenAudit, onOpenDemo, dragging, dragProps }: LeadCardProps) {
+  const { t } = usePipelineAuditT();
   const next = NEXT[stage];
   const hue = AV.hueFor(lead.industry);
   return (
@@ -89,16 +92,16 @@ function LeadCard({ lead, stage, onMove, onAction, onOpenAudit, onOpenDemo, drag
         </span>
         {stage!=='lost' && next && (
           <button className="btn btn-soft btn-sm" style={{ height:26, fontSize:11.5, padding:'0 9px' }}
-            onClick={()=>{ onMove(lead.id, next.to); onAction(next.label+' · '+lead.company, 'success'); }}>
-            {next.label}
+            onClick={()=>{ onMove(lead.id, next.to); onAction(t(next.labelKey)+' · '+lead.company, 'success'); }}>
+            {t(next.labelKey)}
           </button>
         )}
       </div>
       {(['audited','demo','contacted','replied','won'].includes(stage)) && (
         <div className="row" style={{ gap:12, marginTop:9 }}>
-          <button onClick={()=>onOpenAudit(lead.id)} style={{ fontSize:11.5, color:'var(--primary)', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0 }}>Audit</button>
+          <button onClick={()=>onOpenAudit(lead.id)} style={{ fontSize:11.5, color:'var(--primary)', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0 }}>{t('leads.cardAudit')}</button>
           {AV.demoByLead(lead.id) && (
-            <button onClick={()=>onOpenDemo(lead.id)} style={{ fontSize:11.5, color:'var(--primary)', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0 }}>Demo</button>
+            <button onClick={()=>onOpenDemo(lead.id)} style={{ fontSize:11.5, color:'var(--primary)', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0 }}>{t('leads.cardDemo')}</button>
           )}
         </div>
       )}
@@ -116,7 +119,7 @@ export interface LeadPipelineProps {
 }
 
 export function LeadPipeline({ onAction, onOpenAudit, onOpenDemo, leads = AV.leads }: LeadPipelineProps) {
-  const { t } = useI18n();
+  const { t } = usePipelineAuditT();
 
   /* Stage placement — persisted to localStorage. Initialised from lead.stage,
      then overridden by any saved user moves. */
@@ -139,22 +142,27 @@ export function LeadPipeline({ onAction, onOpenAudit, onOpenDemo, leads = AV.lea
     try { localStorage.setItem('av-place', JSON.stringify(place)); } catch { /* ignore */ }
   }, [place]);
 
+  // EN sentinel values used for filter state comparison — always compared against
+  // the EN key constant so filter logic is language-independent.
+  const ALL_INDUSTRIES_EN = 'All industries';
+  const ALL_AGENTS_EN = 'All agents';
+
   const [q, setQ] = useState('');
-  const [ind, setInd] = useState('All industries');
-  const [agentF, setAgentF] = useState('All agents');
+  const [ind, setInd] = useState(ALL_INDUSTRIES_EN);
+  const [agentF, setAgentF] = useState(ALL_AGENTS_EN);
   const dragId = useRef<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
 
   const move = (id: string, stage: string) => setPlace(p => ({ ...p, [id]: stage }));
 
-  const industries = ['All industries', ...Array.from(new Set(leads.map(l => l.industry)))];
-  const agentNames = ['All agents', ...Array.from(new Set(leads.map(l => AV.agentById(l.agent)?.name).filter(Boolean) as string[]))];
+  const industries = [ALL_INDUSTRIES_EN, ...Array.from(new Set(leads.map(l => l.industry)))];
+  const agentNames = [ALL_AGENTS_EN, ...Array.from(new Set(leads.map(l => AV.agentById(l.agent)?.name).filter(Boolean) as string[]))];
 
   const visible = leads.filter(l =>
     (l.company + l.url).toLowerCase().includes(q.toLowerCase()) &&
-    (ind === 'All industries' || l.industry === ind) &&
-    (agentF === 'All agents' || AV.agentById(l.agent)?.name === agentF)
+    (ind === ALL_INDUSTRIES_EN || l.industry === ind) &&
+    (agentF === ALL_AGENTS_EN || AV.agentById(l.agent)?.name === agentF)
   );
 
   const colLeads = (stage: string) => visible.filter(l => (place[l.id] || l.stage) === stage);
@@ -169,12 +177,12 @@ export function LeadPipeline({ onAction, onOpenAudit, onOpenDemo, leads = AV.lea
         </div>
         <div className="row" style={{ gap:18 }}>
           <div>
-            <div style={{ fontSize:11.5, color:'var(--ink-3)' }}>Open pipeline</div>
+            <div style={{ fontSize:11.5, color:'var(--ink-3)' }}>{t('leads.openPipeline')}</div>
             <div style={{ fontSize:22, fontWeight:600, letterSpacing:'-0.02em' }} className="tabular">{AV.fmt.money(totalValue)}</div>
           </div>
           <div style={{ width:1, background:'var(--border)' }} />
           <div>
-            <div style={{ fontSize:11.5, color:'var(--ink-3)' }}>Active leads</div>
+            <div style={{ fontSize:11.5, color:'var(--ink-3)' }}>{t('leads.activeLeads')}</div>
             <div style={{ fontSize:22, fontWeight:600, letterSpacing:'-0.02em' }} className="tabular">{visible.filter(l => (place[l.id] || l.stage) !== 'lost').length}</div>
           </div>
         </div>
@@ -184,15 +192,21 @@ export function LeadPipeline({ onAction, onOpenAudit, onOpenDemo, leads = AV.lea
       <div className="row wrap" style={{ gap:10, marginBottom:18 }}>
         <div className="row" style={{ gap:9, height:38, padding:'0 13px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', width:240, maxWidth:'70vw' }}>
           <Icon name="search" size={16} style={{ color:'var(--ink-3)' }} />
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search company or URL…"
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder={t('leads.searchPlaceholder')}
             style={{ border:'none', outline:'none', background:'transparent', fontSize:13.5, width:'100%', color:'var(--ink)' }} />
         </div>
-        {([[ind, setInd, industries], [agentF, setAgentF, agentNames]] as [string, React.Dispatch<React.SetStateAction<string>>, string[]][]).map(([v, set, opts], i) => (
-          <select key={i} value={v} onChange={e=>set(e.target.value)} className="focusable"
-            style={{ height:38, padding:'0 12px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', fontSize:13.5, color:'var(--ink)', fontWeight:500 }}>
-            {opts.map(o => <option key={o}>{o}</option>)}
-          </select>
-        ))}
+        {/* Industry filter — state held as EN sentinel; displayed label is translated */}
+        <select value={ind} onChange={e=>setInd(e.target.value)} className="focusable"
+          style={{ height:38, padding:'0 12px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', fontSize:13.5, color:'var(--ink)', fontWeight:500 }}>
+          <option value={ALL_INDUSTRIES_EN}>{t('leads.allIndustries')}</option>
+          {industries.slice(1).map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+        {/* Agent filter — state held as EN sentinel; displayed label is translated */}
+        <select value={agentF} onChange={e=>setAgentF(e.target.value)} className="focusable"
+          style={{ height:38, padding:'0 12px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', fontSize:13.5, color:'var(--ink)', fontWeight:500 }}>
+          <option value={ALL_AGENTS_EN}>{t('leads.allAgents')}</option>
+          {agentNames.slice(1).map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
       </div>
 
       {/* Board */}
@@ -213,7 +227,7 @@ export function LeadPipeline({ onAction, onOpenAudit, onOpenDemo, leads = AV.lea
               <div className="row between" style={{ padding:'12px 14px' }}>
                 <span className="row" style={{ gap:8 }}>
                   <span style={{ width:8, height:8, borderRadius:99, background:sm.dot }} />
-                  <span style={{ fontSize:13, fontWeight:600 }}>{sm.label}</span>
+                  <span style={{ fontSize:13, fontWeight:600 }}>{t(sm.labelKey)}</span>
                   <span className="mono" style={{ fontSize:11.5, color:'var(--ink-3)' }}>{stageleads.length}</span>
                 </span>
                 {sum > 0 && <span className="mono" style={{ fontSize:11, color:'var(--ink-3)' }}>{AV.fmt.k(sum)}</span>}
@@ -221,7 +235,7 @@ export function LeadPipeline({ onAction, onOpenAudit, onOpenDemo, leads = AV.lea
               <div style={{ padding:'0 10px 10px', display:'flex', flexDirection:'column', gap:10, flex:1, overflowY:'auto', minHeight:90 }}>
                 {stageleads.length === 0 && (
                   <div className="col center" style={{ flex:1, minHeight:80, border:'1.5px dashed var(--border-strong)', borderRadius:11, color:'var(--ink-4)', fontSize:12 }}>
-                    Drop here
+                    {t('leads.dropHere')}
                   </div>
                 )}
                 {stageleads.map(l => (

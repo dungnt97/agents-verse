@@ -9,14 +9,15 @@ import { Icon } from '@/components/brand/icon';
 import { useI18n } from '@/lib/i18n';
 import type { ToastKind } from '@/lib/providers/toast-provider';
 
-/* Static items verbatim from app.jsx — typographic apostrophe in
-   "today's" (U+2019) preserved from source. */
+/* Static items — titles and tags keyed via shell.rc* for i18n.
+   Descriptive data (company name, score range, amounts) are data-layer
+   values and intentionally left untranslated. */
 const ITEMS = [
-  { ic: 'layers', t: 'Demo needs approval',    d: 'Atlas Dental Clinic · 34 → 88',              cls: 'badge-primary', tag: 'Demo' },
-  { ic: 'send',   t: 'Outreach needs review',  d: 'GreenBite Restaurant · friendly tone',        cls: 'badge-info',    tag: 'Outreach' },
-  { ic: 'deals',  t: 'Deal above threshold',   d: 'Mekong Logistics · $5,200',                  cls: 'badge-warning', tag: 'Deal' },
-  { ic: 'user',   t: 'Client asked for a human',d: 'Nova Realty Group · $6,400',                cls: 'badge-danger',  tag: 'Human' },
-  { ic: 'dollar', t: 'Cost limit warning',     d: 'AI spend at 86% of today’s budget',     cls: 'badge-warning', tag: 'Cost' },
+  { ic: 'layers', titleKey: 'shell.rcDemoTitle',    d: 'Atlas Dental Clinic · 34 → 88',         cls: 'badge-primary', tagKey: 'shell.rcDemoTag' },
+  { ic: 'send',   titleKey: 'shell.rcOutreachTitle', d: 'GreenBite Restaurant · friendly tone',   cls: 'badge-info',    tagKey: 'shell.rcOutreachTag' },
+  { ic: 'deals',  titleKey: 'shell.rcDealTitle',     d: 'Mekong Logistics · $5,200',              cls: 'badge-warning', tagKey: 'shell.rcDealTag' },
+  { ic: 'user',   titleKey: 'shell.rcHumanTitle',    d: 'Nova Realty Group · $6,400',             cls: 'badge-danger',  tagKey: 'shell.rcHumanTag' },
+  { ic: 'dollar', titleKey: 'shell.rcCostTitle',     d: 'AI spend at 86% of today’s budget', cls: 'badge-warning', tagKey: 'shell.rcCostTag' },
 ];
 
 interface ReviewCenterProps {
@@ -26,8 +27,7 @@ interface ReviewCenterProps {
 }
 
 export function ReviewCenter({ open, onClose, onAction }: ReviewCenterProps) {
-  /* useI18n available for future i18n of "Review center" heading */
-  const { t: _t } = useI18n();
+  const { t } = useI18n();
 
   if (!open) return null;
   return (
@@ -37,7 +37,7 @@ export function ReviewCenter({ open, onClose, onAction }: ReviewCenterProps) {
         boxShadow: 'var(--sh-xl)', display: 'flex', flexDirection: 'column', animation: 'slide-in .35s cubic-bezier(.2,.8,.2,1)' }}>
         <div className="row between" style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
           <div className="row" style={{ gap: 10 }}>
-            <h2 style={{ fontSize: 17 }}>Review center</h2>
+            <h2 style={{ fontSize: 17 }}>{t('shell.reviewCenter')}</h2>
             <span style={{ minWidth: 20, height: 20, padding: '0 6px', borderRadius: 99, background: 'var(--warning)', color: '#fff', fontSize: 11.5, fontWeight: 600, display: 'grid', placeItems: 'center' }}>
               {ITEMS.length}
             </span>
@@ -54,13 +54,13 @@ export function ReviewCenter({ open, onClose, onAction }: ReviewCenterProps) {
                   <span style={{ width: 32, height: 32, borderRadius: 9, background: 'var(--surface-muted)', color: 'var(--ink-2)', display: 'grid', placeItems: 'center' }}>
                     <Icon name={it.ic} size={16} />
                   </span>
-                  <span className={'badge ' + it.cls} style={{ height: 19, fontSize: 10.5 }}>{it.tag}</span>
+                  <span className={'badge ' + it.cls} style={{ height: 19, fontSize: 10.5 }}>{t(it.tagKey)}</span>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 3 }}>{it.t}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 3 }}>{t(it.titleKey)}</div>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 11 }}>{it.d}</div>
                 <div className="row" style={{ gap: 8 }}>
-                  <button className="btn btn-primary btn-sm grow" onClick={() => onAction('Approved · ' + it.t, 'success')}>Approve</button>
-                  <button className="btn btn-ghost btn-sm grow" onClick={() => onAction('Opened · ' + it.t)} style={{ borderColor: 'var(--border)' }}>Open</button>
+                  <button className="btn btn-primary btn-sm grow" onClick={() => onAction('Approved · ' + t(it.titleKey), 'success')}>{t('shell.approve')}</button>
+                  <button className="btn btn-ghost btn-sm grow" onClick={() => onAction('Opened · ' + t(it.titleKey))} style={{ borderColor: 'var(--border)' }}>{t('shell.open')}</button>
                 </div>
               </div>
             ))}

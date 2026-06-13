@@ -35,6 +35,7 @@ interface MetricStatProps {
 }
 
 export function MetricStat({ label, value, decimals = 0, prefix = '', suffix = '', icon, spark, sparkColor, meter, meterPct, delta, deltaUp = true, accent }: MetricStatProps) {
+  const { t } = useI18n();
   return (
     <div className="card" style={{ padding: '15px 17px', minWidth: 0 }}>
       <div className="row between" style={{ marginBottom: 12 }}>
@@ -53,7 +54,7 @@ export function MetricStat({ label, value, decimals = 0, prefix = '', suffix = '
         {spark && <Sparkline data={spark} color={sparkColor || 'var(--primary)'} w={78} h={30} />}
         {meter && <div style={{ width: 78 }}>
           <div className="track" style={{ height: 7 }}><i style={{ width: (meterPct ?? 0) + '%', background: (meterPct ?? 0) > 80 ? 'var(--warning)' : 'var(--primary)' }} /></div>
-          <div className="mono" style={{ fontSize: 10.5, color: 'var(--ink-3)', marginTop: 6, textAlign: 'right' }}>{meterPct}% of limit</div>
+          <div className="mono" style={{ fontSize: 10.5, color: 'var(--ink-3)', marginTop: 6, textAlign: 'right' }}>{meterPct}{t('dash.ofLimit')}</div>
         </div>}
       </div>
     </div>
@@ -90,6 +91,7 @@ interface EscalationMiniProps {
 }
 
 export function EscalationMini({ e, onAction }: EscalationMiniProps) {
+  const { t } = useI18n();
   const sevCls = e.sev === 'high' ? 'badge-danger' : e.sev === 'medium' ? 'badge-warning' : 'badge-neutral';
   const kindIcon = ({ human: 'user', deal: 'deals', cost: 'dollar' } as Record<string, string>)[e.kind] || 'alert';
   return (
@@ -97,15 +99,15 @@ export function EscalationMini({ e, onAction }: EscalationMiniProps) {
       <div className="row between" style={{ marginBottom: 9 }}>
         <span className="row" style={{ gap: 9 }}>
           <span style={{ width: 30, height: 30, borderRadius: 9, background: 'var(--warning-soft)', color: 'var(--warning)', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name={kindIcon} size={16} /></span>
-          <span className={'badge ' + sevCls} style={{ height: 20, fontSize: 11 }}>{e.sev} priority</span>
+          <span className={'badge ' + sevCls} style={{ height: 20, fontSize: 11 }}>{e.sev} {t('dash.prioritySuffix')}</span>
         </span>
         <span className="mono" style={{ fontSize: 10.5, color: 'var(--ink-3)' }}>{e.time}</span>
       </div>
       <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, lineHeight: 1.3 }}>{e.title}</div>
       <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 12 }}>{e.who}{e.value > 0 && ' · ' + AV.fmt.money(e.value)}</div>
       <div className="row" style={{ gap: 8 }}>
-        <button className="btn btn-primary btn-sm grow" onClick={() => onAction('Approved: ' + e.title)}>Approve</button>
-        <button className="btn btn-ghost btn-sm grow" onClick={() => onAction('Opened review for ' + e.who, 'success')} style={{ borderColor: 'var(--border)' }}>Review</button>
+        <button className="btn btn-primary btn-sm grow" onClick={() => onAction('Approved: ' + e.title)}>{t('dash.approve')}</button>
+        <button className="btn btn-ghost btn-sm grow" onClick={() => onAction('Opened review for ' + e.who, 'success')} style={{ borderColor: 'var(--border)' }}>{t('dash.review')}</button>
       </div>
     </div>
   );
@@ -121,6 +123,7 @@ interface RoomPeekProps {
 }
 
 export function RoomPeek({ roomId, onClose, onAction, goRoom }: RoomPeekProps) {
+  const { t } = useI18n();
   const r = AV.roomById(roomId);
   if (!r) return null;
   const sm = AV.statusMap[r.status];
@@ -140,18 +143,22 @@ export function RoomPeek({ roomId, onClose, onAction, goRoom }: RoomPeekProps) {
         <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
           <p style={{ fontSize: 14.5, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 18 }}>{r.purpose}</p>
           <div style={{ padding: '13px 15px', borderRadius: 12, background: 'var(--primary-soft)', marginBottom: 20 }}>
-            <div className="eyebrow" style={{ color: 'var(--primary)', marginBottom: 6 }}>Current mission</div>
+            <div className="eyebrow" style={{ color: 'var(--primary)', marginBottom: 6 }}>{t('dash.currentMission')}</div>
             <div style={{ fontSize: 14, fontWeight: 500 }}>{r.mission}</div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 22 }}>
-            {[['Running', r.running], ['Done today', r.done], ['Health', r.health + '%']].map(([l, v], i) => (
+            {([
+              [t('dash.running'),   r.running],
+              [t('dash.doneToday'), r.done],
+              [t('dash.health'),    r.health + '%'],
+            ] as [string, string | number][]).map(([l, v], i) => (
               <div key={i} style={{ padding: '12px', borderRadius: 11, border: '1px solid var(--border)', textAlign: 'center' }}>
                 <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }} className="tabular">{v}</div>
                 <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 3 }}>{l}</div>
               </div>
             ))}
           </div>
-          <div className="eyebrow" style={{ marginBottom: 12 }}>Agents in this room · {roomAgents.length}</div>
+          <div className="eyebrow" style={{ marginBottom: 12 }}>{t('dash.agentsInRoom')} · {roomAgents.length}</div>
           <div className="col" style={{ gap: 8, marginBottom: 8 }}>
             {roomAgents.map(a => (
               <div key={a.id} className="row between" style={{ padding: '10px 12px', borderRadius: 11, border: '1px solid var(--border)' }}>
@@ -165,8 +172,8 @@ export function RoomPeek({ roomId, onClose, onAction, goRoom }: RoomPeekProps) {
           </div>
         </div>
         <div className="row" style={{ gap: 10, padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
-          <button className="btn btn-primary grow" onClick={() => { onClose(); goRoom ? goRoom(r.id) : onAction('Opening ' + r.name + '…', 'success'); }}>Open room <Icon name="arrowR" size={16} /></button>
-          <button className="btn btn-ghost" onClick={() => onAction('Asked ' + r.name + ' for a summary')} style={{ borderColor: 'var(--border)' }}>Ask summary</button>
+          <button className="btn btn-primary grow" onClick={() => { onClose(); goRoom ? goRoom(r.id) : onAction('Opening ' + r.name + '…', 'success'); }}>{t('dash.openRoom')} <Icon name="arrowR" size={16} /></button>
+          <button className="btn btn-ghost" onClick={() => onAction('Asked ' + r.name + ' for a summary')} style={{ borderColor: 'var(--border)' }}>{t('dash.askSummary')}</button>
         </div>
       </div>
     </>
@@ -229,7 +236,7 @@ export function FloorOverview({ onAction, goCommand, goRoom }: FloorOverviewProp
               <p style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 3 }}>{t('ov.floorHint')}</p>
             </div>
             <div className="row" style={{ gap: 14 }}>
-              <span className="row" style={{ gap: 7, fontSize: 12, color: 'var(--ink-2)' }}><span style={{ width: 18, height: 3, borderRadius: 2, background: 'var(--primary)' }} /> Workflow</span>
+              <span className="row" style={{ gap: 7, fontSize: 12, color: 'var(--ink-2)' }}><span style={{ width: 18, height: 3, borderRadius: 2, background: 'var(--primary)' }} /> {t('dash.workflow')}</span>
               <span className="row" style={{ gap: 7, fontSize: 12, color: 'var(--warning)' }}><Icon name="alert" size={14} /> {t('ov.bottleneck')}</span>
             </div>
           </div>

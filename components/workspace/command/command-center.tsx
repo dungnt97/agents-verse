@@ -18,6 +18,7 @@ import type { Escalation } from '@/lib/data/types';
 /* ---- Revenue vs cost chart ---- */
 
 function RevenueCostChart() {
+  const { t } = useI18n();
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const rev = [3.2, 4.1, 3.8, 5.4, 6.2, 7.1, 8.4];
   const cost = [0.31, 0.38, 0.34, 0.42, 0.45, 0.4, 0.43];
@@ -27,10 +28,10 @@ function RevenueCostChart() {
     <div>
       <div className="row between" style={{ marginBottom: 14 }}>
         <div className="row" style={{ gap: 14 }}>
-          <span className="row" style={{ gap: 6, fontSize: 12, color: 'var(--ink-2)' }}><span style={{ width: 9, height: 9, borderRadius: 3, background: 'var(--primary)' }} /> Revenue</span>
-          <span className="row" style={{ gap: 6, fontSize: 12, color: 'var(--ink-2)' }}><span style={{ width: 9, height: 9, borderRadius: 3, background: 'var(--warning)' }} /> AI cost</span>
+          <span className="row" style={{ gap: 6, fontSize: 12, color: 'var(--ink-2)' }}><span style={{ width: 9, height: 9, borderRadius: 3, background: 'var(--primary)' }} /> {t('dash.chartRevenue')}</span>
+          <span className="row" style={{ gap: 6, fontSize: 12, color: 'var(--ink-2)' }}><span style={{ width: 9, height: 9, borderRadius: 3, background: 'var(--warning)' }} /> {t('dash.chartAiCost')}</span>
         </div>
-        <span className="badge badge-success">81% margin</span>
+        <span className="badge badge-success">{t('dash.chartMargin')}</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H + 10}`} style={{ width: '100%', height: 120, overflow: 'visible' }}>
         {[0, 0.25, 0.5, 0.75, 1].map((g, i) => (<line key={i} x1="0" x2={W} y1={H - H * g} y2={H - H * g} stroke="var(--border-soft)" strokeWidth="0.4" />))}
@@ -60,9 +61,11 @@ interface EscalationCardProps {
 }
 
 export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCardProps) {
+  const { t } = useI18n();
   const sevCls = e.sev === 'high' ? 'badge-danger' : e.sev === 'medium' ? 'badge-warning' : 'badge-neutral';
   const kindIcon = ({ human: 'user', deal: 'deals', cost: 'dollar' } as Record<string, string>)[e.kind] || 'alert';
-  const kindLabel = ({ human: 'Human requested', deal: 'Deal approval', cost: 'Cost warning' } as Record<string, string>)[e.kind] || 'Escalation';
+  /* kindLabel resolved via i18n keys */
+  const kindLabelKey = ({ human: 'dash.kindHuman', deal: 'dash.kindDeal', cost: 'dash.kindCost' } as Record<string, string>)[e.kind] || 'dash.kindEscalation';
   return (
     <div style={{ borderRadius: 15, border: `1px solid ${expanded ? 'var(--primary)' : 'var(--border)'}`, background: 'var(--surface-elev)', overflow: 'hidden',
       boxShadow: expanded ? '0 0 0 3px var(--primary-soft), var(--sh-md)' : 'var(--sh-sm)', transition: 'box-shadow .2s, border-color .2s' }}>
@@ -72,7 +75,7 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
           <span style={{ minWidth: 0 }}>
             <span className="row" style={{ gap: 8, marginBottom: 5 }}>
               <span className={'badge ' + sevCls} style={{ height: 19, fontSize: 10.5 }}>{e.sev}</span>
-              <span className="mono" style={{ fontSize: 10.5, color: 'var(--ink-3)' }}>{kindLabel}</span>
+              <span className="mono" style={{ fontSize: 10.5, color: 'var(--ink-3)' }}>{t(kindLabelKey)}</span>
             </span>
             <span style={{ fontSize: 15, fontWeight: 600, display: 'block', lineHeight: 1.25 }}>{e.title}</span>
             <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{e.who}{e.value > 0 && ' · ' + AV.fmt.money(e.value)} · {e.time}</span>
@@ -87,22 +90,22 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
         <div style={{ padding: '0 18px 18px', animation: 'fade-in .3s' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
             <div style={{ padding: '13px 15px', borderRadius: 12, background: 'var(--surface-muted)' }}>
-              <div className="eyebrow" style={{ marginBottom: 7 }}>Why this escalated</div>
+              <div className="eyebrow" style={{ marginBottom: 7 }}>{t('dash.whyEscalated')}</div>
               <p style={{ fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.45 }}>{e.reason}</p>
             </div>
             <div style={{ padding: '13px 15px', borderRadius: 12, background: 'var(--primary-soft)' }}>
-              <div className="eyebrow" style={{ color: 'var(--primary)', marginBottom: 7 }}>AI recommendation</div>
+              <div className="eyebrow" style={{ color: 'var(--primary)', marginBottom: 7 }}>{t('dash.aiRecommendation')}</div>
               <p style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45 }}>{e.rec}</p>
             </div>
           </div>
           <div className="row wrap" style={{ gap: 8 }}>
-            <button className="btn btn-primary btn-sm" onClick={() => onAction('Approved · ' + e.who, 'success')}><Icon name="check" size={15} /> Approve</button>
-            {e.kind === 'human' && <button className="btn btn-ghost btn-sm" onClick={() => onAction('Founder call scheduled with ' + e.who, 'success')} style={{ borderColor: 'var(--border)' }}><Icon name="clock" size={15} /> Schedule call</button>}
-            {e.kind === 'deal' && <button className="btn btn-ghost btn-sm" onClick={() => onAction('Marked won · ' + e.who, 'success')} style={{ borderColor: 'var(--border)' }}>Mark won</button>}
-            {e.kind === 'cost' && <button className="btn btn-ghost btn-sm" onClick={() => onAction("Today's budget raised by $20", 'success')} style={{ borderColor: 'var(--border)' }}>Raise budget</button>}
-            <button className="btn btn-ghost btn-sm" onClick={() => onAction('You took over · ' + e.who)} style={{ borderColor: 'var(--border)' }}>Take over</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => onAction('Summary requested')} style={{ borderColor: 'var(--border)' }}>Ask AI summary</button>
-            <button className="btn btn-soft btn-sm" onClick={() => onAction('Dismissed · ' + e.who, 'warning')} style={{ marginLeft: 'auto' }}>Reject</button>
+            <button className="btn btn-primary btn-sm" onClick={() => onAction('Approved · ' + e.who, 'success')}><Icon name="check" size={15} /> {t('dash.approve')}</button>
+            {e.kind === 'human' && <button className="btn btn-ghost btn-sm" onClick={() => onAction('Founder call scheduled with ' + e.who, 'success')} style={{ borderColor: 'var(--border)' }}><Icon name="clock" size={15} /> {t('dash.scheduleCall')}</button>}
+            {e.kind === 'deal' && <button className="btn btn-ghost btn-sm" onClick={() => onAction('Marked won · ' + e.who, 'success')} style={{ borderColor: 'var(--border)' }}>{t('dash.markWon')}</button>}
+            {e.kind === 'cost' && <button className="btn btn-ghost btn-sm" onClick={() => onAction("Today's budget raised by $20", 'success')} style={{ borderColor: 'var(--border)' }}>{t('dash.raiseBudget')}</button>}
+            <button className="btn btn-ghost btn-sm" onClick={() => onAction('You took over · ' + e.who)} style={{ borderColor: 'var(--border)' }}>{t('dash.takeOver')}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => onAction('Summary requested')} style={{ borderColor: 'var(--border)' }}>{t('dash.askAiSummary')}</button>
+            <button className="btn btn-soft btn-sm" onClick={() => onAction('Dismissed · ' + e.who, 'warning')} style={{ marginLeft: 'auto' }}>{t('dash.reject')}</button>
           </div>
         </div>
       )}
@@ -143,6 +146,7 @@ interface MetricStatProps {
 }
 
 function MetricStat({ label, value, decimals = 0, prefix = '', suffix = '', icon, spark, sparkColor, meter, meterPct, delta, deltaUp = true, accent }: MetricStatProps) {
+  const { t } = useI18n();
   return (
     <div className="card" style={{ padding: '15px 17px', minWidth: 0 }}>
       <div className="row between" style={{ marginBottom: 12 }}>
@@ -161,7 +165,7 @@ function MetricStat({ label, value, decimals = 0, prefix = '', suffix = '', icon
         {spark && <Sparkline data={spark} color={sparkColor || 'var(--primary)'} w={78} h={30} />}
         {meter && <div style={{ width: 78 }}>
           <div className="track" style={{ height: 7 }}><i style={{ width: (meterPct ?? 0) + '%', background: (meterPct ?? 0) > 80 ? 'var(--warning)' : 'var(--primary)' }} /></div>
-          <div className="mono" style={{ fontSize: 10.5, color: 'var(--ink-3)', marginTop: 6, textAlign: 'right' }}>{meterPct}% of limit</div>
+          <div className="mono" style={{ fontSize: 10.5, color: 'var(--ink-3)', marginTop: 6, textAlign: 'right' }}>{meterPct}{t('dash.ofLimit')}</div>
         </div>}
       </div>
     </div>
@@ -178,11 +182,39 @@ export function CommandCenter({ onAction }: CommandCenterProps) {
   const { t } = useI18n();
   const [exp, setExp] = useState<string | null>('e1');
   const topAgents = [...AV.agents].sort((a, b) => b.quality - a.quality).slice(0, 4);
+
+  /* Recommended actions — titles, descriptions and action labels are chrome strings */
   const recs = [
-    { ic: 'user',   t: 'Call Nova Realty',    d: 'High-intent $6.4k lead asked for a human.',     act: 'Schedule' },
-    { ic: 'deals',  t: 'Approve Mekong quote', d: '$5.2k — within margin, qualified buyer.',        act: 'Approve' },
-    { ic: 'dollar', t: 'Extend AI budget',     d: 'Demo queue will stall at current limit.',        act: 'Raise' },
+    { ic: 'user',   titleKey: 'dash.recCallTitle',    descKey: 'dash.recCallDesc',    actKey: 'dash.recCallAct' },
+    { ic: 'deals',  titleKey: 'dash.recApproveTitle',  descKey: 'dash.recApproveDesc',  actKey: 'dash.recApproveAct' },
+    { ic: 'dollar', titleKey: 'dash.recBudgetTitle',   descKey: 'dash.recBudgetDesc',   actKey: 'dash.recBudgetAct' },
   ];
+
+  /* Filter chips — chrome labels */
+  const filters = [
+    { key: 'dash.filterAll',   label: t('dash.filterAll') },
+    { key: 'dash.filterHigh',  label: t('dash.filterHigh') },
+    { key: 'dash.filterDeals', label: t('dash.filterDeals') },
+    { key: 'dash.filterCost',  label: t('dash.filterCost') },
+  ];
+
+  /* Today's AI work sub-labels */
+  const workItems: [string, number, string][] = [
+    [t('dash.workScanned'),  148, 'search'],
+    [t('dash.workDemos'),     12, 'layers'],
+    [t('dash.workOutreach'),  38, 'send'],
+    [t('dash.workReplies'),    7, 'activity'],
+  ];
+
+  /* System health rows — labels and notes are chrome */
+  const healthRows = [
+    { labelKey: 'dash.healthLeadFinder',     noteKey: 'dash.healthNoteScanned',    ok: true },
+    { labelKey: 'dash.healthDemoGenerator',  noteKey: 'dash.healthNoteDemos',      ok: true },
+    { labelKey: 'dash.healthOutreachSystem', noteKey: 'dash.healthNoteOutreach',   ok: true },
+    { labelKey: 'dash.healthDeployment',     noteKey: 'dash.healthNoteIdle',       ok: true },
+    { labelKey: 'dash.healthCostBudget',     noteKey: 'dash.healthNoteOverBudget', ok: false },
+  ];
+
   return (
     <div style={{ padding: '26px 28px 60px', maxWidth: 1480, margin: '0 auto' }}>
       {/* header */}
@@ -216,7 +248,9 @@ export function CommandCenter({ onAction }: CommandCenterProps) {
             <div className="row between" style={{ marginBottom: 16 }}>
               <h2 style={{ fontSize: 17 }}>{t('cmd.queue')}</h2>
               <div className="row" style={{ gap: 6 }}>
-                {['All', 'High', 'Deals', 'Cost'].map((f, i) => (<span key={f} className={'chip' + (i === 0 ? ' active' : '')} style={{ height: 28, fontSize: 12 }}>{f}</span>))}
+                {filters.map((f, i) => (
+                  <span key={f.key} className={'chip' + (i === 0 ? ' active' : '')} style={{ height: 28, fontSize: 12 }}>{f.label}</span>
+                ))}
               </div>
             </div>
             <div className="col" style={{ gap: 12 }}>
@@ -228,9 +262,9 @@ export function CommandCenter({ onAction }: CommandCenterProps) {
           <div className="card" style={{ padding: 18 }}>
             <h2 style={{ fontSize: 16, marginBottom: 14 }}>{t('cmd.work')}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-              {[['Scanned', 148, 'search'], ['Demos', 12, 'layers'], ['Outreach', 38, 'send'], ['Replies', 7, 'activity']].map(([l, v, ic], i) => (
+              {workItems.map(([l, v, ic], i) => (
                 <div key={i} style={{ padding: '14px', borderRadius: 12, background: 'var(--surface-muted)' }}>
-                  <Icon name={ic as string} size={16} style={{ color: 'var(--ink-3)', marginBottom: 8 }} />
+                  <Icon name={ic} size={16} style={{ color: 'var(--ink-3)', marginBottom: 8 }} />
                   <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em' }} className="tabular">{v}</div>
                   <div style={{ fontSize: 11.5, color: 'var(--ink-3)', marginTop: 2 }}>{l}</div>
                 </div>
@@ -249,9 +283,9 @@ export function CommandCenter({ onAction }: CommandCenterProps) {
                 <div key={i} className="row between" style={{ padding: '12px 13px', borderRadius: 12, border: '1px solid var(--border)' }}>
                   <span className="row" style={{ gap: 11, minWidth: 0 }}>
                     <span style={{ width: 32, height: 32, borderRadius: 9, background: 'var(--primary-soft)', color: 'var(--primary)', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name={r.ic} size={16} /></span>
-                    <span style={{ minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.t}</div><div style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>{r.d}</div></span>
+                    <span style={{ minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 600 }}>{t(r.titleKey)}</div><div style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>{t(r.descKey)}</div></span>
                   </span>
-                  <button className="btn btn-soft btn-sm" onClick={() => onAction(r.act + ' · ' + r.t, 'success')} style={{ flex: 'none' }}>{r.act}</button>
+                  <button className="btn btn-soft btn-sm" onClick={() => onAction(t(r.actKey) + ' · ' + t(r.titleKey), 'success')} style={{ flex: 'none' }}>{t(r.actKey)}</button>
                 </div>
               ))}
             </div>
@@ -266,11 +300,9 @@ export function CommandCenter({ onAction }: CommandCenterProps) {
           {/* system health */}
           <div className="card" style={{ padding: 18 }}>
             <div className="row between" style={{ marginBottom: 6 }}><h2 style={{ fontSize: 16 }}>{t('cmd.health')}</h2><span className="badge badge-success">{t('cmd.operational')}</span></div>
-            <HealthRow label="Lead finder" note="148 scanned" />
-            <HealthRow label="Demo generator" note="12 today" />
-            <HealthRow label="Outreach system" note="38 prepared" />
-            <HealthRow label="Deployment" note="idle" />
-            <HealthRow label="Cost budget" ok={false} note="86% used" />
+            {healthRows.map(row => (
+              <HealthRow key={row.labelKey} label={t(row.labelKey)} ok={row.ok} note={t(row.noteKey)} />
+            ))}
           </div>
 
           {/* agent performance */}

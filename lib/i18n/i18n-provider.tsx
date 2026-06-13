@@ -2,7 +2,21 @@
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { AV_DICT, type Lang } from './dictionary';
+import { en as shellDashEn, vi as shellDashVi } from './keys/shell-dash';
+import { en as roomsAgentsEn, vi as roomsAgentsVi } from './keys/rooms-agents';
+import { en as pipelineAuditEn, vi as pipelineAuditVi } from './keys/pipeline-audit';
+import { en as demosDealsEn, vi as demosDealsVi } from './keys/demos-deals';
+import { en as systemEn, vi as systemVi } from './keys/system';
+import { en as landingInfoEn, vi as landingInfoVi } from './keys/landing-info';
+import { en as statusEn, vi as statusVi } from './keys/status';
 import { setCookie } from '@/lib/cookies';
+
+/* Merged dictionaries: shell-dash keys layered on top of AV_DICT.
+   AV_DICT is not modified (dictionary.ts is managed separately). */
+const MERGED: Record<Lang, Record<string, string>> = {
+  en: { ...AV_DICT.en, ...shellDashEn, ...roomsAgentsEn, ...pipelineAuditEn, ...demosDealsEn, ...systemEn, ...landingInfoEn, ...statusEn },
+  vi: { ...AV_DICT.vi, ...shellDashVi, ...roomsAgentsVi, ...pipelineAuditVi, ...demosDealsVi, ...systemVi, ...landingInfoVi, ...statusVi },
+};
 
 type I18nContextValue = {
   lang: Lang;
@@ -16,8 +30,9 @@ export function I18nProvider({ initialLang, children }: { initialLang: Lang; chi
   const [lang, setLangState] = useState<Lang>(initialLang);
 
   // Mirrors the original t(): active-lang value → English fallback → raw key.
+  // Resolves against MERGED which includes both AV_DICT and shell-dash keys.
   const t = useCallback(
-    (key: string): string => (AV_DICT[lang] && AV_DICT[lang][key]) || AV_DICT.en[key] || key,
+    (key: string): string => (MERGED[lang] && MERGED[lang][key]) || MERGED.en[key] || key,
     [lang],
   );
 

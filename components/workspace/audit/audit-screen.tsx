@@ -9,6 +9,7 @@ import { Icon } from '@/components/brand/icon';
 import { ConfidenceRing } from '@/components/ui/confidence-ring';
 import { SiteMock } from '@/components/site-mock';
 import { AV } from '@/lib/data';
+import { usePipelineAuditT } from '@/lib/i18n/keys/pipeline-audit';
 
 /* ---- Score colour helper (mirrors audit.jsx:5) ---- */
 function scoreColor(v: number): string {
@@ -48,6 +49,7 @@ export interface AuditScreenProps {
 }
 
 export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScreenProps) {
+  const { t } = usePipelineAuditT();
   const audited = AV.auditedLeads();
 
   // Select initial lead: use initialLead if it exists in audited list, else first audited lead
@@ -72,8 +74,8 @@ export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScr
       {/* Master rail */}
       <div style={{ width:264, flex:'none', borderRight:'1px solid var(--border)', background:'var(--surface)', display:'flex', flexDirection:'column' }}>
         <div style={{ padding:'20px 18px 12px' }}>
-          <h1 style={{ fontSize:19, marginBottom:4 }}>Audits</h1>
-          <p style={{ fontSize:12.5, color:'var(--ink-3)' }}>{audited.length} sites scored · sorted by opportunity</p>
+          <h1 style={{ fontSize:19, marginBottom:4 }}>{t('audits.screenTitle')}</h1>
+          <p style={{ fontSize:12.5, color:'var(--ink-3)' }}>{audited.length} {t('audits.sitesScoredSuffix')}</p>
         </div>
         <div style={{ flex:1, overflowY:'auto', padding:'4px 10px 16px' }}>
           {[...audited].sort((x, y) => (y.score - y.site) - (x.score - x.site)).map(l => {
@@ -114,7 +116,7 @@ export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScr
             <div>
               <div className="row" style={{ gap:11, marginBottom:6 }}>
                 <h1 style={{ fontSize:26, letterSpacing:'-0.03em', whiteSpace:'nowrap' }}>{a.company}</h1>
-                <span className="badge badge-neutral">Audit report</span>
+                <span className="badge badge-neutral">{t('audits.reportBadge')}</span>
               </div>
               <div className="row" style={{ gap:9, fontSize:13.5, color:'var(--ink-2)' }}>
                 <span>{a.industry} · {a.city}</span>
@@ -127,15 +129,15 @@ export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScr
             <div className="row" style={{ gap:8, flexWrap:'wrap' }}>
               <button className="btn btn-ghost btn-sm" style={{borderColor:'var(--border)'}}
                 onClick={() => onAction('Assigned to Design Studio · '+a.company, 'success')}>
-                Assign to design
+                {t('audits.assignToDesign')}
               </button>
               <button className="btn btn-ghost btn-sm" style={{borderColor:'var(--border)'}}
                 onClick={() => onAction('Escalated audit · '+a.company, 'warning')}>
-                Escalate
+                {t('audits.escalate')}
               </button>
               <button className="btn btn-primary btn-sm"
                 onClick={() => hasDemo ? goDemos(sel) : onAction('Generating demo · '+a.company, 'success')}>
-                {hasDemo ? 'View demo' : 'Generate demo'} <Icon name="arrowR" size={15}/>
+                {hasDemo ? t('audits.viewDemo') : t('audits.generateDemo')} <Icon name="arrowR" size={15}/>
               </button>
             </div>
           </div>
@@ -144,7 +146,7 @@ export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScr
           <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1.2fr) minmax(0,1fr)', gap:18, marginBottom:18 }} className="floor-grid">
             <div className="card" style={{ padding:16 }}>
               <div className="row between" style={{ marginBottom:12 }}>
-                <span className="eyebrow" style={{color:'var(--ink-3)'}}>Current website</span>
+                <span className="eyebrow" style={{color:'var(--ink-3)'}}>{t('audits.currentWebsite')}</span>
                 <span className="badge badge-danger">{a.site}/100</span>
               </div>
               <SiteMock variant="old" hue={hue} label={a.url} />
@@ -161,13 +163,13 @@ export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScr
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize:13, color:'var(--ink-3)', marginBottom:3 }}>Redesign opportunity</div>
+                  <div style={{ fontSize:13, color:'var(--ink-3)', marginBottom:3 }}>{t('audits.redesignOpportunity')}</div>
                   <div className="row" style={{ gap:8, alignItems:'baseline' }}>
                     <span style={{ fontSize:26, fontWeight:600, color:'var(--success)', letterSpacing:'-0.03em' }} className="tabular">+{a.score-a.site}</span>
                     <span style={{ fontSize:13, color:'var(--ink-2)' }}>to {a.score}/100</span>
                   </div>
                   <div className="row" style={{ gap:6, marginTop:8, fontSize:12, color:'var(--ink-3)' }}>
-                    <Icon name="shield" size={13}/> AI confidence {a.confidence}%
+                    <Icon name="shield" size={13}/> {t('audits.aiConfidence')} {a.confidence}%
                   </div>
                 </div>
               </div>
@@ -177,7 +179,7 @@ export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScr
 
           {/* Score breakdown */}
           <div className="card" style={{ padding:18, marginBottom:18 }}>
-            <h2 style={{ fontSize:16, marginBottom:16 }}>Score breakdown</h2>
+            <h2 style={{ fontSize:16, marginBottom:16 }}>{t('audits.scoreBreakdown')}</h2>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px 32px' }} className="audit-scores">
               {AV.SCORE_LABELS.map(([k, label]) => <ScoreBar key={k} label={label} value={a.scores[k as keyof typeof a.scores]} />)}
             </div>
@@ -190,7 +192,7 @@ export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScr
                 <span style={{ width:28, height:28, borderRadius:8, background:'var(--danger-soft)', color:'var(--danger)', display:'grid', placeItems:'center' }}>
                   <Icon name="alert" size={15}/>
                 </span>
-                <h2 style={{ fontSize:16 }}>Problems detected</h2>
+                <h2 style={{ fontSize:16 }}>{t('audits.problemsDetected')}</h2>
               </div>
               <div className="col" style={{ gap:11 }}>
                 {a.problems.map((p, i) => (
@@ -208,14 +210,14 @@ export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScr
                 <span style={{ width:28, height:28, borderRadius:8, background:'var(--primary-soft)', color:'var(--primary)', display:'grid', placeItems:'center' }}>
                   <Icon name="spark" size={15}/>
                 </span>
-                <h2 style={{ fontSize:16 }}>Suggested redesign</h2>
+                <h2 style={{ fontSize:16 }}>{t('audits.suggestedRedesign')}</h2>
               </div>
               <div style={{ marginBottom:14 }}>
-                <div className="eyebrow" style={{ fontSize:9.5, marginBottom:6 }}>Visual direction</div>
+                <div className="eyebrow" style={{ fontSize:9.5, marginBottom:6 }}>{t('audits.visualDirection')}</div>
                 <div style={{ fontSize:14, fontWeight:600 }}>{a.redesign.style}</div>
               </div>
               <div style={{ marginBottom:14 }}>
-                <div className="eyebrow" style={{ fontSize:9.5, marginBottom:8 }}>Recommended sections</div>
+                <div className="eyebrow" style={{ fontSize:9.5, marginBottom:8 }}>{t('audits.recommendedSections')}</div>
                 <div className="row wrap" style={{ gap:7 }}>
                   {a.redesign.sections.map(s => (
                     <span key={s} className="chip" style={{ height:28, fontSize:11.5, cursor:'default' }}>{s}</span>
@@ -224,11 +226,11 @@ export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScr
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 <div>
-                  <div className="eyebrow" style={{ fontSize:9.5, marginBottom:5 }}>CTA strategy</div>
+                  <div className="eyebrow" style={{ fontSize:9.5, marginBottom:5 }}>{t('audits.ctaStrategy')}</div>
                   <div style={{ fontSize:13, color:'var(--ink-2)' }}>{a.redesign.cta}</div>
                 </div>
                 <div>
-                  <div className="eyebrow" style={{ fontSize:9.5, marginBottom:5 }}>Content angle</div>
+                  <div className="eyebrow" style={{ fontSize:9.5, marginBottom:5 }}>{t('audits.contentAngle')}</div>
                   <div style={{ fontSize:13, color:'var(--ink-2)' }}>{a.redesign.content}</div>
                 </div>
               </div>
@@ -238,7 +240,7 @@ export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScr
                 </span>
                 <button className="btn btn-soft btn-sm"
                   onClick={() => hasDemo ? goDemos(sel) : onAction('Generating demo · '+a.company, 'success')}>
-                  {hasDemo ? 'View demo' : 'Generate'}
+                  {hasDemo ? t('audits.viewDemo') : t('audits.generate')}
                 </button>
               </div>
             </div>

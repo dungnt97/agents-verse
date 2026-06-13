@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import { Icon } from '@/components/brand/icon';
 import { CountUp } from '@/components/ui/count-up';
-import { useI18n } from '@/lib/i18n';
+import { useI18n } from '@/lib/i18n/i18n-provider';
 import { AV } from '@/lib/data';
 import type { DemoRequest } from '@/lib/data/types';
 import type { ToastKind } from '@/lib/providers/toast-provider';
@@ -81,6 +81,7 @@ function OverviewBand({ items }: { items: BandItem[] }) {
    ------------------------------------------------------------------------- */
 
 function RequestCard({ r, onAction, onConvert, onUpdate }: RequestCardProps) {
+  const { t } = useI18n();
   const st = AV.REQ_STATUS[r.status] ?? AV.REQ_STATUS.new;
   const hue = AV.hueFor(r.industry);
 
@@ -115,7 +116,7 @@ function RequestCard({ r, onAction, onConvert, onUpdate }: RequestCardProps) {
         </span>
         <span className={'badge ' + st.cls}>
           {r.status === 'new' && <span className="dot" style={{ background: 'currentColor' }} />}
-          {st.label}
+          {t('req.status' + r.status.charAt(0).toUpperCase() + r.status.slice(1))}
         </span>
       </div>
 
@@ -143,21 +144,21 @@ function RequestCard({ r, onAction, onConvert, onUpdate }: RequestCardProps) {
             </span>
           )
           : (
-            <span className="badge badge-neutral" style={{ height: 19, fontSize: 10.5 }}>No site yet</span>
+            <span className="badge badge-neutral" style={{ height: 19, fontSize: 10.5 }}>{t('req.noSiteYet')}</span>
           )}
       </div>
 
       {/* Action buttons */}
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         <button className="btn btn-primary btn-sm" onClick={() => onConvert(r)}>
-          Run audit &amp; convert
+          {t('req.runAuditConvert')}
         </button>
         <button
           className="btn btn-ghost btn-sm"
           style={{ borderColor: 'var(--border)' }}
           onClick={() => { onUpdate(r.id, 'contacted'); onAction('Reply sent to ' + r.name, 'success'); }}
         >
-          Reply
+          {t('req.reply')}
         </button>
         {r.status !== 'declined' && (
           <button
@@ -165,7 +166,7 @@ function RequestCard({ r, onAction, onConvert, onUpdate }: RequestCardProps) {
             style={{ marginLeft: 'auto' }}
             onClick={() => { onUpdate(r.id, 'declined'); onAction('Request declined', 'warning'); }}
           >
-            Decline
+            {t('req.decline')}
           </button>
         )}
       </div>
@@ -185,7 +186,14 @@ export function RequestsScreen({
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('All');
 
-  const filters = ['All', 'New', 'Reviewing', 'Contacted', 'Converted'];
+  /* Filter keys are stable internal values; labels are translated. */
+  const FILTERS: { key: string; label: string }[] = [
+    { key: 'All',       label: t('req.filterAll')       },
+    { key: 'New',       label: t('req.filterNew')       },
+    { key: 'Reviewing', label: t('req.filterReviewing') },
+    { key: 'Contacted', label: t('req.filterContacted') },
+    { key: 'Converted', label: t('req.filterConverted') },
+  ];
 
   const list = requests.filter(r =>
     (filter === 'All' || AV.REQ_STATUS[r.status]?.label === filter) &&
@@ -226,20 +234,20 @@ export function RequestsScreen({
 
       {/* Stats band */}
       <OverviewBand items={[
-        { label: 'Total requests',  value: requests.length,                                                icon: 'send' },
-        { label: 'New',             value: c('new'),                                                       icon: 'alert',    accent: 'var(--warning)' },
-        { label: 'Reviewing',       value: c('reviewing'),                                                 icon: 'search',   accent: 'var(--info)' },
-        { label: 'Contacted',       value: c('contacted'),                                                 icon: 'activity', accent: 'var(--primary)' },
-        { label: 'Converted',       value: c('converted'),                                                 icon: 'check',    accent: 'var(--success)' },
-        { label: 'Conversion',      value: requests.length ? Math.round(c('converted') / requests.length * 100) : 0, icon: 'arrowUR', accent: 'var(--success)', suffix: '%' },
+        { label: t('req.totalRequests'), value: requests.length,                                                                          icon: 'send'     },
+        { label: t('req.statNew'),       value: c('new'),                                                                                 icon: 'alert',    accent: 'var(--warning)'  },
+        { label: t('req.statReviewing'), value: c('reviewing'),                                                                           icon: 'search',   accent: 'var(--info)'     },
+        { label: t('req.statContacted'), value: c('contacted'),                                                                           icon: 'activity', accent: 'var(--primary)'  },
+        { label: t('req.statConverted'), value: c('converted'),                                                                           icon: 'check',    accent: 'var(--success)'  },
+        { label: t('req.statConversion'),value: requests.length ? Math.round(c('converted') / requests.length * 100) : 0,                icon: 'arrowUR',  accent: 'var(--success)', suffix: '%' },
       ]} />
 
       {/* Filter chips + search */}
       <div className="row between wrap" style={{ gap: 12, marginBottom: 20 }}>
         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-          {filters.map(f => (
-            <button key={f} className={'chip' + (filter === f ? ' active' : '')} onClick={() => setFilter(f)} style={{ height: 36 }}>
-              {f}
+          {FILTERS.map(f => (
+            <button key={f.key} className={'chip' + (filter === f.key ? ' active' : '')} onClick={() => setFilter(f.key)} style={{ height: 36 }}>
+              {f.label}
             </button>
           ))}
         </div>
@@ -248,7 +256,7 @@ export function RequestsScreen({
           <input
             value={q}
             onChange={e => setQ(e.target.value)}
-            placeholder="Search requests…"
+            placeholder={t('req.searchPlaceholder')}
             style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13.5, width: '100%', color: 'var(--ink)' }}
           />
         </div>
@@ -261,9 +269,9 @@ export function RequestsScreen({
             <span style={{ width: 52, height: 52, borderRadius: 14, display: 'grid', placeItems: 'center', background: 'var(--surface-muted)', color: 'var(--ink-3)', marginBottom: 16 }}>
               <Icon name="send" size={24} />
             </span>
-            <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>No requests here</div>
+            <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>{t('req.noRequests')}</div>
             <p style={{ fontSize: 14, color: 'var(--ink-3)', maxWidth: 340, lineHeight: 1.45 }}>
-              When a business requests a demo from your landing page, it lands here for review.
+              {t('req.noRequestsDesc')}
             </p>
           </div>
         )

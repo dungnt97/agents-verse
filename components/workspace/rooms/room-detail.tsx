@@ -11,11 +11,14 @@ import { Icon } from '@/components/brand/icon';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { SiteMock } from '@/components/site-mock';
+import { useI18n } from '@/lib/i18n';
 import { AV } from '@/lib/data';
 import { ROOM_ICON } from '@/components/floor-map';
 import { EmptyState } from './rooms-index';
 import type { RoomProject, TimelineItem as TLItem } from '@/lib/data/types';
 import type { ToastKind } from '@/lib/providers/toast-provider';
+// Side-effect import: merges rooms.* + agents.* keys into AV_DICT
+import '@/lib/i18n/keys/rooms-agents';
 
 type OnAction = (msg: string, kind?: ToastKind) => void;
 
@@ -23,6 +26,7 @@ type OnAction = (msg: string, kind?: ToastKind) => void;
    ProjectCard — single project row inside the room's work panel
    ------------------------------------------------------------------------- */
 function ProjectCard({ p, onAction, onPreview }: { p: RoomProject; onAction: OnAction; onPreview: (p: RoomProject) => void }) {
+  const { t } = useI18n();
   const hue = ({ Healthcare: 200, Wellness: 300, Hospitality: 140, 'Real Estate': 40, Logistics: 230, Fitness: 20 } as Record<string, number>)[p.industry] || 220;
   return (
     <div className="card" style={{ padding: 16 }}>
@@ -37,7 +41,7 @@ function ProjectCard({ p, onAction, onPreview }: { p: RoomProject; onAction: OnA
         <span className={'badge ' + p.cls}>{p.label}</span>
       </div>
       <div className="row between" style={{ marginBottom: 7 }}>
-        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>Progress</span>
+        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{t('rooms.projectProgress')}</span>
         <span className="mono" style={{ fontSize: 12, color: 'var(--ink-2)' }}>{p.progress}%</span>
       </div>
       <div className="track" style={{ marginBottom: 14 }}><i style={{ width: p.progress + '%', background: p.progress === 100 ? 'var(--success)' : 'var(--primary)' }} /></div>
@@ -45,11 +49,11 @@ function ProjectCard({ p, onAction, onPreview }: { p: RoomProject; onAction: OnA
         <span className="row" style={{ gap: 9 }}>
           <AgentAvatar id={p.agent} size={26} />
           <span>
-            <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>Lead · confidence</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{t('rooms.projectLeadConf')}</div>
             <div style={{ fontSize: 12.5, fontWeight: 600 }}>{AV.agentById(p.agent)?.name} · {p.score}%</div>
           </span>
         </span>
-        <button className="btn btn-soft btn-sm" onClick={() => onPreview(p)}>Preview</button>
+        <button className="btn btn-soft btn-sm" onClick={() => onPreview(p)}>{t('rooms.projectPreview')}</button>
       </div>
       <div className="row" style={{ gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-soft)' }}>
         <Icon name="arrowR" size={14} style={{ color: 'var(--primary)' }} /><span style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>Next: {p.next}</span>
@@ -88,6 +92,7 @@ export function TimelineItem({ e, last }: { e: TLItem; last: boolean }) {
    Exported so it can be rendered by RoomDetail at page level.
    ------------------------------------------------------------------------- */
 export function DemoPeek({ p, onClose, onAction }: { p: RoomProject; onClose: () => void; onAction: OnAction }) {
+  const { t } = useI18n();
   const hue = ({ Healthcare: 200, Wellness: 300, Hospitality: 140, 'Real Estate': 40, Logistics: 230, Fitness: 20 } as Record<string, number>)[p.industry] || 220;
   return (
     <>
@@ -101,14 +106,14 @@ export function DemoPeek({ p, onClose, onAction }: { p: RoomProject; onClose: ()
           <button className="btn btn-icon btn-ghost focusable" onClick={onClose} style={{ borderColor: 'var(--border)' }}><Icon name="x" size={17} /></button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-          <div className="row between" style={{ marginBottom: 10 }}><span className="eyebrow" style={{ color: 'var(--ink-3)' }}>Before</span><span className="badge badge-danger">{p.site}/100</span></div>
+          <div className="row between" style={{ marginBottom: 10 }}><span className="eyebrow" style={{ color: 'var(--ink-3)' }}>{t('rooms.demoBefore')}</span><span className="badge badge-danger">{p.site}/100</span></div>
           <SiteMock variant="old" hue={hue} label={p.url} style={{ marginBottom: 22 }} />
-          <div className="row between" style={{ marginBottom: 10 }}><span className="eyebrow" style={{ color: 'var(--primary)' }}>After · Agents Verse demo</span><span className="badge badge-success">{p.score}/100</span></div>
+          <div className="row between" style={{ marginBottom: 10 }}><span className="eyebrow" style={{ color: 'var(--primary)' }}>{t('rooms.demoAfter')}</span><span className="badge badge-success">{p.score}/100</span></div>
           <SiteMock variant="new" hue={hue} label="demo.agentsverse.ai" />
         </div>
         <div className="row" style={{ gap: 10, padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
-          <button className="btn btn-primary grow" onClick={() => onAction('Demo approved · ' + p.company, 'success')}>Approve demo</button>
-          <button className="btn btn-ghost" style={{ borderColor: 'var(--border)' }} onClick={() => onAction('Improvement requested')}>Improve with AI</button>
+          <button className="btn btn-primary grow" onClick={() => onAction('Demo approved · ' + p.company, 'success')}>{t('rooms.demoApprove')}</button>
+          <button className="btn btn-ghost" style={{ borderColor: 'var(--border)' }} onClick={() => onAction('Improvement requested')}>{t('rooms.demoImprove')}</button>
         </div>
       </div>
     </>
@@ -127,6 +132,7 @@ export interface RoomDetailProps {
 }
 
 export function RoomDetail({ roomId, onBack, onAgent, onAction, goDemos }: RoomDetailProps) {
+  const { t } = useI18n();
   // Mirror original fallback: unknown id → 'design'
   const r = AV.roomById(roomId) || AV.roomById('design')!;
   const sm = AV.statusMap[r.status];
@@ -136,12 +142,16 @@ export function RoomDetail({ roomId, onBack, onAgent, onAction, goDemos }: RoomD
   const agents = AV.agents.filter(a => a.room === r.id);
   const [preview, setPreview] = useState<RoomProject | null>(null);
 
-  const workTitle = r.id === 'design' ? 'Current projects' : r.id === 'audit' ? 'Audit queue' : r.id === 'sales' ? 'Active deals' : 'Current work';
+  const workTitle =
+    r.id === 'design'  ? t('rooms.workTitleDesign') :
+    r.id === 'audit'   ? t('rooms.workTitleAudit')  :
+    r.id === 'sales'   ? t('rooms.workTitleSales')  :
+                         t('rooms.workTitleDefault');
 
   return (
     <div style={{ padding: '26px 28px 60px', maxWidth: 1480, margin: '0 auto' }}>
       <button onClick={onBack} className="row focusable" style={{ gap: 7, fontSize: 13, color: 'var(--ink-3)', marginBottom: 16 }}>
-        <Icon name="chevR" size={14} style={{ transform: 'rotate(180deg)' }} /> All rooms
+        <Icon name="chevR" size={14} style={{ transform: 'rotate(180deg)' }} /> {t('rooms.backLink')}
       </button>
 
       {/* header */}
@@ -159,10 +169,10 @@ export function RoomDetail({ roomId, onBack, onAgent, onAction, goDemos }: RoomD
           </div>
         </div>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--border)' }} onClick={() => onAction('Asked ' + r.name + ' for a summary')}><Icon name="spark" size={15} /> Ask summary</button>
-          {r.id === 'design' && <button className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--border)' }} onClick={goDemos}>Open demos</button>}
-          <button className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--border)' }} onClick={() => onAction(r.name + ' paused', 'warning')}><Icon name="pause" size={15} /> Pause room</button>
-          <button className="btn btn-soft btn-sm" onClick={() => onAction('Escalated an issue in ' + r.name, 'warning')}>Escalate</button>
+          <button className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--border)' }} onClick={() => onAction('Asked ' + r.name + ' for a summary')}><Icon name="spark" size={15} /> {t('rooms.btnAskSummary')}</button>
+          {r.id === 'design' && <button className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--border)' }} onClick={goDemos}>{t('rooms.btnOpenDemos')}</button>}
+          <button className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--border)' }} onClick={() => onAction(r.name + ' paused', 'warning')}><Icon name="pause" size={15} /> {t('rooms.btnPauseRoom')}</button>
+          <button className="btn btn-soft btn-sm" onClick={() => onAction('Escalated an issue in ' + r.name, 'warning')}>{t('rooms.btnEscalate')}</button>
         </div>
       </div>
 
@@ -185,10 +195,10 @@ export function RoomDetail({ roomId, onBack, onAgent, onAction, goDemos }: RoomD
                 <h2 style={{ fontSize: 17 }}>{workTitle}</h2>
                 <span className="badge badge-neutral">{projects.length}</span>
               </div>
-              <button className="btn btn-soft btn-sm" onClick={() => onAction('Prioritization updated')}>Prioritize</button>
+              <button className="btn btn-soft btn-sm" onClick={() => onAction('Prioritization updated')}>{t('rooms.btnPrioritize')}</button>
             </div>
             {projects.length === 0
-              ? <EmptyState icon="layers" title="Nothing in progress" sub="This room has no active work right now. New tasks will appear here automatically." />
+              ? <EmptyState icon="layers" title={t('rooms.nothingTitle')} sub={t('rooms.nothingSub')} />
               : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 14 }}>
                   {projects.map(p => <ProjectCard key={p.id} p={p} onAction={onAction} onPreview={setPreview} />)}
                 </div>}
@@ -199,7 +209,7 @@ export function RoomDetail({ roomId, onBack, onAgent, onAction, goDemos }: RoomD
         <div className="col" style={{ gap: 20 }}>
           <div className="card" style={{ padding: 18 }}>
             <div className="row between" style={{ marginBottom: 14 }}>
-              <h2 style={{ fontSize: 16 }}>Agents in room</h2>
+              <h2 style={{ fontSize: 16 }}>{t('rooms.agentsInRoom')}</h2>
               <span className="badge badge-neutral">{agents.length}</span>
             </div>
             <div className="col" style={{ gap: 8 }}>
@@ -227,7 +237,7 @@ export function RoomDetail({ roomId, onBack, onAgent, onAction, goDemos }: RoomD
 
           <div className="card" style={{ padding: 18 }}>
             <div className="row between" style={{ marginBottom: 16 }}>
-              <h2 style={{ fontSize: 16 }}>Room timeline</h2>
+              <h2 style={{ fontSize: 16 }}>{t('rooms.roomTimeline')}</h2>
               <span className="pulse" />
             </div>
             <div>{timeline.map((e, i) => <TimelineItem key={i} e={e} last={i === timeline.length - 1} />)}</div>

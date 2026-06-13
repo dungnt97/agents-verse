@@ -7,6 +7,7 @@
 
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
+import { useI18n } from '@/lib/i18n/i18n-provider';
 import { ROUTE_META } from './route-meta';
 
 interface ComingSoonProps {
@@ -15,6 +16,7 @@ interface ComingSoonProps {
 
 export function ComingSoon({ route }: ComingSoonProps) {
   const router = useRouter();
+  const { t } = useI18n();
   const meta = ROUTE_META[route] ?? {};
 
   function onBack() {
@@ -28,17 +30,17 @@ export function ComingSoon({ route }: ComingSoonProps) {
           background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--primary)', boxShadow: 'var(--sh-md)' }}>
           {meta.icon && <Icon name={meta.icon} size={28} />}
         </div>
-        <div className="badge badge-primary" style={{ marginBottom: 16 }}>Phase 2 · in design</div>
+        <div className="badge badge-primary" style={{ marginBottom: 16 }}>{t('shell.comingSoonBadge')}</div>
         <h1 style={{ fontSize: 30, letterSpacing: '-0.03em', marginBottom: 14 }}>{meta.label}</h1>
         <p style={{ fontSize: 16, color: 'var(--ink-2)', lineHeight: 1.55, marginBottom: 30, textWrap: 'pretty' }}>{meta.desc}</p>
         <div className="row center" style={{ gap: 10 }}>
           <button className="btn btn-ghost" onClick={onBack} style={{ borderColor: 'var(--border)' }}>
-            <Icon name="overview" size={16} /> Back to Overview
+            <Icon name="overview" size={16} /> {t('shell.backToOverview')}
           </button>
-          <button className="btn btn-primary" onClick={() => router.push('/command')}>Open Command Center</button>
+          <button className="btn btn-primary" onClick={() => router.push('/command')}>{t('shell.openCommandCenter')}</button>
         </div>
         <p style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 30 }}>
-          The first three screens — Landing, Floor Overview and Command Center — set the design bar for this page.
+          {t('shell.comingSoonFootnote')}
         </p>
       </div>
     </div>

@@ -6,11 +6,12 @@
 
 import { useState } from 'react';
 import { Icon } from '@/components/brand/icon';
+import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n/i18n-provider';
 import { AV } from '@/lib/data';
 import type { Deal, Production } from '@/lib/data/types';
 
-/* ---- OverviewBand (local — matches rooms.jsx:5 verbatim) ---- */
+/* ---- OverviewBand (local) — value via CountUp (rounds, ignores prefix), like the shared original ---- */
 
 interface BandItem {
   label: string;
@@ -32,7 +33,7 @@ function OverviewBand({ items }: { items: BandItem[] }) {
             <span style={{ fontSize:12, color:'var(--ink-3)', fontWeight:500 }}>{it.label}</span>
           </div>
           <div style={{ fontSize:24, fontWeight:600, letterSpacing:'-0.03em' }}>
-            {it.prefix||''}{it.value.toLocaleString('en-US')}{it.suffix||''}
+            <CountUp end={it.value} suffix={it.suffix || ''} />
           </div>
         </div>
       ))}
@@ -71,6 +72,7 @@ function ProbBar({ value }: { value: number }) {
 /* ---- DealCard ---- */
 
 function DealCard({ d, onOpen }: { d: Deal; onOpen: (id: string) => void }) {
+  const { t } = useI18n();
   const [hover, setHover] = useState(false);
   const st = AV.DEAL_STAGE[d.stage];
   const escalated = d.stage === 'call' || d.stage === 'approval';
@@ -94,11 +96,11 @@ function DealCard({ d, onOpen }: { d: Deal; onOpen: (id: string) => void }) {
             <div style={{ fontSize:12, color:'var(--ink-3)' }}>{d.pkg} · {d.city}</div>
           </span>
         </span>
-        <span className={'badge '+st.cls}>{st.label}</span>
+        <span className={'badge '+st.cls}>{t('dealStage.' + d.stage)}</span>
       </div>
       <div className="row between" style={{ alignItems:'flex-end' }}>
         <div>
-          <div style={{ fontSize:11.5, color:'var(--ink-3)', marginBottom:2 }}>Quoted · est. value</div>
+          <div style={{ fontSize:11.5, color:'var(--ink-3)', marginBottom:2 }}>{t('deals.quotedLabel')}</div>
           <div className="row" style={{ gap:8, alignItems:'baseline' }}>
             <span style={{ fontSize:19, fontWeight:600, letterSpacing:'-0.02em' }} className="tabular">{AV.fmt.money(d.price)}</span>
             <span style={{ fontSize:12.5, color:'var(--ink-3)' }} className="tabular">/ {AV.fmt.money(d.value)}</span>
@@ -119,6 +121,7 @@ function DealCard({ d, onOpen }: { d: Deal; onOpen: (id: string) => void }) {
 /* ---- ProductionTimeline ---- */
 
 function ProductionTimeline({ p }: { p: Production }) {
+  const { t } = useI18n();
   return (
     <div>
       <div className="row between" style={{ marginBottom:14 }}>
@@ -158,7 +161,7 @@ function ProductionTimeline({ p }: { p: Production }) {
           <span style={{ fontSize:13, color:'var(--ink)' }}>{p.blocker}</span>
         </div>
       )}
-      <div className="eyebrow" style={{ marginBottom:10 }}>Required client assets</div>
+      <div className="eyebrow" style={{ marginBottom:10 }}>{t('deals.assetsEyebrow')}</div>
       <div className="col" style={{ gap:8 }}>
         {p.assets.map((a, i) => (
           <div key={i} className="row between">
@@ -172,7 +175,7 @@ function ProductionTimeline({ p }: { p: Production }) {
               <span style={{ fontSize:13, color: a.got ? 'var(--ink-2)' : 'var(--ink)' }}>{a.name}</span>
             </span>
             <span style={{ fontSize:11.5, color: a.got ? 'var(--success)' : 'var(--warning)', fontWeight:600 }}>
-              {a.got ? 'Received' : 'Pending'}
+              {a.got ? t('deals.assetReceived') : t('deals.assetPending')}
             </span>
           </div>
         ))}
@@ -184,6 +187,7 @@ function ProductionTimeline({ p }: { p: Production }) {
 /* ---- DealDrawer ---- */
 
 function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => void; onAction: (msg: string, kind?: string) => void }) {
+  const { t } = useI18n();
   const d = deal;
   const st = AV.DEAL_STAGE[d.stage];
   const escalated = d.stage === 'call' || d.stage === 'approval';
@@ -200,7 +204,7 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
           <div>
             <div className="row" style={{gap:10}}>
               <div style={{ fontSize:16.5, fontWeight:600 }}>{d.client}</div>
-              <span className={'badge '+st.cls}>{st.label}</span>
+              <span className={'badge '+st.cls}>{t('dealStage.' + d.stage)}</span>
             </div>
             <div style={{ fontSize:12.5, color:'var(--ink-3)', marginTop:3 }}>{d.industry} · {d.city}</div>
           </div>
@@ -212,7 +216,12 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
         <div style={{ flex:1, overflowY:'auto', padding:20 }}>
           {/* Quote summary tiles */}
           <div className="row" style={{ gap:12, marginBottom:20 }}>
-            {([['Package', d.pkg], ['Quoted', AV.fmt.money(d.price)], ['Est. value', AV.fmt.money(d.value)], ['Win prob.', d.probability+'%']] as [string, string][]).map(([l, v], i) => (
+            {([
+              [t('deals.tilePackage'),  d.pkg],
+              [t('deals.tileQuoted'),   AV.fmt.money(d.price)],
+              [t('deals.tileEstValue'), AV.fmt.money(d.value)],
+              [t('deals.tileWinProb'),  d.probability+'%'],
+            ] as [string, string][]).map(([l, v], i) => (
               <div key={i} style={{ flex:1, padding:'12px 13px', borderRadius:11, background:'var(--surface-muted)' }}>
                 <div style={{ fontSize:11, color:'var(--ink-3)', marginBottom:4 }}>{l}</div>
                 <div style={{ fontSize: i===0 ? 13 : 16, fontWeight:600, letterSpacing:'-0.02em', lineHeight:1.2 }}>{v}</div>
@@ -222,7 +231,7 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
 
           {/* Client reply */}
           <h3 style={{ fontSize:14, marginBottom:11 }}>
-            Client reply{' '}
+            {t('deals.sectionClientReply')}{' '}
             <span className="badge badge-neutral" style={{ marginLeft:6, height:19, fontSize:10.5 }}>{d.reply.kind}</span>
           </h3>
           <div style={{ padding:'13px 15px', borderRadius:'13px 13px 13px 4px', background:'var(--surface-muted)',
@@ -232,13 +241,13 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
           <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:10, marginBottom:14 }}>
             <div style={{ padding:'12px 14px', borderRadius:12, border:'1px solid var(--border)' }}>
               <div className="eyebrow" style={{ marginBottom:6 }}>
-                {/* DemoReply has no confidence field; d.conf is the deal-level confidence score */}
-                AI interpretation · {d.conf}% confidence
+                {/* d.conf is the deal-level AI confidence score — a data value, not chrome */}
+                {t('deals.sectionAiNotes')} · {d.conf}% confidence
               </div>
               <p style={{ fontSize:13, color:'var(--ink-2)', lineHeight:1.45 }}>{d.reply.interpretation}</p>
             </div>
             <div style={{ padding:'12px 14px', borderRadius:12, background:'var(--primary-soft)' }}>
-              <div className="eyebrow" style={{ color:'var(--primary)', marginBottom:6 }}>Suggested response</div>
+              <div className="eyebrow" style={{ color:'var(--primary)', marginBottom:6 }}>{t('deals.sectionSuggestedResp')}</div>
               <p style={{ fontSize:13, color:'var(--ink)', lineHeight:1.45 }}>&ldquo;{d.reply.suggested}&rdquo;</p>
             </div>
           </div>
@@ -248,11 +257,11 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
             <div style={{ padding:'13px 15px', borderRadius:12, background:'var(--warning-soft)', marginBottom:18 }}>
               <div className="row" style={{ gap:8, marginBottom:6 }}>
                 <Icon name="alert" size={15} style={{color:'var(--warning)'}}/>
-                <span style={{ fontSize:13, fontWeight:600 }}>Why this needs you</span>
+                <span style={{ fontSize:13, fontWeight:600 }}>{t('deals.sectionWhyNeeds')}</span>
               </div>
               <p style={{ fontSize:13, color:'var(--ink-2)', lineHeight:1.45, marginBottom:8 }}>{d.escReason}</p>
               <p style={{ fontSize:13, color:'var(--ink)', lineHeight:1.45 }}>
-                <span style={{fontWeight:600}}>AI recommends: </span>{d.aiRec}
+                <span style={{fontWeight:600}}>{t('deals.sectionAiRecommends')}</span>{d.aiRec}
               </p>
             </div>
           )}
@@ -260,7 +269,7 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
           {/* Production timeline */}
           {d.production && (
             <div style={{ marginTop:6, paddingTop:18, borderTop:'1px solid var(--border)' }}>
-              <h3 style={{ fontSize:14, marginBottom:14 }}>Website production</h3>
+              <h3 style={{ fontSize:14, marginBottom:14 }}>{t('deals.sectionProduction')}</h3>
               <ProductionTimeline p={d.production} />
             </div>
           )}
@@ -270,45 +279,45 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
         <div className="row wrap" style={{ gap:8, padding:'14px 20px', borderTop:'1px solid var(--border)', flex:'none' }}>
           {d.stage==='call' && <>
             <button className="btn btn-primary grow" onClick={() => onAction('Founder call scheduled · '+d.client,'success')}>
-              <Icon name="clock" size={15}/> Schedule call
+              <Icon name="clock" size={15}/> {t('deals.btnScheduleCall')}
             </button>
             <button className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('You took over · '+d.client)}>
-              Take over
+              {t('deals.btnTakeOver')}
             </button>
           </>}
           {d.stage==='approval' && <>
             <button className="btn btn-primary grow" onClick={() => onAction('Quote approved · '+d.client,'success')}>
-              <Icon name="check" size={15}/> Approve quote
+              <Icon name="check" size={15}/> {t('deals.btnApproveQuote')}
             </button>
             <button className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Quote rejected · '+d.client,'warning')}>
-              Reject
+              {t('deals.btnReject')}
             </button>
           </>}
           {d.stage==='pricing' && <>
             <button className="btn btn-primary grow" onClick={() => onAction('Quote approved & sent · '+d.client,'success')}>
-              Approve AI reply
+              {t('deals.btnApproveReply')}
             </button>
             <button className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Editing reply · '+d.client)}>
-              Edit reply
+              {t('deals.btnEditReply')}
             </button>
           </>}
           {d.stage==='created' && <>
             <button className="btn btn-primary grow" onClick={() => onAction('Reply sent · '+d.client,'success')}>
-              Send suggested reply
+              {t('deals.btnSendReply')}
             </button>
             <button className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Follow-up scheduled · '+d.client)}>
-              Schedule follow-up
+              {t('deals.btnFollowUp')}
             </button>
           </>}
           {d.stage==='won' && <>
             <button className="btn btn-primary grow" onClick={() => onAction('Content reminder sent · '+d.client,'success')}>
-              Request assets
+              {t('deals.btnRequestAssets')}
             </button>
             <button className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Marked delivered · '+d.client,'success')}>
-              Mark delivered
+              {t('deals.btnMarkDelivered')}
             </button>
           </>}
-          <button className="btn btn-soft" onClick={() => onAction('Summary requested · '+d.client)}>Ask summary</button>
+          <button className="btn btn-soft" onClick={() => onAction('Summary requested · '+d.client)}>{t('deals.btnAskSummary')}</button>
         </div>
       </div>
     </>
@@ -331,12 +340,28 @@ export function DealsScreen({ onAction, initialLead }: DealsScreenProps) {
     initialLead ? (AV.dealByLead(initialLead)?.id ?? null) : null
   );
 
-  const STAGES = ['All','Needs you','Pricing question','Deal created','Won'];
+  const STAGES = [
+    t('deals.fAll'),
+    t('deals.fNeedsYou'),
+    t('deals.fPricing'),
+    t('deals.fCreated'),
+    t('deals.fWon'),
+  ];
+
+  // Map translated chip labels back to English keys for data matching
+  const EN_STAGE_MAP: Record<string, string> = {
+    [t('deals.fAll')]:      'All',
+    [t('deals.fNeedsYou')]: 'Needs you',
+    [t('deals.fPricing')]:  'Pricing question',
+    [t('deals.fCreated')]:  'Deal created',
+    [t('deals.fWon')]:      'Won',
+  };
 
   const matchS = (d: Deal): boolean => {
-    if (stage === 'All') return true;
-    if (stage === 'Needs you') return d.stage === 'call' || d.stage === 'approval';
-    return AV.DEAL_STAGE[d.stage].label === stage;
+    const enStage = EN_STAGE_MAP[stage] ?? stage;
+    if (enStage === 'All') return true;
+    if (enStage === 'Needs you') return d.stage === 'call' || d.stage === 'approval';
+    return AV.DEAL_STAGE[d.stage].label === enStage;
   };
 
   const list = AV.deals.filter(d => d.client.toLowerCase().includes(q.toLowerCase()) && matchS(d));
@@ -354,18 +379,18 @@ export function DealsScreen({ onAction, initialLead }: DealsScreenProps) {
       </div>
 
       <OverviewBand items={[
-        { label:'Open deals',         value:AV.deals.filter(d=>d.stage!=='lost').length, icon:'deals' },
-        { label:'Need your approval', value:needYou,  icon:'alert',    accent:'var(--warning)' },
-        { label:'Weighted value',     value:weighted, icon:'dollar',   accent:'var(--success)', prefix:'$' },
-        { label:'Won this week',      value:1,        icon:'check',    accent:'var(--success)' },
-        { label:'Avg win prob.',      value:69,       icon:'activity', suffix:'%' },
-        { label:'In production',      value:1,        icon:'bolt',     accent:'var(--primary)' },
+        { label:t('deals.mOpen'),       value:AV.deals.filter(d=>d.stage!=='lost').length, icon:'deals' },
+        { label:t('deals.mApproval'),   value:needYou,  icon:'alert',    accent:'var(--warning)' },
+        { label:t('deals.mWeighted'),   value:weighted, icon:'dollar',   accent:'var(--success)', prefix:'$' },
+        { label:t('deals.mWonWeek'),    value:1,        icon:'check',    accent:'var(--success)' },
+        { label:t('deals.mAvgProb'),    value:69,       icon:'activity', suffix:'%' },
+        { label:t('deals.mProduction'), value:1,        icon:'bolt',     accent:'var(--primary)' },
       ]} />
 
       <div className="row wrap" style={{ gap:8, marginBottom:20 }}>
         <div className="row" style={{ gap:9, height:38, padding:'0 13px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', width:230, maxWidth:'70vw' }}>
           <Icon name="search" size={16} style={{ color:'var(--ink-3)' }} />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search client…"
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder={t('deals.searchPlaceholder')}
             style={{ border:'none', outline:'none', background:'transparent', fontSize:13.5, width:'100%', color:'var(--ink)' }} />
         </div>
         {STAGES.map(f => (
@@ -374,7 +399,7 @@ export function DealsScreen({ onAction, initialLead }: DealsScreenProps) {
       </div>
 
       {list.length === 0
-        ? <EmptyState icon="deals" title="No deals here" sub="Nothing matches this filter yet. Replies create deals automatically." />
+        ? <EmptyState icon="deals" title={t('deals.emptyTitle')} sub={t('deals.emptySub')} />
         : (
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(330px,1fr))', gap:16 }}>
             {list.map(d => <DealCard key={d.id} d={d} onOpen={id => setOpen(id)} />)}

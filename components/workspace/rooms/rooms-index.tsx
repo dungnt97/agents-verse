@@ -12,6 +12,8 @@ import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n';
 import { AV } from '@/lib/data';
 import { ROOM_ICON } from '@/components/floor-map';
+// Side-effect import: merges rooms.* + agents.* keys into AV_DICT
+import '@/lib/i18n/keys/rooms-agents';
 
 /* -------------------------------------------------------------------------
    OverviewBand — metrics row across the top of an index screen
@@ -40,19 +42,25 @@ function OverviewBand({ items }: { items: BandItem[] }) {
 /* -------------------------------------------------------------------------
    FilterBar — search input + filter chips + optional sort dropdown
    ------------------------------------------------------------------------- */
+interface FilterChip {
+  key: string;
+  label: string;
+}
+
 interface FilterBarProps {
   q: string;
   setQ: (v: string) => void;
-  filters: string[];
+  filters: FilterChip[];
   active: string;
   setActive: (v: string) => void;
-  sorts?: string[];
+  sorts?: FilterChip[];
   sort?: string;
   setSort?: (v: string) => void;
   placeholder: string;
+  sortLabel: string;
 }
 
-function FilterBar({ q, setQ, filters, active, setActive, sorts, sort, setSort, placeholder }: FilterBarProps) {
+function FilterBar({ q, setQ, filters, active, setActive, sorts, sort, setSort, placeholder, sortLabel }: FilterBarProps) {
   return (
     <div className="row between wrap" style={{ gap: 12, marginBottom: 20 }}>
       <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
@@ -61,14 +69,14 @@ function FilterBar({ q, setQ, filters, active, setActive, sorts, sort, setSort, 
           <input value={q} onChange={e => setQ(e.target.value)} placeholder={placeholder} style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13.5, width: '100%', color: 'var(--ink)' }} />
         </div>
         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-          {filters.map(f => (<button key={f} className={'chip' + (active === f ? ' active' : '')} onClick={() => setActive(f)} style={{ height: 38 }}>{f}</button>))}
+          {filters.map(f => (<button key={f.key} className={'chip' + (active === f.key ? ' active' : '')} onClick={() => setActive(f.key)} style={{ height: 38 }}>{f.label}</button>))}
         </div>
       </div>
       {sorts && (
         <div className="row" style={{ gap: 8 }}>
-          <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>Sort</span>
+          <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{sortLabel}</span>
           <select value={sort} onChange={e => setSort?.(e.target.value)} className="focusable" style={{ height: 38, padding: '0 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 13.5, color: 'var(--ink)', fontWeight: 500 }}>
-            {sorts.map(s => <option key={s} value={s}>{s}</option>)}
+            {sorts.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
           </select>
         </div>
       )}
@@ -100,6 +108,7 @@ interface RoomCardProps {
 }
 
 function RoomCard({ room, onOpen, onAgent }: RoomCardProps) {
+  const { t } = useI18n();
   const [hover, setHover] = useState(false);
   const sm = AV.statusMap[room.status];
   const attention = room.status === 'review' || room.status === 'warning';
@@ -123,7 +132,7 @@ function RoomCard({ room, onOpen, onAgent }: RoomCardProps) {
               <div style={{ fontSize: 15.5, fontWeight: 600, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{room.name}</div>
               <div className="row" style={{ gap: 6, marginTop: 3 }}>
                 {(room.status === 'active') ? <span className="pulse" style={{ background: sm.dot }} /> : <span style={{ width: 6, height: 6, borderRadius: 99, background: sm.dot }} />}
-                <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{sm.label}</span>
+                <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{t('status.' + room.status)}</span>
               </div>
             </span>
           </span>
@@ -131,13 +140,13 @@ function RoomCard({ room, onOpen, onAgent }: RoomCardProps) {
         </div>
         <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.45, marginBottom: 14, minHeight: 38, textWrap: 'pretty' } as React.CSSProperties}>{room.purpose}</p>
         <div style={{ padding: '10px 12px', borderRadius: 10, background: attention ? 'var(--warning-soft)' : 'var(--surface-muted)', marginBottom: 14 }}>
-          <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 4, color: attention ? 'var(--warning)' : 'var(--ink-3)' }}>Current mission</div>
+          <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 4, color: attention ? 'var(--warning)' : 'var(--ink-3)' }}>{t('rooms.cardMissionLabel')}</div>
           <div style={{ fontSize: 12.5, fontWeight: 500, color: attention ? 'var(--ink)' : 'var(--ink-2)' }}>{room.mission}</div>
         </div>
         <div className="row between">
           <AvatarStack ids={room.agents} size={24} max={4} />
           <div className="row" style={{ gap: 14 }}>
-            <span title="Running"><span className="mono" style={{ fontSize: 12, color: 'var(--ink-2)' }}>{room.running}</span><span style={{ fontSize: 10.5, color: 'var(--ink-3)', marginLeft: 4 }}>running</span></span>
+            <span title="Running"><span className="mono" style={{ fontSize: 12, color: 'var(--ink-2)' }}>{room.running}</span><span style={{ fontSize: 10.5, color: 'var(--ink-3)', marginLeft: 4 }}>{t('rooms.cardRunningLabel')}</span></span>
             <span title="Health" className="row" style={{ gap: 5 }}>
               <span style={{ width: 7, height: 7, borderRadius: 99, background: room.health >= 90 ? 'var(--success)' : room.health >= 85 ? 'var(--warning)' : 'var(--danger)' }} />
               <span className="mono" style={{ fontSize: 12, color: 'var(--ink-2)' }}>{room.health}</span>
@@ -158,19 +167,38 @@ function attRank(r: RoomData): number {
   return r.status === 'warning' ? 3 : r.status === 'review' ? 2 : r.status === 'active' ? 1 : 0;
 }
 
+// Internal keys (English) used for filter/sort logic — labels are t()-resolved in the component
+const FILT_KEYS = ['All', 'Active', 'Needs review', 'Warning', 'Idle'] as const;
 const FILT: Record<string, (r: RoomData) => boolean> = {
-  'All': () => true,
-  'Active': r => r.status === 'active',
+  'All':          () => true,
+  'Active':       r => r.status === 'active',
   'Needs review': r => r.status === 'review',
-  'Warning': r => r.status === 'warning',
-  'Idle': r => r.status === 'idle',
+  'Warning':      r => r.status === 'warning',
+  'Idle':         r => r.status === 'idle',
 };
 
+const SORT_KEYS = ['Needs attention', 'Most active', 'Highest output', 'Lowest health'] as const;
 const SORT: Record<string, (a: RoomData, b: RoomData) => number> = {
   'Needs attention': (a, b) => attRank(b) - attRank(a),
   'Most active':     (a, b) => b.running - a.running,
   'Highest output':  (a, b) => b.done - a.done,
   'Lowest health':   (a, b) => a.health - b.health,
+};
+
+// Maps internal English key → i18n translation key
+const FILT_I18N: Record<string, string> = {
+  'All':          'rooms.filterAll',
+  'Active':       'rooms.filterActive',
+  'Needs review': 'rooms.filterNeedsReview',
+  'Warning':      'rooms.filterWarning',
+  'Idle':         'rooms.filterIdle',
+};
+
+const SORT_I18N: Record<string, string> = {
+  'Needs attention': 'rooms.sortNeedsAttention',
+  'Most active':     'rooms.sortMostActive',
+  'Highest output':  'rooms.sortHighestOutput',
+  'Lowest health':   'rooms.sortLowestHealth',
 };
 
 /* -------------------------------------------------------------------------
@@ -193,6 +221,9 @@ export function RoomsIndex({ onOpen, onAgent }: RoomsIndexProps) {
   const activeCount = AV.rooms.filter(r => r.status === 'active').length;
   const attn = AV.rooms.filter(r => r.status === 'review' || r.status === 'warning').length;
 
+  const filterChips = FILT_KEYS.map(k => ({ key: k, label: t(FILT_I18N[k]) }));
+  const sortChips   = SORT_KEYS.map(k => ({ key: k, label: t(SORT_I18N[k]) }));
+
   return (
     <div style={{ padding: '26px 28px 60px', maxWidth: 1480, margin: '0 auto' }}>
       <div className="row between wrap" style={{ gap: 16, marginBottom: 22 }}>
@@ -202,21 +233,22 @@ export function RoomsIndex({ onOpen, onAgent }: RoomsIndexProps) {
         </div>
       </div>
       <OverviewBand items={[
-        { label: 'Total rooms',    value: 8,          icon: 'rooms' },
-        { label: 'Active',         value: activeCount, icon: 'activity', accent: 'var(--success)' },
-        { label: 'Need review',    value: attn,        icon: 'alert',    accent: 'var(--warning)' },
-        { label: 'Agents online',  value: 17,          icon: 'agents' },
-        { label: 'Tasks running',  value: 42,          icon: 'bolt' },
-        { label: 'Done today',     value: 238,         icon: 'check' },
+        { label: t('rooms.bandTotal'),        value: 8,          icon: 'rooms' },
+        { label: t('rooms.bandActive'),        value: activeCount, icon: 'activity', accent: 'var(--success)' },
+        { label: t('rooms.bandNeedReview'),    value: attn,        icon: 'alert',    accent: 'var(--warning)' },
+        { label: t('rooms.bandAgentsOnline'),  value: 17,          icon: 'agents' },
+        { label: t('rooms.bandTasksRunning'),  value: 42,          icon: 'bolt' },
+        { label: t('rooms.bandDoneToday'),     value: 238,         icon: 'check' },
       ]} />
       <FilterBar
         q={q} setQ={setQ}
-        filters={Object.keys(FILT)} active={active} setActive={setActive}
-        sorts={Object.keys(SORT)} sort={sort} setSort={setSort}
-        placeholder="Search rooms…"
+        filters={filterChips} active={active} setActive={setActive}
+        sorts={sortChips} sort={sort} setSort={setSort}
+        placeholder={t('rooms.searchPlaceholder')}
+        sortLabel={t('rooms.sortLabel')}
       />
       {rooms.length === 0
-        ? <EmptyState icon="rooms" title="No rooms match" sub={`Nothing for "${q || active}". Try a different filter.`} />
+        ? <EmptyState icon="rooms" title={t('rooms.emptyTitle')} sub={`${t('rooms.emptySubPrefix')}${q || active}${t('rooms.emptySubSuffix')}`} />
         : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(330px,1fr))', gap: 18 }}>
             {rooms.map(r => <RoomCard key={r.id} room={r} onOpen={onOpen} onAgent={onAgent} />)}
           </div>}

@@ -11,12 +11,15 @@ import { Icon } from '@/components/brand/icon';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { ConfidenceRing } from '@/components/ui/confidence-ring';
+import { useI18n } from '@/lib/i18n';
 import { AV } from '@/lib/data';
 import { ROOM_ICON } from '@/components/floor-map';
 import { TimelineItem } from '@/components/workspace/rooms/room-detail';
 import { NewSite } from '@/components/site-mock';
 import type { Agent, AgentDetail as AgentDetailData } from '@/lib/data/types';
 import type { ToastKind } from '@/lib/providers/toast-provider';
+// Side-effect import: merges rooms.* + agents.* keys into AV_DICT
+import '@/lib/i18n/keys/rooms-agents';
 
 type OnAction = (msg: string, kind?: ToastKind) => void;
 
@@ -59,6 +62,7 @@ function cannedReply(text: string): string {
 }
 
 function FounderChat({ agent, onAction }: FounderChatProps) {
+  const { t } = useI18n();
   const d = AV.agentDetail(agent.id);
   // onAction available for future escalation from chat — not used in original but prop kept
   void onAction;
@@ -66,7 +70,7 @@ function FounderChat({ agent, onAction }: FounderChatProps) {
   const [msgs, setMsgs] = useState<ChatMessage[]>([{
     role: 'agent',
     // Typographic apostrophe + curly dash preserved from agents.jsx initial message
-    text: `I’m on it — ${agent.task[0].toLowerCase() + agent.task.slice(1)}. Confidence ${agent.conf}%. Ask me anything or steer the work.`,
+    text: `I'm on it — ${agent.task[0].toLowerCase() + agent.task.slice(1)}. Confidence ${agent.conf}%. Ask me anything or steer the work.`,
   }]);
   const [val, setVal] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -89,10 +93,10 @@ function FounderChat({ agent, onAction }: FounderChatProps) {
       <div className="row between" style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
         <div className="row" style={{ gap: 9 }}>
           <Icon name="command" size={16} style={{ color: 'var(--primary)' }} />
-          <h2 style={{ fontSize: 15 }}>Founder controls</h2>
+          <h2 style={{ fontSize: 15 }}>{t('agents.founderControlsTitle')}</h2>
         </div>
         <span className="badge badge-success" style={{ height: 20 }}>
-          <span className="pulse" style={{ background: 'var(--success)' }} /> online
+          <span className="pulse" style={{ background: 'var(--success)' }} /> {t('agents.founderOnline')}
         </span>
       </div>
 
@@ -124,7 +128,7 @@ function FounderChat({ agent, onAction }: FounderChatProps) {
             placeholder={`Message ${agent.name}…`}
             style={{ flex: 1, height: 38, padding: '0 13px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 13.5, color: 'var(--ink)', outline: 'none' }}
           />
-          <button className="btn btn-primary btn-icon" onClick={() => send(val)}><Icon name="send" size={16} /></button>
+          <button className="btn btn-primary btn-icon" onClick={() => send(val)} title={t('agents.chatSend')}><Icon name="send" size={16} /></button>
         </div>
       </div>
     </div>
@@ -142,6 +146,7 @@ export interface AgentDetailProps {
 }
 
 export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailProps) {
+  const { t } = useI18n();
   // Mirror original fallback: unknown id → 'nova'
   const a = (AV.agentById(agentId) || AV.agentById('nova'))!;
   const d = AV.agentDetail(a.id) as AgentDetailData;
@@ -150,7 +155,7 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
   return (
     <div style={{ padding: '26px 28px 60px', maxWidth: 1480, margin: '0 auto' }}>
       <button onClick={onBack} className="row focusable" style={{ gap: 7, fontSize: 13, color: 'var(--ink-3)', marginBottom: 16 }}>
-        <Icon name="chevR" size={14} style={{ transform: 'rotate(180deg)' }} /> All agents
+        <Icon name="chevR" size={14} style={{ transform: 'rotate(180deg)' }} /> {t('agents.backLink')}
       </button>
 
       {/* header */}
@@ -172,10 +177,10 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
           </div>
         </div>
         <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--border)' }} onClick={() => onAction('Improvement requested from ' + a.name)}><Icon name="spark" size={15} /> Improve output</button>
-          <button className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--border)' }} onClick={() => onAction(a.name + ' reassigned')}>Reassign</button>
-          <button className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--border)' }} onClick={() => onAction(a.name + ' paused', 'warning')}><Icon name="pause" size={15} /> Pause</button>
-          <button className="btn btn-soft btn-sm" onClick={() => onAction('Escalated ' + a.name, 'warning')}>Escalate</button>
+          <button className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--border)' }} onClick={() => onAction('Improvement requested from ' + a.name)}><Icon name="spark" size={15} /> {t('agents.btnImproveOutput')}</button>
+          <button className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--border)' }} onClick={() => onAction(a.name + ' reassigned')}>{t('agents.btnReassign')}</button>
+          <button className="btn btn-ghost btn-sm" style={{ borderColor: 'var(--border)' }} onClick={() => onAction(a.name + ' paused', 'warning')}><Icon name="pause" size={15} /> {t('agents.btnPause')}</button>
+          <button className="btn btn-soft btn-sm" onClick={() => onAction('Escalated ' + a.name, 'warning')}>{t('agents.btnEscalate')}</button>
         </div>
       </div>
 
@@ -185,7 +190,7 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
           {/* current task */}
           <div className="card" style={{ padding: 18 }}>
             <div className="row between" style={{ marginBottom: 14 }}>
-              <h2 style={{ fontSize: 16 }}>Current task</h2>
+              <h2 style={{ fontSize: 16 }}>{t('agents.sectionCurrentTask')}</h2>
               <ConfidenceRing value={a.conf} size={40} />
             </div>
             <div style={{ padding: '14px 16px', borderRadius: 12, background: 'var(--primary-soft)', marginBottom: 14 }}>
@@ -197,7 +202,7 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
           {/* skills + tools */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }} className="floor-grid">
             <div className="card" style={{ padding: 18 }}>
-              <h2 style={{ fontSize: 16, marginBottom: 14 }}>Skills</h2>
+              <h2 style={{ fontSize: 16, marginBottom: 14 }}>{t('agents.sectionSkills')}</h2>
               <div className="row wrap" style={{ gap: 8 }}>
                 {d.skills.map(s => (
                   <span key={s} className="chip" style={{ height: 30, cursor: 'default', background: 'var(--surface-muted)' }}>{s}</span>
@@ -205,7 +210,7 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
               </div>
             </div>
             <div className="card" style={{ padding: 18 }}>
-              <h2 style={{ fontSize: 16, marginBottom: 14 }}>Tools enabled</h2>
+              <h2 style={{ fontSize: 16, marginBottom: 14 }}>{t('agents.sectionToolsEnabled')}</h2>
               <div className="col" style={{ gap: 9 }}>
                 {d.tools.map(tool => (
                   <div key={tool} className="row between">
@@ -226,7 +231,7 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
           {/* recent outputs — only shown when the agent has outputs */}
           {d.outputs.length > 0 && (
             <div className="card" style={{ padding: 18 }}>
-              <h2 style={{ fontSize: 16, marginBottom: 14 }}>Recent outputs</h2>
+              <h2 style={{ fontSize: 16, marginBottom: 14 }}>{t('agents.sectionRecentOutputs')}</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 12 }}>
                 {d.outputs.map((o, i) => (
                   <div key={i} style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
@@ -247,7 +252,7 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
 
           {/* task history */}
           <div className="card" style={{ padding: 18 }}>
-            <h2 style={{ fontSize: 16, marginBottom: 16 }}>Task history</h2>
+            <h2 style={{ fontSize: 16, marginBottom: 16 }}>{t('agents.sectionTaskHistory')}</h2>
             <div>
               {d.history.map((e, i) => (
                 <TimelineItem key={i} e={e} last={i === d.history.length - 1} />
@@ -259,13 +264,13 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
         {/* right rail */}
         <div className="col" style={{ gap: 20 }}>
           <div className="card" style={{ padding: 18 }}>
-            <h2 style={{ fontSize: 16, marginBottom: 16 }}>Performance</h2>
+            <h2 style={{ fontSize: 16, marginBottom: 16 }}>{t('agents.sectionPerformance')}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {([
-                ['Tasks completed', a.tasks],
-                ['Avg quality',     a.quality],
-                ['Approval rate',   d.approval + '%'],
-                ['Cost today',      '$' + a.cost.toFixed(2)],
+                [t('agents.perfTasksCompleted'), a.tasks],
+                [t('agents.perfAvgQuality'),     a.quality],
+                [t('agents.perfApprovalRate'),   d.approval + '%'],
+                [t('agents.perfCostToday'),      '$' + a.cost.toFixed(2)],
               ] as [string, string | number][]).map(([l, v], i) => (
                 <div key={i} style={{ padding: '13px 14px', borderRadius: 12, background: 'var(--surface-muted)' }}>
                   <div style={{ fontSize: 21, fontWeight: 600, letterSpacing: '-0.02em' }} className="tabular">{v}</div>
@@ -274,8 +279,8 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
               ))}
             </div>
             <div className="row between" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-soft)' }}>
-              <span style={{ fontSize: 13, color: 'var(--ink-2)' }}>Escalates below</span>
-              <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>{d.escalationThreshold}% confidence</span>
+              <span style={{ fontSize: 13, color: 'var(--ink-2)' }}>{t('agents.perfEscalatesBelow')}</span>
+              <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>{d.escalationThreshold}{t('agents.perfConfidenceSuffix')}</span>
             </div>
           </div>
 

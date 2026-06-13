@@ -13,6 +13,7 @@ import { Logo } from '@/components/brand/logo';
 import { Mark } from '@/components/brand/mark';
 import { Reveal } from '@/components/ui/reveal';
 import { useI18n } from '@/lib/i18n';
+import { useLandingInfoT } from '@/lib/i18n/keys/landing-info';
 
 /* ---- S7 · Pricing ---- */
 interface PricingProps {
@@ -21,13 +22,14 @@ interface PricingProps {
 
 export function Pricing({ onRequestDemo }: PricingProps) {
   const { t } = useI18n();
+  const { t: tli } = useLandingInfoT();
   const plans = [
     { name:t('price.p1'), price:'$900', unit:t('price.p1u'), tag:null, desc:t('price.p1d'),
-      feats:['1-page conversion site','Demo before you decide','Mobile-first build','Contact / booking form','2 revision rounds','Live in ~5 days'] },
+      feats:[tli('land.p1f1'),tli('land.p1f2'),tli('land.p1f3'),tli('land.p1f4'),tli('land.p1f5'),tli('land.p1f6')] },
     { name:t('price.p2'), price:'$2,400', unit:t('price.p2u'), tag:t('price.most'), desc:t('price.p2d'),
-      feats:['Up to 6 pages','Full design system','Copywriting included','SEO foundations','CMS handoff','4 revision rounds'] },
+      feats:[tli('land.p2f1'),tli('land.p2f2'),tli('land.p2f3'),tli('land.p2f4'),tli('land.p2f5'),tli('land.p2f6')] },
     { name:t('price.p3'), price:'$240', unit:t('price.p3u'), tag:null, desc:t('price.p3d'),
-      feats:['Unlimited small edits','Uptime monitoring','Monthly improvements','Priority support','Quarterly redesign review','Cancel anytime'] },
+      feats:[tli('land.p3f1'),tli('land.p3f2'),tli('land.p3f3'),tli('land.p3f4'),tli('land.p3f5'),tli('land.p3f6')] },
   ];
   return (
     <section style={{ ...wrap, padding: '110px 28px' }} id="pricing">

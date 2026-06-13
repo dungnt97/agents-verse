@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { Icon } from '@/components/brand/icon';
 import { Mark } from '@/components/brand/mark';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
-import { useI18n } from '@/lib/i18n';
+import { useI18n } from '@/lib/i18n/i18n-provider';
 import { AV } from '@/lib/data';
 import { AUTONOMY } from '@/components/workspace/autonomy-control';
 import type { ToastKind } from '@/lib/providers/toast-provider';
@@ -152,13 +152,13 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
   const { t } = useI18n();
 
   const SECTIONS = [
-    { id: 'brand',      label: 'Brand',           icon: 'spark'   },
-    { id: 'autonomy',   label: 'Autonomy',         icon: 'shield'  },
-    { id: 'pricing',    label: 'Pricing rules',    icon: 'dollar'  },
-    { id: 'outreach',   label: 'Outreach rules',   icon: 'send'    },
-    { id: 'escalation', label: 'Escalation rules', icon: 'alert'   },
-    { id: 'cost',       label: 'AI cost limits',   icon: 'bolt'    },
-    { id: 'agents',     label: 'Agent limits',     icon: 'agents'  },
+    { id: 'brand',      label: t('set.sectionBrand'),      icon: 'spark'   },
+    { id: 'autonomy',   label: t('set.sectionAutonomy'),   icon: 'shield'  },
+    { id: 'pricing',    label: t('set.sectionPricing'),    icon: 'dollar'  },
+    { id: 'outreach',   label: t('set.sectionOutreach'),   icon: 'send'    },
+    { id: 'escalation', label: t('set.sectionEscalation'), icon: 'alert'   },
+    { id: 'cost',       label: t('set.sectionCost'),       icon: 'bolt'    },
+    { id: 'agents',     label: t('set.sectionAgents'),     icon: 'agents'  },
   ];
 
   const [sec, setSec] = useState('autonomy');
@@ -166,8 +166,8 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
   // Brand
   const [company, setCompany] = useState('Agents Verse');
   const [primary, setPrimary] = useState('#e8631c');
-  const [tone, setTone] = useState('Premium');
-  const [typeStyle, setTypeStyle] = useState('Humanist');
+  const [tone, setTone] = useState(t('set.tonePremium'));
+  const [typeStyle, setTypeStyle] = useState(t('set.typHumanist'));
 
   // Outreach rules
   const [maxOut, setMaxOut] = useState(40);
@@ -252,10 +252,10 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
           <div style={{ marginTop: 16, padding: '13px 14px', borderRadius: 12, background: 'var(--surface-muted)' }}>
             <div className="row" style={{ gap: 8, marginBottom: 7 }}>
               <Icon name="shield" size={14} style={{ color: 'var(--primary)' }} />
-              <span style={{ fontSize: 12.5, fontWeight: 600 }}>Guardrails active</span>
+              <span style={{ fontSize: 12.5, fontWeight: 600 }}>{t('set.guardrailsActive')}</span>
             </div>
             <p style={{ fontSize: 11.5, color: 'var(--ink-3)', lineHeight: 1.4 }}>
-              All external actions pass through these rules before they run.
+              {t('set.guardrailsDesc')}
             </p>
           </div>
         </div>
@@ -264,8 +264,8 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
         <div>
           {/* ── Brand ── */}
           {sec === 'brand' && (
-            <Panel title="Brand" desc="How the company shows up in demos and outreach.">
-              <SettingRow title="Company name">
+            <Panel title={t('set.brandTitle')} desc={t('set.brandDesc')}>
+              <SettingRow title={t('set.companyName')}>
                 <input
                   value={company}
                   onChange={e => setCompany(e.target.value)}
@@ -275,7 +275,7 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
                   }}
                 />
               </SettingRow>
-              <SettingRow title="Logo" desc="Used on demos, emails and the dashboard.">
+              <SettingRow title={t('set.logo')} desc={t('set.logoDesc')}>
                 <span className="row" style={{ gap: 10 }}>
                   <Mark size={34} tile />
                   <button
@@ -283,11 +283,11 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
                     style={{ borderColor: 'var(--border)' }}
                     onClick={() => onAction('Logo upload opened')}
                   >
-                    Replace
+                    {t('set.logoReplace')}
                   </button>
                 </span>
               </SettingRow>
-              <SettingRow title="Primary color">
+              <SettingRow title={t('set.primaryColor')}>
                 <div className="row" style={{ gap: 8 }}>
                   {colorOpts.map(c => (
                     <button
@@ -302,18 +302,26 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
                   ))}
                 </div>
               </SettingRow>
-              <SettingRow title="Typography">
-                <Seg opts={['Humanist', 'Grotesque', 'Geometric']} val={typeStyle} set={setTypeStyle} />
+              <SettingRow title={t('set.typography')}>
+                <Seg
+                  opts={[t('set.typHumanist'), t('set.typGrotesque'), t('set.typGeometric')]}
+                  val={typeStyle}
+                  set={setTypeStyle}
+                />
               </SettingRow>
-              <SettingRow title="Tone of voice" desc="Default voice for AI-written copy." last>
-                <Seg opts={['Friendly', 'Premium', 'Direct']} val={tone} set={setTone} />
+              <SettingRow title={t('set.toneOfVoice')} desc={t('set.toneDesc')} last>
+                <Seg
+                  opts={[t('set.toneFriendly'), t('set.tonePremium'), t('set.toneDirect')]}
+                  val={tone}
+                  set={setTone}
+                />
               </SettingRow>
             </Panel>
           )}
 
           {/* ── Autonomy ── */}
           {sec === 'autonomy' && (
-            <Panel title="Autonomy mode" desc="How much the AI can do before it needs you.">
+            <Panel title={t('set.autonomyTitle')} desc={t('set.autonomyDesc')}>
               <div className="col" style={{ gap: 10, marginTop: 6 }}>
                 {AUTONOMY.map((a, i) => {
                   const active = mode === a.id;
@@ -340,9 +348,9 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
                         </span>
                         <span>
                           <div style={{ fontSize: 14.5, fontWeight: 600, color: active ? 'var(--primary)' : 'var(--ink)' }}>
-                            {a.label}
+                            {t(`shell.autonomy${a.id.charAt(0).toUpperCase() + a.id.slice(1)}Label`)}
                           </div>
-                          <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 2 }}>{a.desc}</div>
+                          <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 2 }}>{t(`shell.autonomy${a.id.charAt(0).toUpperCase() + a.id.slice(1)}Desc`)}</div>
                         </span>
                       </span>
                       {active && <Icon name="check" size={20} style={{ color: 'var(--primary)' }} />}
@@ -356,8 +364,8 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
           {/* ── Pricing rules ── */}
           {sec === 'pricing' && (
             <>
-              <Panel title="Package pricing" desc="Prices the AI can quote. Custom builds are always quoted by a human.">
-                <SettingRow title="Landing Page" desc="Single high-conversion page.">
+              <Panel title={t('set.packagePricingTitle')} desc={t('set.packagePricingDesc')}>
+                <SettingRow title={t('set.landingPage')} desc={t('set.landingPageDesc')}>
                   <span className="row" style={{ gap: 6 }}>
                     <span style={{ color: 'var(--ink-3)' }}>$</span>
                     <input
@@ -367,7 +375,7 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
                     />
                   </span>
                 </SettingRow>
-                <SettingRow title="Business Website" desc="Up to 6 pages, full system.">
+                <SettingRow title={t('set.businessWebsite')} desc={t('set.businessWebsiteDesc')}>
                   <span className="row" style={{ gap: 6 }}>
                     <span style={{ color: 'var(--ink-3)' }}>$</span>
                     <input
@@ -377,7 +385,7 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
                     />
                   </span>
                 </SettingRow>
-                <SettingRow title="Monthly Growth Care" desc="Per month, recurring." last>
+                <SettingRow title={t('set.monthlyGrowthCare')} desc={t('set.monthlyGrowthDesc')} last>
                   <span className="row" style={{ gap: 6 }}>
                     <span style={{ color: 'var(--ink-3)' }}>$</span>
                     <input
@@ -385,18 +393,18 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
                       onChange={e => setPrices(p => ({ ...p, monthly: +e.target.value }))}
                       style={{ height: 36, width: 100, padding: '0 10px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 13.5, color: 'var(--ink)' }}
                     />
-                    <span style={{ color: 'var(--ink-3)', fontSize: 13 }}>/mo</span>
+                    <span style={{ color: 'var(--ink-3)', fontSize: 13 }}>{t('set.perMonth')}</span>
                   </span>
                 </SettingRow>
               </Panel>
-              <Panel title="Quote rules">
-                <SettingRow title="Auto-quote below threshold" desc="AI can send a quote without you under the limit.">
+              <Panel title={t('set.quoteRulesTitle')}>
+                <SettingRow title={t('set.autoQuote')} desc={t('set.autoQuoteDesc')}>
                   <Toggle on={autoQuote} onChange={setAutoQuote} />
                 </SettingRow>
-                <SettingRow title="Founder approval above" desc="Quotes over this value always need you.">
+                <SettingRow title={t('set.founderApproval')} desc={t('set.founderApprovalDesc')}>
                   <Slider value={approveAbove} min={1000} max={10000} step={500} onChange={setApproveAbove} prefix="$" />
                 </SettingRow>
-                <SettingRow title="Custom builds always escalate" desc="Any custom app / integration request routes to a human." last>
+                <SettingRow title={t('set.customEscalate')} desc={t('set.customEscalateDesc')} last>
                   <Toggle on={customEsc} onChange={setCustomEsc} />
                 </SettingRow>
               </Panel>
@@ -405,20 +413,20 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
 
           {/* ── Outreach rules ── */}
           {sec === 'outreach' && (
-            <Panel title="Outreach rules" desc="Keeps outreach controlled and respectful — never a spam machine.">
-              <SettingRow title="Max outreach per day" desc="A hard daily cap across all channels.">
+            <Panel title={t('set.outreachTitle')} desc={t('set.outreachDesc')}>
+              <SettingRow title={t('set.maxOutreachPerDay')} desc={t('set.maxOutreachDesc')}>
                 <Slider value={maxOut} min={5} max={100} step={5} onChange={setMaxOut} />
               </SettingRow>
-              <SettingRow title="Follow-up delay" desc="Days to wait before a single follow-up.">
-                <Slider value={followUp} min={1} max={10} onChange={setFollowUp} unit=" days" />
+              <SettingRow title={t('set.followUpDelay')} desc={t('set.followUpDesc')}>
+                <Slider value={followUp} min={1} max={10} onChange={setFollowUp} unit={t('set.followUpUnit')} />
               </SettingRow>
-              <SettingRow title="Stop if client says no" desc="All follow-up stops the moment a client declines.">
+              <SettingRow title={t('set.stopIfNo')} desc={t('set.stopIfNoDesc')}>
                 <Toggle on={stopNo} onChange={setStopNo} />
               </SettingRow>
-              <SettingRow title="Never overpromise results" desc="Agents won’t guarantee revenue, rankings or outcomes.">
+              <SettingRow title={t('set.neverOverpromise')} desc={t('set.neverOverpromiseDesc')}>
                 <Toggle on={noPromise} onChange={setNoPromise} />
               </SettingRow>
-              <SettingRow title="Include unsubscribe / stop option" desc="Every message gives an easy way out." last>
+              <SettingRow title={t('set.includeUnsub')} desc={t('set.includeUnsubDesc')} last>
                 <Toggle on={unsub} onChange={setUnsub} />
               </SettingRow>
             </Panel>
@@ -426,23 +434,23 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
 
           {/* ── Escalation rules ── */}
           {sec === 'escalation' && (
-            <Panel title="Escalation rules" desc="When the AI must stop and bring in a human.">
-              <SettingRow title="Client asks for a call">
+            <Panel title={t('set.escalationTitle')} desc={t('set.escalationDesc')}>
+              <SettingRow title={t('set.escClientCall')}>
                 <Toggle on={esc.call} onChange={v => setEsc(s => ({ ...s, call: v }))} />
               </SettingRow>
-              <SettingRow title="Legal, payment or domain question">
+              <SettingRow title={t('set.escLegalPayment')}>
                 <Toggle on={esc.legal} onChange={v => setEsc(s => ({ ...s, legal: v }))} />
               </SettingRow>
-              <SettingRow title="Custom system / app request">
+              <SettingRow title={t('set.escCustomSystem')}>
                 <Toggle on={esc.custom} onChange={v => setEsc(s => ({ ...s, custom: v }))} />
               </SettingRow>
-              <SettingRow title="Client complaint or negative reply">
+              <SettingRow title={t('set.escComplaint')}>
                 <Toggle on={esc.complaint} onChange={v => setEsc(s => ({ ...s, complaint: v }))} />
               </SettingRow>
-              <SettingRow title="AI confidence below" desc="Low-confidence work is held for review.">
+              <SettingRow title={t('set.escConfThresh')} desc={t('set.escConfThreshDesc')}>
                 <Slider value={confThresh} min={50} max={95} step={5} onChange={setConfThresh} unit="%" />
               </SettingRow>
-              <SettingRow title="Discount request above" desc="Large discount asks need your sign-off." last>
+              <SettingRow title={t('set.escDiscountAbove')} desc={t('set.escDiscountAboveDesc')} last>
                 <Slider value={discount} min={5} max={50} step={5} onChange={setDiscount} unit="%" />
               </SettingRow>
             </Panel>
@@ -450,12 +458,12 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
 
           {/* ── AI cost limits ── */}
           {sec === 'cost' && (
-            <Panel title="AI cost limits" desc="Budgets and alerts so spend never runs away.">
+            <Panel title={t('set.costTitle')} desc={t('set.costDesc')}>
               {/* Spend gauge — verbatim from source */}
               <div style={{ padding: '14px 16px', borderRadius: 12, background: 'var(--warning-soft)', marginBottom: 8 }}>
                 <div className="row between" style={{ marginBottom: 8 }}>
                   <span className="row" style={{ gap: 8, fontSize: 13, fontWeight: 600 }}>
-                    <Icon name="bolt" size={15} style={{ color: 'var(--warning)' }} /> Today’s spend
+                    <Icon name="bolt" size={15} style={{ color: 'var(--warning)' }} /> {t('set.todaySpend')}
                   </span>
                   <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>$42.80 / ${daily}.00</span>
                 </div>
@@ -463,19 +471,19 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
                   <i style={{ width: Math.min(100, 42.8 / daily * 100) + '%', background: 'var(--warning)' }} />
                 </div>
               </div>
-              <SettingRow title="Daily budget">
+              <SettingRow title={t('set.dailyBudget')}>
                 <Slider value={daily} min={20} max={200} step={10} onChange={setDaily} prefix="$" />
               </SettingRow>
-              <SettingRow title="Monthly budget">
+              <SettingRow title={t('set.monthlyBudget')}>
                 <Slider value={monthly} min={300} max={5000} step={100} onChange={setMonthly} prefix="$" />
               </SettingRow>
-              <SettingRow title="Cost per demo limit">
+              <SettingRow title={t('set.costPerDemo')}>
                 <Slider value={perDemo} min={1} max={20} onChange={setPerDemo} prefix="$" />
               </SettingRow>
-              <SettingRow title="Cost per outreach limit">
+              <SettingRow title={t('set.costPerOutreach')}>
                 <Slider value={perOut} min={1} max={10} step={0.5} onChange={setPerOut} prefix="$" />
               </SettingRow>
-              <SettingRow title="Alert threshold" desc="Warn you when spend reaches this share of budget." last>
+              <SettingRow title={t('set.alertThreshold')} desc={t('set.alertThresholdDesc')} last>
                 {/* Static 85% threshold display — source keeps onChange as no-op */}
                 <Slider value={85} min={50} max={95} step={5} onChange={() => {}} unit="%" />
               </SettingRow>
@@ -484,14 +492,14 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
 
           {/* ── Agent limits ── */}
           {sec === 'agents' && (
-            <Panel title="Agent limits" desc="Enable, throttle and gate each agent individually.">
+            <Panel title={t('set.agentsTitle')} desc={t('set.agentsDesc')}>
               <div className="scroll-x" style={{ margin: '4px -4px 0' }}>
                 <div style={{ minWidth: 560 }}>
                   <div className="row" style={{ padding: '0 4px 10px', fontSize: 11, color: 'var(--ink-3)', fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase' }}>
-                    <span style={{ flex: 2 }}>Agent</span>
-                    <span style={{ flex: 1 }}>Max / day</span>
-                    <span style={{ flex: 1, textAlign: 'center' }}>Review</span>
-                    <span style={{ width: 70, textAlign: 'right' }}>Active</span>
+                    <span style={{ flex: 2 }}>{t('set.colAgent')}</span>
+                    <span style={{ flex: 1 }}>{t('set.colMaxDay')}</span>
+                    <span style={{ flex: 1, textAlign: 'center' }}>{t('set.colReview')}</span>
+                    <span style={{ width: 70, textAlign: 'right' }}>{t('set.colActive')}</span>
                   </div>
                   <div className="col" style={{ gap: 0 }}>
                     {AV.agents.map(a => (

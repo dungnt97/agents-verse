@@ -8,11 +8,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
+import { useI18n } from '@/lib/i18n/i18n-provider';
 import { AV } from '@/lib/data';
 import { NAV } from './sidebar';
 
 interface PaletteItem {
-  type: string;
+  typeKey: string;
   id: string;
   label: string;
   icon: string;
@@ -27,6 +28,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [q, setQ] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (open) {
@@ -37,9 +39,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   if (!open) return null;
 
-  const pages: PaletteItem[] = NAV.flatMap(g => g.items).map(i => ({ type: 'Page', id: i.id, label: i.label, icon: i.icon }));
-  const ag: PaletteItem[] = AV.agents.map(a => ({ type: 'Agent', id: 'agents', label: a.name + ' — ' + a.role, icon: 'agents' }));
-  const ld: PaletteItem[] = AV.leads.map(l => ({ type: 'Lead', id: 'leads', label: l.company, icon: 'leads' }));
+  const pages: PaletteItem[] = NAV.flatMap(g => g.items).map(i => ({ typeKey: 'shell.typePage', id: i.id, label: i.label, icon: i.icon }));
+  const ag: PaletteItem[] = AV.agents.map(a => ({ typeKey: 'shell.typeAgent', id: 'agents', label: a.name + ' — ' + a.role, icon: 'agents' }));
+  const ld: PaletteItem[] = AV.leads.map(l => ({ typeKey: 'shell.typeLead', id: 'leads', label: l.company, icon: 'leads' }));
   const all = [...pages, ...ag, ...ld].filter(x => x.label.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
 
   function onNav(id: string) {
@@ -56,14 +58,14 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             ref={inputRef}
             value={q}
             onChange={e => setQ(e.target.value)}
-            placeholder="Search pages, agents, leads…"
+            placeholder={t('shell.searchPlaceholder')}
             style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: 15.5, color: 'var(--ink)' }}
           />
           <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)', border: '1px solid var(--border)', borderRadius: 5, padding: '2px 6px' }}>ESC</span>
         </div>
         <div style={{ padding: 8, overflowY: 'auto', maxHeight: '48vh' }}>
           {all.length === 0 && (
-            <div style={{ padding: '28px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 14 }}>{`No results for “${q}”`}</div>
+            <div style={{ padding: '28px', textAlign: 'center', color: 'var(--ink-3)', fontSize: 14 }}>{t('shell.noResults')} &ldquo;{q}&rdquo;</div>
           )}
           {all.map((x, i) => (
             <button key={i} onClick={() => onNav(x.id)} className="row between focusable" style={{ width: '100%', padding: '10px 12px', borderRadius: 9, textAlign: 'left' }}
@@ -75,7 +77,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 </span>
                 <span style={{ fontSize: 14, fontWeight: 500 }}>{x.label}</span>
               </span>
-              <span className="badge badge-neutral" style={{ height: 19, fontSize: 10.5 }}>{x.type}</span>
+              <span className="badge badge-neutral" style={{ height: 19, fontSize: 10.5 }}>{t(x.typeKey)}</span>
             </button>
           ))}
         </div>

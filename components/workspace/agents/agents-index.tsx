@@ -15,6 +15,8 @@ import { useI18n } from '@/lib/i18n';
 import { AV } from '@/lib/data';
 import { ROOM_ICON } from '@/components/floor-map';
 import { EmptyState } from '@/components/workspace/rooms/rooms-index';
+// Side-effect import: merges rooms.* + agents.* keys into AV_DICT
+import '@/lib/i18n/keys/rooms-agents';
 
 /* -------------------------------------------------------------------------
    OverviewBand — metrics row (identical to rooms version, inlined for
@@ -51,6 +53,7 @@ interface AgentCardProps {
 }
 
 function AgentCard({ id, onOpen, onRoom }: AgentCardProps) {
+  const { t } = useI18n();
   const a = AV.agentById(id)!;
   const [hover, setHover] = useState(false);
   const room = AV.roomById(a.room)!;
@@ -83,14 +86,18 @@ function AgentCard({ id, onOpen, onRoom }: AgentCardProps) {
         </button>
       </div>
       <div style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--surface-muted)', marginBottom: 14, minHeight: 54 }}>
-        <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>Current task</div>
+        <div className="eyebrow" style={{ fontSize: 9.5, marginBottom: 4 }}>{t('agents.cardCurrentTask')}</div>
         <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--ink-2)', lineHeight: 1.4 }}>{a.task}</div>
       </div>
       <div className="row between" style={{ fontSize: 12 }}>
-        {([['Tasks', a.tasks], ['Quality', a.quality], ['Cost', '$' + a.cost.toFixed(2)]] as [string, string | number][]).map(([l, v], i) => (
+        {([
+          [t('agents.cardTasksLabel'),   a.tasks],
+          [t('agents.cardQualityLabel'), a.quality],
+          [t('agents.cardCostLabel'),    '$' + a.cost.toFixed(2)],
+        ] as [string, string | number][]).map(([l, v], i) => (
           <span key={i} className="col" style={{ alignItems: i === 0 ? 'flex-start' : i === 2 ? 'flex-end' : 'center', flex: 1 }}>
             <span className="mono" style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>{v}</span>
-            <span style={{ fontSize: 10.5, color: 'var(--ink-3)' }}>{l} today</span>
+            <span style={{ fontSize: 10.5, color: 'var(--ink-3)' }}>{l} {t('agents.cardTodaySuffix')}</span>
           </span>
         ))}
       </div>
@@ -99,10 +106,11 @@ function AgentCard({ id, onOpen, onRoom }: AgentCardProps) {
 }
 
 /* -------------------------------------------------------------------------
-   Filter / sort maps — mirrors agents.jsx STAT + SORT exactly
+   Filter / sort maps — internal English keys drive logic; labels are t()-resolved
    ------------------------------------------------------------------------- */
 type AgentData = NonNullable<ReturnType<typeof AV.agentById>>;
 
+const STAT_KEYS = ['All', 'Working', 'Needs review', 'Waiting', 'Escalating', 'Idle'] as const;
 const STAT: Record<string, (a: AgentData) => boolean> = {
   'All':          () => true,
   'Working':      a => a.status === 'working',
@@ -112,11 +120,28 @@ const STAT: Record<string, (a: AgentData) => boolean> = {
   'Idle':         a => a.status === 'idle',
 };
 
+const SORT_KEYS = ['Top quality', 'Highest confidence', 'Most tasks', 'Highest cost'] as const;
 const SORT: Record<string, (a: AgentData, b: AgentData) => number> = {
   'Top quality':        (a, b) => b.quality - a.quality,
   'Highest confidence': (a, b) => b.conf - a.conf,
   'Most tasks':         (a, b) => b.tasks - a.tasks,
   'Highest cost':       (a, b) => b.cost - a.cost,
+};
+
+const STAT_I18N: Record<string, string> = {
+  'All':          'agents.filterAll',
+  'Working':      'agents.filterWorking',
+  'Needs review': 'agents.filterNeedsReview',
+  'Waiting':      'agents.filterWaiting',
+  'Escalating':   'agents.filterEscalating',
+  'Idle':         'agents.filterIdle',
+};
+
+const SORT_I18N: Record<string, string> = {
+  'Top quality':        'agents.sortTopQuality',
+  'Highest confidence': 'agents.sortHighestConf',
+  'Most tasks':         'agents.sortMostTasks',
+  'Highest cost':       'agents.sortHighestCost',
 };
 
 /* -------------------------------------------------------------------------
@@ -152,12 +177,12 @@ export function AgentsIndex({ onOpen, onRoom }: AgentsIndexProps) {
         </div>
       </div>
       <OverviewBand items={[
-        { label: 'Total agents',    value: 11,       icon: 'agents' },
-        { label: 'Active now',      value: 6,        icon: 'activity', accent: 'var(--success)' },
-        { label: 'Need review',     value: needReview, icon: 'alert',  accent: 'var(--warning)' },
-        { label: 'Avg confidence',  value: avgConf,  icon: 'shield',   suffix: '%' },
-        { label: 'Tasks today',     value: 238,      icon: 'check' },
-        { label: 'AI cost today',   value: 42.8,     icon: 'bolt',     accent: 'var(--warning)' },
+        { label: t('agents.bandTotal'),      value: 11,        icon: 'agents' },
+        { label: t('agents.bandActiveNow'),  value: 6,         icon: 'activity', accent: 'var(--success)' },
+        { label: t('agents.bandNeedReview'), value: needReview, icon: 'alert',   accent: 'var(--warning)' },
+        { label: t('agents.bandAvgConf'),    value: avgConf,   icon: 'shield',   suffix: '%' },
+        { label: t('agents.bandTasksToday'), value: 238,       icon: 'check' },
+        { label: t('agents.bandAiCost'),     value: 42.8,      icon: 'bolt',     accent: 'var(--warning)' },
       ]} />
 
       {/* filters */}
@@ -165,27 +190,27 @@ export function AgentsIndex({ onOpen, onRoom }: AgentsIndexProps) {
         <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
           <div className="row" style={{ gap: 9, height: 38, padding: '0 13px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', width: 230, maxWidth: '70vw' }}>
             <Icon name="search" size={16} style={{ color: 'var(--ink-3)' }} />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search agents…" style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13.5, width: '100%', color: 'var(--ink)' }} />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder={t('agents.searchPlaceholder')} style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13.5, width: '100%', color: 'var(--ink)' }} />
           </div>
           <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-            {Object.keys(STAT).map(f => (
-              <button key={f} className={'chip' + (status === f ? ' active' : '')} onClick={() => setStatus(f)} style={{ height: 38 }}>{f}</button>
+            {STAT_KEYS.map(f => (
+              <button key={f} className={'chip' + (status === f ? ' active' : '')} onClick={() => setStatus(f)} style={{ height: 38 }}>{t(STAT_I18N[f])}</button>
             ))}
           </div>
         </div>
         <div className="row" style={{ gap: 8 }}>
           <select value={roomF} onChange={e => setRoomF(e.target.value)} className="focusable" style={{ height: 38, padding: '0 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 13.5, color: 'var(--ink)', fontWeight: 500 }}>
-            <option>All rooms</option>
+            <option value="All rooms">{t('agents.allRoomsOption')}</option>
             {AV.rooms.filter(r => r.id !== 'ceo').map(r => <option key={r.id}>{r.name}</option>)}
           </select>
           <select value={sort} onChange={e => setSort(e.target.value)} className="focusable" style={{ height: 38, padding: '0 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 13.5, color: 'var(--ink)', fontWeight: 500 }}>
-            {Object.keys(SORT).map(s => <option key={s}>{s}</option>)}
+            {SORT_KEYS.map(s => <option key={s} value={s}>{t(SORT_I18N[s])}</option>)}
           </select>
         </div>
       </div>
 
       {list.length === 0
-        ? <EmptyState icon="agents" title="No agents match" sub="Try clearing a filter or searching a different name." />
+        ? <EmptyState icon="agents" title={t('agents.emptyTitle')} sub={t('agents.emptySub')} />
         : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 18 }}>
             {list.map(a => <AgentCard key={a.id} id={a.id} onOpen={onOpen} onRoom={onRoom} />)}
           </div>}
