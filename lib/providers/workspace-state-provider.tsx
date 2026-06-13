@@ -77,16 +77,21 @@ export function WorkspaceStateProvider({ children }: { children: ReactNode }) {
   // Mirrors the legacy LS() helper pattern: use stored value if present,
   // otherwise keep the AV seed (av-requests / av-leads empty-seed behavior).
   useEffect(() => {
-    setModeState(localStorage.getItem('av-mode') || 'guarded');
+    // mode is a plain string stored RAW (not JSON). Validate against the known autonomy ids so a
+    // missing or previously-corrupted value falls back to the default instead of rendering garbage.
+    const storedMode = localStorage.getItem('av-mode');
+    setModeState(['manual', 'review', 'guarded', 'full'].includes(storedMode ?? '') ? (storedMode as string) : 'guarded');
     setRequests(lsGet<DemoRequest[]>('av-requests', AV.demoRequests));
     setLeads(lsGet<Lead[]>('av-leads', AV.leads));
     setMounted(true);
   }, []);
 
-  // Persist mode to localStorage whenever it changes (after mount)
+  // Persist mode to localStorage whenever it changes (after mount).
+  // Stored RAW (a plain string) so it round-trips with the raw read above — JSON.stringify here
+  // would re-escape the value on every reload and accumulate into a corrupted string.
   useEffect(() => {
     if (!mounted) return;
-    lsSet('av-mode', mode);
+    try { localStorage.setItem('av-mode', mode); } catch { /* private mode */ }
   }, [mode, mounted]);
 
   // Persist requests to localStorage whenever they change (after mount)
