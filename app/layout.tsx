@@ -24,6 +24,18 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang={lang} data-theme={theme} suppressHydrationWarning>
+      <head>
+        {/* Load the design-system webfonts (Hanken Grotesk + JetBrains Mono) exactly as the
+            original index.html does. Next/Turbopack does NOT honor the remote @import in
+            globals.css, so without this explicit link the app silently falls back to system-ui
+            and the typography no longer matches the original. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,300..800;1,400..600&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        />
+      </head>
       <body>
         <Providers theme={theme} lang={lang} initialAuthed={initialAuthed} initialUser={initialUser}>
           {children}
