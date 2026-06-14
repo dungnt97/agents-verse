@@ -26,6 +26,11 @@ bin/
 .DS_Store
 *.pem
 
+# local dev artifacts (pasted screenshots, prototype thumbnail)
+/uploads/
+/screens/
+.thumbnail
+
 # debug
 npm-debug.log*
 yarn-debug.log*
