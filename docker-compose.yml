@@ -29,12 +29,15 @@ services:
     build:
       context: .
     env_file:
-      - .env.local             # DATABASE_URL now points at db:5432
+      - .env.local             # DATABASE_URL now points at db:5432; INNGEST_* for sending events
     environment:
       USE_DB: "true"
+      INNGEST_BASE_URL: http://inngest:8288   # web only sends events to the Inngest server
     depends_on:
       db:
         condition: service_healthy   # don't start web until Postgres healthcheck passes
+      inngest:
+        condition: service_started
     ports:
       - "3000:3000"            # behind your reverse proxy; bind "127.0.0.1:3000:3000" if proxy is on-host
     restart: unless-stopped
@@ -46,5 +49,60 @@ services:
       retries: 3
       start_period: 120s       # entrypoint runs wait-for-db -> migrate -> seed (scrypt) before listening
 
+  # --- Audit subsystem (Subsystem 2): queue + durable worker ----------------
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]   # persist the queue across restarts
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Self-hosted Inngest server (durable execution gateway). Internal-only; expose 8288 to
+  # localhost only if you want the dev dashboard. NOTE: `inngest start` flags/env vary by version —
+  # verify `docker run inngest/inngest:v1.27.0 start --help` at deploy and adjust below.
+  inngest:
+    image: inngest/inngest:v1.27.0
+    command: ["start"]
+    env_file:
+      - .env.local
+    environment:
+      INNGEST_POSTGRES_URI: ${INNGEST_DATABASE_URL:-}   # Inngest server state (may reuse the app db)
+      INNGEST_REDIS_URI: redis://redis:6379
+      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:-}
+      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    # ports: ["127.0.0.1:8288:8288"]   # uncomment for the local Inngest dashboard
+
+  # Audit worker: Playwright + Gemini run here (keeps `web` slim). Registers runAudit via
+  # outbound connect() — no inbound port. mem_limit guards the VPS from Chromium OOM.
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    env_file:
+      - .env.local             # DATABASE_URL, GEMINI_API_KEY, GOOGLE_PAGESPEED_API_KEY, INNGEST_*, AUDIT_CONCURRENCY
+    environment:
+      USE_DB: "true"
+      INNGEST_BASE_URL: http://inngest:8288
+    depends_on:
+      db:
+        condition: service_healthy
+      inngest:
+        condition: service_started
+    restart: unless-stopped
+    stop_grace_period: 30s     # let SIGTERM close the browser + drain the pool
+    mem_limit: 2g
+
 volumes:
   pgdata:
+  redisdata:

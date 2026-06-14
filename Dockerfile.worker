@@ -1,0 +1,16 @@
+# Agents Verse — audit worker image. Runs the Inngest worker (lib/inngest/worker-entrypoint.ts),
+# which executes the durable audit pipeline: PageSpeed (fetch) + Playwright screenshot + Gemini
+# vision. Based on the official Playwright image so Chromium (matching the `playwright` npm
+# version, 1.60.0) is preinstalled at /ms-playwright. The `web` image stays slim (no Chromium).
+FROM mcr.microsoft.com/playwright:v1.60.0-noble
+WORKDIR /app
+
+# Browsers ship in the base image (PLAYWRIGHT_BROWSERS_PATH=/ms-playwright) — don't re-download.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+
+# Outbound connect() worker — no inbound port needed. tsx runs the TS entrypoint (devDep present).
+CMD ["npx", "tsx", "lib/inngest/worker-entrypoint.ts"]
