@@ -19,7 +19,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Match the production runtime (Dockerfile `node:22`) so the npm 10 lockfile
+          # validates identically in CI and in the deployed image.
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
