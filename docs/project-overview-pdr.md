@@ -1,6 +1,6 @@
 # Agents Verse — Product & Design Requirements Overview
 
-> Status: front-end prototype ("design-bar" demo). This document describes the product as observed in the codebase. Items not directly evidenced in code are marked **(inferred)**.
+> Status: **Full-stack SaaS (Phase 0 + Subsystem 1 complete).** Next.js 16 + React 19 + Postgres + Drizzle + Better Auth + Google Places API. Dual-mode runtime: demo (localStorage) or production (Postgres). All screens live; lead discovery subsystem operational (requires credentials). Inngest deferred to future plan.
 
 ## 1. Product Vision
 

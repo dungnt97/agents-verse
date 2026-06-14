@@ -1,9 +1,9 @@
 # Code Standards — Agents Verse
 
-**Status (June 2026):** Agents Verse has fully migrated to Next.js. The workspace (Set 2) is now live. This document covers:
+**Status (June 2026):** Agents Verse is a full-stack Next.js SaaS with Postgres + Drizzle + Better Auth + Google Places. Dual-mode runtime (demo or production). Code-complete but requires credentials to run production features. This document covers:
 
-- **Sections 1–7:** **Next.js code standards (Sets 1 + 2, live)** — App Router, TypeScript, ESM, providers, workspace patterns.
-- **Sections 8+:** **Legacy buildless code standards** (root `*.jsx`, `index.html` — retained for reference, not used).
+- **Sections 1–9:** **Next.js code standards (full-stack, live)** — App Router, TypeScript, RSC, Drizzle, Better Auth, server actions, lead discovery.
+- **Sections 10+:** **Legacy buildless code standards** (root `*.jsx`, `index.html` — retained for reference, not used).
 
 ## NEXT.JS CODE STANDARDS (SET 1, LIVE) — Start here if building in `app/`, `lib/`, `components/`
 
@@ -118,6 +118,73 @@ export default function RoomDetailPage() {
       {/* Render room projects, agents, timeline, metrics */}
     </div>
   );
+}
+```
+
+### Database Access Layer (Dual-Mode via `USE_DB` Flag)
+
+Repositories in `lib/repositories/*` follow a consistent pattern: they return the same TypeScript types whether data comes from mock `AV` or Postgres.
+
+**Demo mode (USE_DB=false):**
+```tsx
+// lib/repositories/leads.ts (demo branch)
+export async function getLeads() {
+  return AV.leads.map(lead => ({
+    id: lead.id,
+    company: lead.company,
+    // ... transform AV.Lead to raw DB shape
+  }));
+}
+```
+
+**Production mode (USE_DB=true):**
+```tsx
+// lib/repositories/leads.ts (DB branch)
+export async function getLeads() {
+  const db = getDB();
+  return await db.query.leads.findMany({
+    with: { audit: true, demo: true, deal: true }
+  });
+}
+```
+
+**Usage (component stays the same):**
+```tsx
+// app/(workspace)/leads/page.tsx — agnostic to data source
+'use client';
+import { getLeads } from '@/lib/repositories/leads';
+
+export default async function LeadsPage() {
+  const leads = await getLeads(); // Works in both modes
+  // ...
+}
+```
+
+All components use repositories, never import `getDB()` or Drizzle directly. This ensures clean demo/production split.
+
+### Server Actions for Mutations
+
+Mutations use Server Actions in `lib/actions/*` and must:
+1. Call `getCurrentUser()` first (returns user or `undefined`)
+2. Check `USE_DB` flag for behavior (DB commit or localStorage)
+3. Guard auth before proceeding (public actions like `createDemoRequest` explicitly allow unauthenticated)
+
+```tsx
+// lib/actions/leads.ts
+'use server';
+
+import { getCurrentUser } from '@/lib/auth/server';
+import { updateLeadInDB, updateLeadInMock } from '@/lib/repositories/leads';
+
+export async function updateLead(leadId: string, data: Partial<Lead>) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Unauthorized');
+  
+  if (process.env.USE_DB === 'true') {
+    return await updateLeadInDB(leadId, data);
+  } else {
+    return updateLeadInMock(leadId, data);
+  }
 }
 ```
 
