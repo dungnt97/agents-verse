@@ -1,9 +1,8 @@
 /* =========================================================================
-   AGENTS VERSE — Sidebar (port of Sidebar from app-shell.jsx)
+   AGENTS VERSE — Sidebar
    NAV tree + AutonomyControl + user/logout footer.
    Active route derived from usePathname(); detail routes (rooms/[id],
-   agents/[id]) map to their index (rooms / agents) for active-state parity
-   with app.jsx.
+   agents/[id]) map to their index (rooms / agents) for active-state parity.
    ========================================================================= */
 'use client';
 
@@ -28,7 +27,7 @@ interface NavGroup {
   items: NavItem[];
 }
 
-/* Verbatim constant from app-shell.jsx */
+/* NAV tree constant */
 const NAV: NavGroup[] = [
   { group: null, items: [
     { id: 'overview', label: 'Overview',       icon: 'overview', live: true },
@@ -51,8 +50,8 @@ const NAV: NavGroup[] = [
   ]},
 ];
 
-/* Maps detail-route segments to their index route for active-state highlight,
-   mirroring app.jsx — route==='room' → 'rooms', route==='agent' → 'agents'. */
+/* Maps detail-route segments to their index route for active-state highlight:
+   route==='room' → 'rooms', route==='agent' → 'agents'. */
 function activeRouteFromPathname(pathname: string): string {
   const seg = pathname.split('/')[1] ?? '';
   if (seg === 'rooms') return 'rooms';

@@ -1,8 +1,8 @@
 /* =========================================================================
    AGENTS VERSE — LoginScreen
-   Ports auth.jsx: LoginScreen component.
+   LoginScreen component.
    theme/onToggle props removed — ThemeToggle and LangToggle are context-
-   sourced. Pre-filled demo credentials preserved from the original.
+   sourced. Pre-filled demo credentials.
    ========================================================================= */
 'use client';
 

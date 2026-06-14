@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — InfoPage dispatch + InfoNav
-   Ports pages.jsx: InfoPage (slug dispatcher) + InfoNav (sticky header).
+   InfoPage (slug dispatcher) + InfoNav (sticky header).
    theme/onToggle props removed — ThemeToggle and LangToggle are context-
    sourced; no prop threading needed.
    ========================================================================= */

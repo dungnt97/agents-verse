@@ -1,5 +1,5 @@
 /* =========================================================================
-   AGENTS VERSE — Route metadata map (port of ROUTE_META from app.jsx)
+   AGENTS VERSE — Route metadata map
    Maps each workspace route id to its display label, icon, and description.
    Used by breadcrumbs, ComingSoon, and CommandPalette.
    ========================================================================= */

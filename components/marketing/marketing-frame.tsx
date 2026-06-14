@@ -1,7 +1,7 @@
 /* =========================================================================
    AGENTS VERSE — MarketingFrame
    Shared chrome for public-facing routes (landing, info pages, login).
-   Mirrors the landing branch in app.jsx: renders children + ChatWidget +
+   Renders marketing children + ChatWidget +
    DemoRequestModal controlled by local reqOpen state.
    Exposes useRequestDemo() context so any descendant can open the modal
    without prop-drilling.

@@ -1,7 +1,7 @@
 /* =========================================================================
    AGENTS VERSE — Landing page assembly: LandingNav, FloatCard, HeroVisual,
    Hero, LandingPage.
-   Ports landing.jsx verbatim. theme/onToggle props removed from LandingNav
+   theme/onToggle props removed from LandingNav
    and LandingPage — ThemeToggle self-sources from ThemeProvider context.
    ========================================================================= */
 'use client';

@@ -2,7 +2,7 @@
 /* =========================================================================
    AGENTS VERSE — RoomsIndex
    Grid of all rooms with filter/sort bar and overview metrics band.
-   Ported verbatim from rooms.jsx (RoomsIndex + helpers).
+   RoomsIndex + helpers.
    ========================================================================= */
 
 import { useState } from 'react';

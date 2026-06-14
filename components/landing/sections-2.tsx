@@ -1,8 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — Landing sections 7–9 + footer
-   Ports: Pricing, TrustSafety, FinalCTA, Footer from landing-sections2.jsx.
-   All markup, inline styles, class names, and numeric constants are
-   preserved byte-for-byte from the source prototype.
+   Pricing, TrustSafety, FinalCTA, Footer.
    ========================================================================= */
 'use client';
 

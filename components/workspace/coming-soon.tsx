@@ -1,5 +1,5 @@
 /* =========================================================================
-   AGENTS VERSE — ComingSoon (port of ComingSoon from app.jsx)
+   AGENTS VERSE — ComingSoon
    Placeholder screen rendered by every stub route until its real screen
    is built in a later phase. onBack navigates to /overview via router.
    ========================================================================= */

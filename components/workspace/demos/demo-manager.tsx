@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — Demo Preview Manager (grid + before/after detail drawer)
-   Ported verbatim from demos.jsx. Receives demos via props (server-fetched from the
+   Receives demos via props (server-fetched from the
    repository layer); opens drawer for before/after comparison, checklist, and
    tone-selectable outreach.
    ========================================================================= */
@@ -50,7 +50,7 @@ function OverviewBand({ items }: { items: BandItem[] }) {
   );
 }
 
-/* ---- EmptyState (local — matches rooms.jsx:127 verbatim) ---- */
+/* ---- EmptyState (local) ---- */
 
 function EmptyState({ icon, title, sub }: { icon: string; title: string; sub: string }) {
   return (

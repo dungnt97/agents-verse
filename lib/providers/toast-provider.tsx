@@ -1,7 +1,7 @@
 /* =========================================================================
    AGENTS VERSE — Toast provider
-   Ports useToasts + ToastHost from components.jsx into a context-backed
-   provider. Exposes useToast() returning push(msg, kind?) to consumers.
+   Provides useToasts + ToastHost via a context-backed provider.
+   Exposes useToast() returning push(msg, kind?) to consumers.
    Math.random() for toast IDs — client-only, safe behind 'use client'.
    ========================================================================= */
 'use client';

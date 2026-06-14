@@ -3,7 +3,7 @@
    AGENTS VERSE — RoomDetail + DemoPeek
    Room detail view: metrics strip, project cards, agent list, timeline.
    DemoPeek is a slide-in drawer for before/after site preview.
-   Ported verbatim from rooms.jsx (RoomDetail, ProjectCard, TimelineItem, DemoPeek).
+   RoomDetail, ProjectCard, TimelineItem, DemoPeek.
    ========================================================================= */
 
 import { useState } from 'react';

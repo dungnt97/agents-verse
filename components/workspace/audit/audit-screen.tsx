@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — Website Audit (master list + detail report)
-   Ported verbatim from audit.jsx. Receives audited leads + a leadId→AuditResult map via
+   Receives audited leads + a leadId→AuditResult map via
    props (server-fetched from the repository layer).
    ========================================================================= */
 'use client';
@@ -23,7 +23,7 @@ export interface AuditJobView {
   error: string | null;
 }
 
-/* ---- Score colour helper (mirrors audit.jsx:5) ---- */
+/* ---- Score colour helper ---- */
 function scoreColor(v: number): string {
   return v >= 70 ? 'var(--success)' : v >= 45 ? 'var(--warning)' : 'var(--danger)';
 }

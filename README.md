@@ -2,7 +2,7 @@
 
 A demo-first **autonomous AI web agency** — an AI workforce of specialized agents that finds outdated business websites, audits them, generates redesign demos, and prepares outreach, all under founder oversight.
 
-**Next.js 16 + React 19 + TypeScript (strict)**, now **full-stack**: self-hosted **PostgreSQL + Drizzle ORM + Better Auth + self-hosted Inngest**, deployable via **Docker Compose on a single VPS**. No managed services (no Supabase). It began as a buildless CDN-React prototype (retained in the repo root as legacy reference only).
+**Next.js 16 + React 19 + TypeScript (strict)**, now **full-stack**: self-hosted **PostgreSQL + Drizzle ORM + Better Auth + self-hosted Inngest**, deployable via **Docker Compose on a single VPS**. No managed services (no Supabase). It began as a buildless CDN-React prototype, since fully migrated and removed (preserved in git history).
 
 ## Dual-mode: `USE_DB`
 
@@ -19,7 +19,7 @@ Components never import the mock directly — pages are async Server Components 
 - **PostgreSQL** (self-hosted) + **Drizzle ORM** + **postgres-js** (single direct connection)
 - **Better Auth** (email/password, sessions in DB) — dual-mode with a cookie demo fallback
 - **Inngest** (self-hosted) for durable jobs — the Audit subsystem runs PageSpeed + Playwright + Gemini in a separate `worker` container
-- **No CSS framework** — a custom CSS-variable design system in `styles/globals.css` (light/dark)
+- **No CSS framework** — a custom CSS-variable design system in `app/globals.css` (light/dark)
 - **i18n**: English + Tiếng Việt, switchable live
 - Client state via React Context (Theme / i18n / Toast / Auth / WorkspaceState / WorkspaceData)
 
@@ -89,9 +89,5 @@ lib/
 Dockerfile  Dockerfile.worker  docker-compose.yml  scripts/   # deploy
 middleware.ts        # cheap Edge cookie gate (real gate = getCurrentUser in workspace layout)
 ```
-
-## Legacy
-
-The repo root still contains the **original buildless prototype** (`index.html`, `*.jsx`, `data*.js`, `styles.css`) for reference only — **not** part of the Next.js build. Don't edit/delete unless asked.
 
 Design + architecture docs live in [`docs/`](./docs); implementation plans (in Vietnamese) in [`plans/`](./plans).

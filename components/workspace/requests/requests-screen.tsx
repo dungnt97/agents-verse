@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — RequestsScreen + RequestCard
-   Port of requests.jsx admin inbox → TypeScript / Next.js 'use client'.
+   Admin inbox for demo requests ('use client').
    DemoRequestModal already lives in components/marketing — NOT re-ported here.
    Reads/writes useWorkspaceState().requests via props; converts to pipeline
    leads via onConvertLead (→ addLead in WorkspaceStateProvider).
@@ -36,7 +36,7 @@ interface RequestCardProps {
 }
 
 /* -------------------------------------------------------------------------
-   OverviewBand — local reuse of the same pattern from rooms.jsx / requests.jsx
+   OverviewBand — local reuse of the shared overview-band pattern.
    ------------------------------------------------------------------------- */
 
 interface BandItem {
