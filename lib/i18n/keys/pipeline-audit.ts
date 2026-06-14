@@ -78,6 +78,13 @@ export const en = {
 
   // ---- Audit: redesign card bottom button ----
   'audits.generate': 'Generate',
+
+  // ---- Audit: run-audit trigger + job status ----
+  'audits.runAudit':      'Run real audit',
+  'audits.auditing':      'Queuing…',
+  'audits.statusQueued':  'Queued',
+  'audits.statusRunning': 'Auditing…',
+  'audits.statusFailed':  'Audit failed',
 } as const;
 
 export type PipelineAuditKey = keyof typeof en;
@@ -151,6 +158,13 @@ export const vi: Record<PipelineAuditKey, string> = {
 
   // ---- Audit: redesign card bottom button ----
   'audits.generate': 'Tạo demo',
+
+  // ---- Audit: run-audit trigger + job status ----
+  'audits.runAudit':      'Chạy audit thật',
+  'audits.auditing':      'Đang xếp hàng…',
+  'audits.statusQueued':  'Trong hàng đợi',
+  'audits.statusRunning': 'Đang chấm…',
+  'audits.statusFailed':  'Audit lỗi',
 };
 
 // Local overlay maps for pipeline-audit keys. Keyed by Lang so the hook can

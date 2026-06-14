@@ -6,7 +6,8 @@
    ========================================================================= */
 import { auditedLeads, getAudit } from '@/lib/repositories/leads';
 import { getDemos } from '@/lib/repositories/pipeline';
-import { AuditScreen } from '@/components/workspace/audit/audit-screen';
+import { getAuditJobs } from '@/lib/repositories/audit-jobs';
+import { AuditScreen, type AuditJobView } from '@/components/workspace/audit/audit-screen';
 import type { AuditResult } from '@/lib/data/types';
 
 interface Props {
@@ -14,9 +15,10 @@ interface Props {
 }
 
 export default async function AuditsPage({ searchParams }: Props) {
-  const [audited, demos, { lead: initialLead }] = await Promise.all([
+  const [audited, demos, jobs, { lead: initialLead }] = await Promise.all([
     auditedLeads(),
     getDemos(),
+    getAuditJobs(),
     searchParams,
   ]);
 
@@ -29,11 +31,17 @@ export default async function AuditsPage({ searchParams }: Props) {
   // Pass as plain array — client component converts to Set for O(1) lookup
   const demoLeadIds = demos.map(d => d.leadId).filter(Boolean) as string[];
 
+  // Reduce audit jobs to the client-safe { status, error } view keyed by leadId
+  const jobMap: Record<string, AuditJobView> = Object.fromEntries(
+    Object.entries(jobs).map(([leadId, j]) => [leadId, { status: j.status, error: j.error }])
+  );
+
   return (
     <AuditScreen
       audited={audited}
       auditMap={auditMap}
       demoLeadIds={demoLeadIds}
+      jobMap={jobMap}
       initialLead={initialLead ?? null}
     />
   );
