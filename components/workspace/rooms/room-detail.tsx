@@ -12,10 +12,11 @@ import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { SiteMock } from '@/components/site-mock';
 import { useI18n } from '@/lib/i18n';
-import { AV } from '@/lib/data';
+import { statusMap } from '@/lib/data/format';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { ROOM_ICON } from '@/components/floor-map';
 import { EmptyState } from './rooms-index';
-import type { RoomProject, TimelineItem as TLItem } from '@/lib/data/types';
+import type { Room, RoomProject, TimelineItem as TLItem } from '@/lib/data/types';
 import type { ToastKind } from '@/lib/providers/toast-provider';
 // Side-effect import: merges rooms.* + agents.* keys into AV_DICT
 import '@/lib/i18n/keys/rooms-agents';
@@ -25,8 +26,9 @@ type OnAction = (msg: string, kind?: ToastKind) => void;
 /* -------------------------------------------------------------------------
    ProjectCard — single project row inside the room's work panel
    ------------------------------------------------------------------------- */
-function ProjectCard({ p, onAction, onPreview }: { p: RoomProject; onAction: OnAction; onPreview: (p: RoomProject) => void }) {
+function ProjectCard({ p, onPreview }: { p: RoomProject; onAction: OnAction; onPreview: (p: RoomProject) => void }) {
   const { t } = useI18n();
+  const { agentById } = useWorkspaceData();
   const hue = ({ Healthcare: 200, Wellness: 300, Hospitality: 140, 'Real Estate': 40, Logistics: 230, Fitness: 20 } as Record<string, number>)[p.industry] || 220;
   return (
     <div className="card" style={{ padding: 16 }}>
@@ -50,7 +52,7 @@ function ProjectCard({ p, onAction, onPreview }: { p: RoomProject; onAction: OnA
           <AgentAvatar id={p.agent} size={26} />
           <span>
             <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{t('rooms.projectLeadConf')}</div>
-            <div style={{ fontSize: 12.5, fontWeight: 600 }}>{AV.agentById(p.agent)?.name} · {p.score}%</div>
+            <div style={{ fontSize: 12.5, fontWeight: 600 }}>{agentById(p.agent)?.name} · {p.score}%</div>
           </span>
         </span>
         <button className="btn btn-soft btn-sm" onClick={() => onPreview(p)}>{t('rooms.projectPreview')}</button>
@@ -67,6 +69,7 @@ function ProjectCard({ p, onAction, onPreview }: { p: RoomProject; onAction: OnA
    Exported so AgentDetail can reuse it.
    ------------------------------------------------------------------------- */
 export function TimelineItem({ e, last }: { e: TLItem; last: boolean }) {
+  const { agentById } = useWorkspaceData();
   const col = ({ success: 'var(--success)', warning: 'var(--warning)', review: 'var(--warning)', info: 'var(--info)' } as Record<string, string>)[e.status] || 'var(--ink-3)';
   return (
     <div className="row" style={{ gap: 13, alignItems: 'flex-start' }}>
@@ -78,7 +81,7 @@ export function TimelineItem({ e, last }: { e: TLItem; last: boolean }) {
         <div style={{ fontSize: 13.5, lineHeight: 1.4 }}>{e.event}</div>
         <div className="row" style={{ gap: 7, marginTop: 4 }}>
           {e.agent && (
-            <><AgentAvatar id={e.agent} size={18} /><span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{AV.agentById(e.agent)?.name}</span><span style={{ width: 3, height: 3, borderRadius: 99, background: 'var(--border-strong)' }} /></>
+            <><AgentAvatar id={e.agent} size={18} /><span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{agentById(e.agent)?.name}</span><span style={{ width: 3, height: 3, borderRadius: 99, background: 'var(--border-strong)' }} /></>
           )}
           <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{e.t} ago</span>
         </div>
@@ -122,25 +125,30 @@ export function DemoPeek({ p, onClose, onAction }: { p: RoomProject; onClose: ()
 
 /* -------------------------------------------------------------------------
    RoomDetail — exported screen component
+   Receives pre-fetched entity data as props; uses useWorkspaceData() only
+   for synchronous directory lookups (agentById).
    ------------------------------------------------------------------------- */
 export interface RoomDetailProps {
   roomId: string;
+  room: Room;
+  projects: RoomProject[];
+  timeline: TLItem[];
+  metrics: [string, string | number][];
   onBack: () => void;
   onAgent: (id: string) => void;
   onAction: OnAction;
   goDemos: () => void;
 }
 
-export function RoomDetail({ roomId, onBack, onAgent, onAction, goDemos }: RoomDetailProps) {
+export function RoomDetail({ roomId, room: r, projects, timeline, metrics, onBack, onAgent, onAction, goDemos }: RoomDetailProps) {
   const { t } = useI18n();
-  // Mirror original fallback: unknown id → 'design'
-  const r = AV.roomById(roomId) || AV.roomById('design')!;
-  const sm = AV.statusMap[r.status];
-  const projects = AV.roomProjects(r.id);
-  const timeline = AV.roomTimeline(r.id);
-  const metrics = AV.roomMetrics(r.id);
-  const agents = AV.agents.filter(a => a.room === r.id);
+  const { agents } = useWorkspaceData();
+  const sm = statusMap[r.status];
+  const roomAgents = agents.filter(a => a.room === r.id);
   const [preview, setPreview] = useState<RoomProject | null>(null);
+
+  // roomId is kept in props for symmetry with the original signature; r.id is the authoritative value
+  void roomId;
 
   const workTitle =
     r.id === 'design'  ? t('rooms.workTitleDesign') :
@@ -210,10 +218,10 @@ export function RoomDetail({ roomId, onBack, onAgent, onAction, goDemos }: RoomD
           <div className="card" style={{ padding: 18 }}>
             <div className="row between" style={{ marginBottom: 14 }}>
               <h2 style={{ fontSize: 16 }}>{t('rooms.agentsInRoom')}</h2>
-              <span className="badge badge-neutral">{agents.length}</span>
+              <span className="badge badge-neutral">{roomAgents.length}</span>
             </div>
             <div className="col" style={{ gap: 8 }}>
-              {agents.map(a => (
+              {roomAgents.map(a => (
                 <button
                   key={a.id}
                   onClick={() => onAgent(a.id)}

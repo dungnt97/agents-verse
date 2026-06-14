@@ -7,12 +7,14 @@
 
 import { useState } from 'react';
 import { Icon } from '@/components/brand/icon';
+import { useToast } from '@/lib/providers/toast-provider';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { ConfidenceRing } from '@/components/ui/confidence-ring';
 import { Sparkline } from '@/components/ui/sparkline';
 import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n';
-import { AV } from '@/lib/data';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
+import { fmt } from '@/lib/data/format';
 import type { Escalation } from '@/lib/data/types';
 
 /* ---- Revenue vs cost chart ---- */
@@ -78,7 +80,7 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
               <span className="mono" style={{ fontSize: 10.5, color: 'var(--ink-3)' }}>{t(kindLabelKey)}</span>
             </span>
             <span style={{ fontSize: 15, fontWeight: 600, display: 'block', lineHeight: 1.25 }}>{e.title}</span>
-            <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{e.who}{e.value > 0 && ' · ' + AV.fmt.money(e.value)} · {e.time}</span>
+            <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{e.who}{e.value > 0 && ' · ' + fmt.money(e.value)} · {e.time}</span>
           </span>
         </span>
         <span className="row" style={{ gap: 14, flex: 'none' }}>
@@ -175,13 +177,15 @@ function MetricStat({ label, value, decimals = 0, prefix = '', suffix = '', icon
 /* ---- CommandCenter ---- */
 
 export interface CommandCenterProps {
-  onAction: (msg: string, kind?: 'success' | 'warning' | 'danger') => void;
+  escalations: Escalation[];
 }
 
-export function CommandCenter({ onAction }: CommandCenterProps) {
+export function CommandCenter({ escalations }: CommandCenterProps) {
   const { t } = useI18n();
+  const onAction = useToast();
+  const { agents } = useWorkspaceData();
   const [exp, setExp] = useState<string | null>('e1');
-  const topAgents = [...AV.agents].sort((a, b) => b.quality - a.quality).slice(0, 4);
+  const topAgents = [...agents].sort((a, b) => b.quality - a.quality).slice(0, 4);
 
   /* Recommended actions — titles, descriptions and action labels are chrome strings */
   const recs = [
@@ -254,7 +258,7 @@ export function CommandCenter({ onAction }: CommandCenterProps) {
               </div>
             </div>
             <div className="col" style={{ gap: 12 }}>
-              {AV.escalations.map(e => <EscalationCard key={e.id} e={e} onAction={onAction} expanded={exp === e.id} onToggle={() => setExp(exp === e.id ? null : e.id)} />)}
+              {escalations.map(e => <EscalationCard key={e.id} e={e} onAction={onAction} expanded={exp === e.id} onToggle={() => setExp(exp === e.id ? null : e.id)} />)}
             </div>
           </div>
 

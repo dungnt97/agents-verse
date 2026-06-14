@@ -12,7 +12,7 @@ import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { ConfidenceRing } from '@/components/ui/confidence-ring';
 import { useI18n } from '@/lib/i18n';
-import { AV } from '@/lib/data';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { ROOM_ICON } from '@/components/floor-map';
 import { TimelineItem } from '@/components/workspace/rooms/room-detail';
 import { NewSite } from '@/components/site-mock';
@@ -35,6 +35,7 @@ interface ChatMessage {
 
 interface FounderChatProps {
   agent: Agent;
+  detail: AgentDetailData;
   onAction: OnAction;
 }
 
@@ -61,9 +62,8 @@ function cannedReply(text: string): string {
     : 'Got it. I’ll factor that into the current task and flag you if it pushes confidence below the review threshold.';
 }
 
-function FounderChat({ agent, onAction }: FounderChatProps) {
+function FounderChat({ agent, detail: d, onAction }: FounderChatProps) {
   const { t } = useI18n();
-  const d = AV.agentDetail(agent.id);
   // onAction available for future escalation from chat — not used in original but prop kept
   void onAction;
 
@@ -140,17 +140,19 @@ function FounderChat({ agent, onAction }: FounderChatProps) {
    ------------------------------------------------------------------------- */
 export interface AgentDetailProps {
   agentId: string;
+  detail: AgentDetailData | null;
   onBack: () => void;
   onRoom: (id: string) => void;
   onAction: OnAction;
 }
 
-export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailProps) {
+export function AgentDetail({ agentId, detail, onBack, onRoom, onAction }: AgentDetailProps) {
   const { t } = useI18n();
+  const { agentById, roomById } = useWorkspaceData();
   // Mirror original fallback: unknown id → 'nova'
-  const a = (AV.agentById(agentId) || AV.agentById('nova'))!;
-  const d = AV.agentDetail(a.id) as AgentDetailData;
-  const room = AV.roomById(a.room)!;
+  const a = (agentById(agentId) || agentById('nova'))!;
+  const d = detail;
+  const room = roomById(a.room)!;
 
   return (
     <div style={{ padding: '26px 28px 60px', maxWidth: 1480, margin: '0 auto' }}>
@@ -196,7 +198,7 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
             <div style={{ padding: '14px 16px', borderRadius: 12, background: 'var(--primary-soft)', marginBottom: 14 }}>
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>{a.task}</div>
             </div>
-            <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.5 }}>{d.purpose}</p>
+            <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.5 }}>{d?.purpose}</p>
           </div>
 
           {/* skills + tools */}
@@ -204,7 +206,7 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
             <div className="card" style={{ padding: 18 }}>
               <h2 style={{ fontSize: 16, marginBottom: 14 }}>{t('agents.sectionSkills')}</h2>
               <div className="row wrap" style={{ gap: 8 }}>
-                {d.skills.map(s => (
+                {(d?.skills ?? []).map(s => (
                   <span key={s} className="chip" style={{ height: 30, cursor: 'default', background: 'var(--surface-muted)' }}>{s}</span>
                 ))}
               </div>
@@ -212,7 +214,7 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
             <div className="card" style={{ padding: 18 }}>
               <h2 style={{ fontSize: 16, marginBottom: 14 }}>{t('agents.sectionToolsEnabled')}</h2>
               <div className="col" style={{ gap: 9 }}>
-                {d.tools.map(tool => (
+                {(d?.tools ?? []).map(tool => (
                   <div key={tool} className="row between">
                     <span className="row" style={{ gap: 10 }}>
                       <Icon name="bolt" size={14} style={{ color: 'var(--ink-3)' }} />
@@ -229,11 +231,11 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
           </div>
 
           {/* recent outputs — only shown when the agent has outputs */}
-          {d.outputs.length > 0 && (
+          {(d?.outputs.length ?? 0) > 0 && (
             <div className="card" style={{ padding: 18 }}>
               <h2 style={{ fontSize: 16, marginBottom: 14 }}>{t('agents.sectionRecentOutputs')}</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))', gap: 12 }}>
-                {d.outputs.map((o, i) => (
+                {d!.outputs.map((o, i) => (
                   <div key={i} style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid var(--border)' }}>
                     <div style={{ position: 'relative', paddingTop: '62%' }}>
                       <div style={{ position: 'absolute', inset: 0 }}>
@@ -254,8 +256,8 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
           <div className="card" style={{ padding: 18 }}>
             <h2 style={{ fontSize: 16, marginBottom: 16 }}>{t('agents.sectionTaskHistory')}</h2>
             <div>
-              {d.history.map((e, i) => (
-                <TimelineItem key={i} e={e} last={i === d.history.length - 1} />
+              {(d?.history ?? []).map((e, i) => (
+                <TimelineItem key={i} e={e} last={i === (d?.history.length ?? 1) - 1} />
               ))}
             </div>
           </div>
@@ -269,7 +271,7 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
               {([
                 [t('agents.perfTasksCompleted'), a.tasks],
                 [t('agents.perfAvgQuality'),     a.quality],
-                [t('agents.perfApprovalRate'),   d.approval + '%'],
+                [t('agents.perfApprovalRate'),   (d?.approval ?? '—') + (d ? '%' : '')],
                 [t('agents.perfCostToday'),      '$' + a.cost.toFixed(2)],
               ] as [string, string | number][]).map(([l, v], i) => (
                 <div key={i} style={{ padding: '13px 14px', borderRadius: 12, background: 'var(--surface-muted)' }}>
@@ -280,11 +282,11 @@ export function AgentDetail({ agentId, onBack, onRoom, onAction }: AgentDetailPr
             </div>
             <div className="row between" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-soft)' }}>
               <span style={{ fontSize: 13, color: 'var(--ink-2)' }}>{t('agents.perfEscalatesBelow')}</span>
-              <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>{d.escalationThreshold}{t('agents.perfConfidenceSuffix')}</span>
+              <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>{d?.escalationThreshold}{t('agents.perfConfidenceSuffix')}</span>
             </div>
           </div>
 
-          <FounderChat agent={a} onAction={onAction} />
+          {d && <FounderChat agent={a} detail={d} onAction={onAction} />}
         </div>
       </div>
     </div>

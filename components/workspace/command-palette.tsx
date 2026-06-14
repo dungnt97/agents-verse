@@ -1,6 +1,7 @@
 /* =========================================================================
    AGENTS VERSE — CommandPalette (port of CommandPalette from app-shell.jsx)
-   ⌘K search over NAV pages, AV.agents, and AV.leads.
+   ⌘K search over NAV pages, workspace agents (from directory), and leads (from the
+   workspace state provider — DB-backed or demo, same source the pipeline uses).
    Opens with focus; ESC and backdrop-click close via onClose prop.
    ========================================================================= */
 'use client';
@@ -9,7 +10,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { useI18n } from '@/lib/i18n/i18n-provider';
-import { AV } from '@/lib/data';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
+import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import { NAV } from './sidebar';
 
 interface PaletteItem {
@@ -29,6 +31,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { t } = useI18n();
+  const { agents } = useWorkspaceData();
+  const { leads } = useWorkspaceState();
 
   useEffect(() => {
     if (open) {
@@ -40,8 +44,10 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   if (!open) return null;
 
   const pages: PaletteItem[] = NAV.flatMap(g => g.items).map(i => ({ typeKey: 'shell.typePage', id: i.id, label: i.label, icon: i.icon }));
-  const ag: PaletteItem[] = AV.agents.map(a => ({ typeKey: 'shell.typeAgent', id: 'agents', label: a.name + ' — ' + a.role, icon: 'agents' }));
-  const ld: PaletteItem[] = AV.leads.map(l => ({ typeKey: 'shell.typeLead', id: 'leads', label: l.company, icon: 'leads' }));
+  // agents: sourced from workspace directory (server-seeded, client-synchronous)
+  const ag: PaletteItem[] = agents.map(a => ({ typeKey: 'shell.typeAgent', id: 'agents', label: a.name + ' — ' + a.role, icon: 'agents' }));
+  // leads: from the workspace state provider (same dual-mode source as the pipeline)
+  const ld: PaletteItem[] = leads.map(l => ({ typeKey: 'shell.typeLead', id: 'leads', label: l.company, icon: 'leads' }));
   const all = [...pages, ...ag, ...ld].filter(x => x.label.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
 
   function onNav(id: string) {

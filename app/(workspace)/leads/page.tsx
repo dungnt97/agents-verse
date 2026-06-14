@@ -1,26 +1,23 @@
 /* =========================================================================
    AGENTS VERSE — /leads route
-   Renders the kanban pipeline with mutable leads from WorkspaceState.
-   Cross-nav: audit → /audits?lead=id, demo → /demos?lead=id.
+   Server Component: prefetches demo lead IDs so LeadPipeline can show the
+   "View Demo" button synchronously. Mutable leads stay in WorkspaceState.
+   Cross-nav: audit → /audits?lead=id, demo → /demos?lead=id (wired inside
+   LeadPipeline via useRouter + useToast, which are now client-only).
    ========================================================================= */
-'use client';
-
-import { useRouter } from 'next/navigation';
+import { getDemos } from '@/lib/repositories/pipeline';
 import { LeadPipeline } from '@/components/workspace/pipeline/lead-pipeline';
-import { useToast } from '@/lib/providers/toast-provider';
-import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
+import { DiscoveryTrigger } from '@/components/workspace/pipeline/discovery-trigger';
 
-export default function LeadsPage() {
-  const router = useRouter();
-  const toast = useToast();
-  const { leads } = useWorkspaceState();
+export default async function LeadsPage() {
+  const demos = await getDemos();
+  // Pass as plain array — client component converts to Set for O(1) lookup
+  const demoLeadIds = demos.map(d => d.leadId).filter(Boolean) as string[];
 
   return (
-    <LeadPipeline
-      leads={leads}
-      onAction={toast}
-      onOpenAudit={(id) => router.push('/audits?lead=' + id)}
-      onOpenDemo={(id) => router.push('/demos?lead=' + id)}
-    />
+    <>
+      <DiscoveryTrigger />
+      <LeadPipeline demoLeadIds={demoLeadIds} />
+    </>
   );
 }

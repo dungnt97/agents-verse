@@ -1,6 +1,7 @@
 /* =========================================================================
    AGENTS VERSE — Deals (approval flow · reply handling · production)
-   Ported verbatim from deals.jsx. Reads AV.deals + AV.dealByLead().
+   Ported verbatim from deals.jsx. Receives deals via props (server-fetched from the
+   repository layer); looks up the selected deal by leadId.
    ========================================================================= */
 'use client';
 
@@ -8,7 +9,8 @@ import { useState } from 'react';
 import { Icon } from '@/components/brand/icon';
 import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n/i18n-provider';
-import { AV } from '@/lib/data';
+import { fmt, hueFor, DEAL_STAGE } from '@/lib/data/format';
+import { useToast } from '@/lib/providers/toast-provider';
 import type { Deal, Production } from '@/lib/data/types';
 
 /* ---- OverviewBand (local) — value via CountUp (rounds, ignores prefix), like the shared original ---- */
@@ -74,7 +76,7 @@ function ProbBar({ value }: { value: number }) {
 function DealCard({ d, onOpen }: { d: Deal; onOpen: (id: string) => void }) {
   const { t } = useI18n();
   const [hover, setHover] = useState(false);
-  const st = AV.DEAL_STAGE[d.stage];
+  const st = DEAL_STAGE[d.stage];
   const escalated = d.stage === 'call' || d.stage === 'approval';
   return (
     <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onClick={() => onOpen(d.id)}
@@ -87,9 +89,9 @@ function DealCard({ d, onOpen }: { d: Deal; onOpen: (id: string) => void }) {
       <div className="row between" style={{ marginBottom:11 }}>
         <span className="row" style={{ gap:11, minWidth:0 }}>
           <span style={{ width:36, height:36, borderRadius:10,
-            background:`oklch(0.62 0.13 ${AV.hueFor(d.industry)} / .16)`,
+            background:`oklch(0.62 0.13 ${hueFor(d.industry)} / .16)`,
             display:'grid', placeItems:'center', flex:'none' }}>
-            <span style={{ width:9, height:9, borderRadius:99, background:`oklch(0.6 0.15 ${AV.hueFor(d.industry)})` }} />
+            <span style={{ width:9, height:9, borderRadius:99, background:`oklch(0.6 0.15 ${hueFor(d.industry)})` }} />
           </span>
           <span style={{ minWidth:0 }}>
             <div style={{ fontSize:15, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{d.client}</div>
@@ -102,8 +104,8 @@ function DealCard({ d, onOpen }: { d: Deal; onOpen: (id: string) => void }) {
         <div>
           <div style={{ fontSize:11.5, color:'var(--ink-3)', marginBottom:2 }}>{t('deals.quotedLabel')}</div>
           <div className="row" style={{ gap:8, alignItems:'baseline' }}>
-            <span style={{ fontSize:19, fontWeight:600, letterSpacing:'-0.02em' }} className="tabular">{AV.fmt.money(d.price)}</span>
-            <span style={{ fontSize:12.5, color:'var(--ink-3)' }} className="tabular">/ {AV.fmt.money(d.value)}</span>
+            <span style={{ fontSize:19, fontWeight:600, letterSpacing:'-0.02em' }} className="tabular">{fmt.money(d.price)}</span>
+            <span style={{ fontSize:12.5, color:'var(--ink-3)' }} className="tabular">/ {fmt.money(d.value)}</span>
           </div>
         </div>
         <ProbBar value={d.probability} />
@@ -189,7 +191,7 @@ function ProductionTimeline({ p }: { p: Production }) {
 function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => void; onAction: (msg: string, kind?: string) => void }) {
   const { t } = useI18n();
   const d = deal;
-  const st = AV.DEAL_STAGE[d.stage];
+  const st = DEAL_STAGE[d.stage];
   const escalated = d.stage === 'call' || d.stage === 'approval';
 
   return (
@@ -218,8 +220,8 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
           <div className="row" style={{ gap:12, marginBottom:20 }}>
             {([
               [t('deals.tilePackage'),  d.pkg],
-              [t('deals.tileQuoted'),   AV.fmt.money(d.price)],
-              [t('deals.tileEstValue'), AV.fmt.money(d.value)],
+              [t('deals.tileQuoted'),   fmt.money(d.price)],
+              [t('deals.tileEstValue'), fmt.money(d.value)],
               [t('deals.tileWinProb'),  d.probability+'%'],
             ] as [string, string][]).map(([l, v], i) => (
               <div key={i} style={{ flex:1, padding:'12px 13px', borderRadius:11, background:'var(--surface-muted)' }}>
@@ -327,18 +329,21 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
 /* ---- DealsScreen ---- */
 
 export interface DealsScreenProps {
-  onAction: (msg: string, kind?: string) => void;
+  deals: Deal[];
   initialLead?: string | null;
 }
 
-export function DealsScreen({ onAction, initialLead }: DealsScreenProps) {
+export function DealsScreen({ deals, initialLead }: DealsScreenProps) {
   const { t } = useI18n();
+  // onAction wired here so deals/page.tsx is a pure Server Component
+  const onAction = useToast();
   const [q, setQ] = useState('');
   const [stage, setStage] = useState('All');
-  // Pre-open deal for initialLead if supplied
-  const [open, setOpen] = useState<string | null>(
-    initialLead ? (AV.dealByLead(initialLead)?.id ?? null) : null
-  );
+  // Pre-open deal whose leadId matches initialLead, if supplied
+  const [open, setOpen] = useState<string | null>(() => {
+    if (!initialLead) return null;
+    return deals.find(d => d.leadId === initialLead)?.id ?? null;
+  });
 
   const STAGES = [
     t('deals.fAll'),
@@ -361,13 +366,13 @@ export function DealsScreen({ onAction, initialLead }: DealsScreenProps) {
     const enStage = EN_STAGE_MAP[stage] ?? stage;
     if (enStage === 'All') return true;
     if (enStage === 'Needs you') return d.stage === 'call' || d.stage === 'approval';
-    return AV.DEAL_STAGE[d.stage].label === enStage;
+    return DEAL_STAGE[d.stage].label === enStage;
   };
 
-  const list = AV.deals.filter(d => d.client.toLowerCase().includes(q.toLowerCase()) && matchS(d));
-  const needYou = AV.deals.filter(d => d.stage === 'call' || d.stage === 'approval').length;
-  const weighted = Math.round(AV.deals.reduce((s, d) => s + d.value * d.probability / 100, 0));
-  const openDeal = open ? AV.deals.find(d => d.id === open) : null;
+  const list = deals.filter(d => d.client.toLowerCase().includes(q.toLowerCase()) && matchS(d));
+  const needYou = deals.filter(d => d.stage === 'call' || d.stage === 'approval').length;
+  const weighted = Math.round(deals.reduce((s, d) => s + d.value * d.probability / 100, 0));
+  const openDeal = open ? deals.find(d => d.id === open) : null;
 
   return (
     <div style={{ padding:'26px 28px 60px', maxWidth:1480, margin:'0 auto' }}>
@@ -379,7 +384,7 @@ export function DealsScreen({ onAction, initialLead }: DealsScreenProps) {
       </div>
 
       <OverviewBand items={[
-        { label:t('deals.mOpen'),       value:AV.deals.filter(d=>d.stage!=='lost').length, icon:'deals' },
+        { label:t('deals.mOpen'),       value:deals.filter(d=>d.stage!=='lost').length, icon:'deals' },
         { label:t('deals.mApproval'),   value:needYou,  icon:'alert',    accent:'var(--warning)' },
         { label:t('deals.mWeighted'),   value:weighted, icon:'dollar',   accent:'var(--success)', prefix:'$' },
         { label:t('deals.mWonWeek'),    value:1,        icon:'check',    accent:'var(--success)' },

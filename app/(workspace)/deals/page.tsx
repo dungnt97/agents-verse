@@ -1,32 +1,20 @@
 /* =========================================================================
    AGENTS VERSE — /deals route
-   Reads ?lead= query param to pre-open the drawer for that lead's deal.
-   useSearchParams must be inside Suspense — Next 16 build requirement.
+   Server Component: prefetches all deals and passes them as props.
+   ?lead= searchParams handled here (Next 16: searchParams is a Promise).
    ========================================================================= */
-'use client';
-
-import { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { getDeals } from '@/lib/repositories/pipeline';
 import { DealsScreen } from '@/components/workspace/deals/deals-screen';
-import { useToast } from '@/lib/providers/toast-provider';
 
-function DealsInner() {
-  const searchParams = useSearchParams();
-  const toast = useToast();
-  const initialLead = searchParams.get('lead');
-
-  return (
-    <DealsScreen
-      initialLead={initialLead}
-      onAction={toast}
-    />
-  );
+interface Props {
+  searchParams: Promise<{ lead?: string }>;
 }
 
-export default function DealsPage() {
-  return (
-    <Suspense fallback={null}>
-      <DealsInner />
-    </Suspense>
-  );
+export default async function DealsPage({ searchParams }: Props) {
+  const [deals, { lead: initialLead }] = await Promise.all([
+    getDeals(),
+    searchParams,
+  ]);
+
+  return <DealsScreen deals={deals} initialLead={initialLead ?? null} />;
 }

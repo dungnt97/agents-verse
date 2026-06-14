@@ -1,17 +1,8 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
 import { FloorOverview } from '@/components/workspace/overview/floor-overview';
-import { useToast } from '@/lib/providers/toast-provider';
+import { getEscalations } from '@/lib/repositories/ops';
+import { getActivity } from '@/lib/repositories/ops';
 
-export default function OverviewPage() {
-  const router = useRouter();
-  const onAction = useToast();
-  return (
-    <FloorOverview
-      onAction={onAction}
-      goCommand={() => router.push('/command')}
-      goRoom={(id) => router.push('/rooms/' + id)}
-    />
-  );
+export default async function OverviewPage() {
+  const [escalations, activity] = await Promise.all([getEscalations(), getActivity()]);
+  return <FloorOverview escalations={escalations} activity={activity} />;
 }

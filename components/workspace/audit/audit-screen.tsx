@@ -1,15 +1,19 @@
 /* =========================================================================
    AGENTS VERSE — Website Audit (master list + detail report)
-   Ported verbatim from audit.jsx. Reads AV.audit() + AV.demoByLead().
+   Ported verbatim from audit.jsx. Receives audited leads + a leadId→AuditResult map via
+   props (server-fetched from the repository layer).
    ========================================================================= */
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { ConfidenceRing } from '@/components/ui/confidence-ring';
 import { SiteMock } from '@/components/site-mock';
-import { AV } from '@/lib/data';
+import { hueFor, SCORE_LABELS } from '@/lib/data/format';
+import { useToast } from '@/lib/providers/toast-provider';
 import { usePipelineAuditT } from '@/lib/i18n/keys/pipeline-audit';
+import type { Lead, AuditResult } from '@/lib/data/types';
 
 /* ---- Score colour helper (mirrors audit.jsx:5) ---- */
 function scoreColor(v: number): string {
@@ -42,32 +46,37 @@ function ScoreBar({ label, value }: ScoreBarProps) {
 /* ---- AuditScreen ---- */
 
 export interface AuditScreenProps {
+  audited: Lead[];
+  auditMap: Record<string, AuditResult>;
+  // Serializable array from Server Component; converted to Set inside this component
+  demoLeadIds: string[];
   initialLead?: string | null;
-  onAction: (msg: string, kind?: string) => void;
-  goDemos: (id: string) => void;
-  goLead: () => void;
 }
 
-export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScreenProps) {
+export function AuditScreen({ audited, auditMap, demoLeadIds, initialLead }: AuditScreenProps) {
+  // Build Set once for O(1) has() — demoLeadIds is a stable server-prefetched array
+  const demoLeadSet = new Set(demoLeadIds);
   const { t } = usePipelineAuditT();
-  const audited = AV.auditedLeads();
+  const router = useRouter();
+  const onAction = useToast();
+  const goDemos = (id: string) => router.push('/demos?lead=' + id);
 
   // Select initial lead: use initialLead if it exists in audited list, else first audited lead
   const [sel, setSel] = useState<string>(
-    initialLead && audited.find(l => l.id === initialLead) ? initialLead : audited[0].id
+    initialLead && audited.find(l => l.id === initialLead) ? initialLead : audited[0]?.id ?? ''
   );
 
-  // When initialLead prop changes (e.g. navigation), re-sync selection
+  // When initialLead prop changes (e.g. navigation), re-sync selection.
   useEffect(() => {
     if (initialLead && audited.find(l => l.id === initialLead)) {
       setSel(initialLead);
     }
-  // audited is derived from static data — safe to omit from deps
-  }, [initialLead]);
+  }, [initialLead, audited]);
 
-  const a = AV.audit(sel);
-  const hue = AV.hueFor(a.industry);
-  const hasDemo = !!AV.demoByLead(sel);
+  const a = auditMap[sel] ?? audited[0] as AuditResult | undefined;
+  if (!a) return null;
+  const hue = hueFor(a.industry);
+  const hasDemo = demoLeadSet.has(sel);
 
   return (
     <div style={{ display:'flex', minHeight:'calc(100vh - var(--shell-top))' }}>
@@ -89,7 +98,7 @@ export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScr
                 onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
                 <div className="row between" style={{ marginBottom:5 }}>
                   <span className="row" style={{ gap:8, minWidth:0 }}>
-                    <span style={{ width:8, height:8, borderRadius:99, background:`oklch(0.62 0.14 ${AV.hueFor(l.industry)})`, flex:'none' }} />
+                    <span style={{ width:8, height:8, borderRadius:99, background:`oklch(0.62 0.14 ${hueFor(l.industry)})`, flex:'none' }} />
                     <span style={{ fontSize:13, fontWeight: active?600:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
                       color: active ? 'var(--primary)' : 'var(--ink)' }}>{l.company}</span>
                   </span>
@@ -181,7 +190,7 @@ export function AuditScreen({ initialLead, onAction, goDemos, goLead }: AuditScr
           <div className="card" style={{ padding:18, marginBottom:18 }}>
             <h2 style={{ fontSize:16, marginBottom:16 }}>{t('audits.scoreBreakdown')}</h2>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px 32px' }} className="audit-scores">
-              {AV.SCORE_LABELS.map(([k, label]) => <ScoreBar key={k} label={label} value={a.scores[k as keyof typeof a.scores]} />)}
+              {SCORE_LABELS.map(([k, label]) => <ScoreBar key={k} label={label} value={a.scores[k as keyof typeof a.scores]} />)}
             </div>
           </div>
 

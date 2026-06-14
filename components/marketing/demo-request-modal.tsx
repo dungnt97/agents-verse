@@ -1,15 +1,17 @@
 /* =========================================================================
    AGENTS VERSE — DemoRequestModal
-   Extracted from requests.jsx. Persists submissions to localStorage key
-   'av-requests' (forward-compatible with the admin inbox in Set 2).
-   On submit: prepends a new entry and flips to the success screen — no toast,
-   matching the original modal, which never fired one on the public form.
+   Extracted from requests.jsx. Submits the public demo request through the
+   workspace state provider's addRequest, which persists it dual-mode: a DB
+   server action (createDemoRequest) when the database is on, or localStorage
+   ('av-requests') in demo mode. On submit: flips to the success screen — no
+   toast, matching the original public form.
    ========================================================================= */
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Icon } from '@/components/brand/icon';
 import { Mark } from '@/components/brand/mark';
+import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 
 interface FormState {
   business: string;
@@ -28,6 +30,7 @@ export interface DemoRequestModalProps {
 }
 
 export function DemoRequestModal({ open, onClose }: DemoRequestModalProps) {
+  const { addRequest } = useWorkspaceState();
   const [done, setDone] = useState(false);
   const [f, setF] = useState<FormState>(EMPTY);
 
@@ -39,22 +42,8 @@ export function DemoRequestModal({ open, onClose }: DemoRequestModalProps) {
 
   const submit = () => {
     if (!valid) return;
-
-    /* Persist to localStorage av-requests — same shape the admin inbox expects */
-    const entry = {
-      ...f,
-      id: 'rq' + Date.now(),
-      t: 'just now',
-      status: 'new',
-      city: (f as FormState & { city?: string }).city || '—',
-    };
-    try {
-      const existing = JSON.parse(localStorage.getItem('av-requests') || '[]');
-      localStorage.setItem('av-requests', JSON.stringify([entry, ...existing]));
-    } catch {
-      /* localStorage unavailable (private browsing edge case) — continue silently */
-    }
-
+    // Dual-mode persistence via the provider: DB server action when on, localStorage in demo.
+    addRequest(f);
     setDone(true);
   };
 

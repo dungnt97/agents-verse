@@ -14,14 +14,20 @@ import { LangToggle } from '@/lib/i18n';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useI18n } from '@/lib/i18n';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { ROUTE_META } from './route-meta';
 import { AUTONOMY } from './autonomy-control';
-import { AV } from '@/lib/data';
+import type { Room, Agent } from '@/lib/data/types';
+
+interface CrumbDirectory {
+  roomById: (id: string) => Room | undefined;
+  agentById: (id: string) => Agent | undefined;
+}
 
 /* Build breadcrumb label array from a pathname like /rooms/design.
    Rule: first crumb is always "Agents Verse"; subsequent crumbs come from
    ROUTE_META; dynamic [id] segments resolve to entity name if available. */
-function buildCrumbs(pathname: string, t: (k: string) => string): string[] {
+function buildCrumbs(pathname: string, t: (k: string) => string, dir: CrumbDirectory): string[] {
   const parts = pathname.split('/').filter(Boolean);
   if (parts.length === 0) return ['Agents Verse'];
 
@@ -39,11 +45,11 @@ function buildCrumbs(pathname: string, t: (k: string) => string): string[] {
       // Attempt to resolve dynamic [id] segments using AV data helpers
       const parent = parts[i - 1];
       if (parent === 'rooms') {
-        const room = AV.roomById(seg);
+        const room = dir.roomById(seg);
         if (room) { crumbs.push(room.name); continue; }
       }
       if (parent === 'agents') {
-        const agent = AV.agentById(seg);
+        const agent = dir.agentById(seg);
         if (agent) { crumbs.push(agent.name); continue; }
       }
       // Fallback: capitalise the raw segment
@@ -62,8 +68,9 @@ interface TopBarProps {
 export function TopBar({ onSearch, onReview, onMenu }: TopBarProps) {
   const { t } = useI18n();
   const { mode } = useWorkspaceState();
+  const { roomById, agentById } = useWorkspaceData();
   const pathname = usePathname();
-  const crumbs = buildCrumbs(pathname, t);
+  const crumbs = buildCrumbs(pathname, t, { roomById, agentById });
   /* cur kept for parity with app-shell.jsx — available for future use */
   const _cur = AUTONOMY.find(a => a.id === mode);
 

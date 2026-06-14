@@ -5,7 +5,7 @@
    ========================================================================= */
 'use client';
 
-import { AV } from '@/lib/data';
+import { statusMap } from '@/lib/data/format';
 import { useI18n } from '@/lib/i18n/i18n-provider';
 
 export interface StatusBadgeProps {
@@ -15,7 +15,7 @@ export interface StatusBadgeProps {
 
 export function StatusBadge({ status, sm }: StatusBadgeProps) {
   const { t } = useI18n();
-  const m = AV.statusMap[status] || AV.statusMap.idle;
+  const m = statusMap[status] || statusMap.idle;
   const live = status === 'working' || status === 'active';
   const k = 'status.' + status;
   const label = t(k);
