@@ -63,11 +63,14 @@ services:
       retries: 5
 
   # Self-hosted Inngest server (durable execution gateway). Internal-only; expose 8288 to
-  # localhost only if you want the dev dashboard. NOTE: `inngest start` flags/env vary by version —
-  # verify `docker run inngest/inngest:v1.27.0 start --help` at deploy and adjust below.
+  # localhost only if you want the dev dashboard. The image has no ENTRYPOINT and its default
+  # CMD is the bare `inngest` binary, so the subcommand MUST include it: `["inngest", "start"]`
+  # (a bare `["start"]` makes Docker exec a non-existent `start` binary). `start` is the
+  # production self-host mode and needs INNGEST_EVENT_KEY + INNGEST_SIGNING_KEY (set in .env.local);
+  # for a keyless local run use `["inngest", "dev"]` instead.
   inngest:
     image: inngest/inngest:v1.27.0
-    command: ["start"]
+    command: ["inngest", "start"]
     env_file:
       - .env.local
     environment:
