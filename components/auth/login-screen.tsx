@@ -13,7 +13,7 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { LangToggle, useI18n } from '@/lib/i18n';
 
 interface LoginScreenProps {
-  onLogin: (email: string) => void;
+  onLogin: (email: string, password: string) => void;
   onBack: () => void;
 }
 
@@ -23,7 +23,7 @@ export function LoginScreen({ onLogin, onBack }: LoginScreenProps) {
   const [pw, setPw] = useState('demo1234');
   const [show, setShow] = useState(false);
   const valid = /.+@.+\..+/.test(email) && pw.length >= 1;
-  const submit = () => { if (valid) onLogin(email); };
+  const submit = () => { if (valid) onLogin(email, pw); };
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative', display: 'grid', placeItems: 'center', padding: 20 }}>
