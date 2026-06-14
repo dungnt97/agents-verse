@@ -14,7 +14,7 @@ Guidance for Claude Code working in this repository. Read `./README.md` first fo
 
 **Built so far** (all merged to `main`): Foundation (DB client/schema/seed/repos), Lead Discovery (Google Places), real Auth, mutable-state→DB, Docker self-host Postgres, the **Audit subsystem** (PageSpeed + Playwright + Gemini, durable via an Inngest worker), and the full workspace **state machine** wired to Postgres. **NOT built** (roadmap, key-gated at their core): Subsystem 3 demo-generation, 4 outreach/email, 5 deal/CRM automation. See `docs/development-roadmap.md`.
 
-The repo root still contains the **original buildless CDN-React prototype** (`index.html`, `*.jsx`, `data*.js`, `styles.css`) as legacy reference only — see "Legacy" below.
+The original buildless CDN-React prototype has been removed (preserved in git history only); the codebase is now Next.js-first.
 
 ## Commands
 
@@ -39,7 +39,7 @@ Always run `npm run typecheck` (and ideally `npm run build`) after changing `.ts
 - **Auth (`lib/auth/`, Better Auth, dual-mode):** `middleware.ts` does a cheap cookie-existence check (Edge, no DB); the REAL gate is `getCurrentUser()` in the workspace Server-Component layout. Demo mode uses the legacy `av-auth` cookie. Server actions are auth-guarded via `lib/actions/guard.ts`.
 - **Mutations (`lib/actions/`, `'use server'`):** state-machine writes (lead/deal/demo/request stage+status, escalation resolve, settings, discovery, audit-request). `WorkspaceStateProvider` does optimistic update + action (DB mode) or localStorage (demo). Each action degrades gracefully without DB.
 - **Audit subsystem:** `lib/audit/*` (PageSpeed/screenshot/vision) + `lib/inngest/*` (durable function + worker). **Playwright + Gemini run ONLY in the `worker` container** (outbound `connect()`); `web` only `inngest.send`s — keep it that way (don't import the audit function/engine into web).
-- **Styling:** CSS-variable design system in `styles/globals.css` (light + `[data-theme="dark"]`). **No Tailwind.** Use existing tokens (`var(--…)`) + utility classes (`.btn`, `.card`, `.row/.col`, …); heavy inline `style={}`. **UI fidelity is sacred** — match existing markup; don't restyle.
+- **Styling:** CSS-variable design system in `app/globals.css` (light + `[data-theme="dark"]`). **No Tailwind.** Use existing tokens (`var(--…)`) + utility classes (`.btn`, `.card`, `.row/.col`, …); heavy inline `style={}`. **UI fidelity is sacred** — match existing markup; don't restyle.
 - **Worker tsx-safety:** the Inngest worker chain runs under `tsx`, where `import 'server-only'` THROWS and the `@/` alias isn't resolved. Worker-chain modules (`lib/audit/*`, `lib/inngest/*`) use **relative imports** and **no `server-only`**.
 
 ## Conventions (follow these)
@@ -50,10 +50,6 @@ Always run `npm run typecheck` (and ideally `npm run build`) after changing `.ts
 - **UI fidelity**: this is a faithful port — match existing markup/inline styles; don't introduce new visual frameworks or restyle.
 - Code comments explain the *why* and must **not** reference plan phases/finding codes; keep them self-contained.
 - File size: prefer < ~200 LOC; split large files into focused modules.
-
-## Legacy (do not touch)
-
-Root `index.html`, `*.jsx`, `data*.js`, `styles.css` are the **original buildless prototype**, retained for reference. They are **not** part of the Next.js build (only `app/` defines routes). Don't edit or delete them unless explicitly asked.
 
 ## Plan language (MANDATORY)
 

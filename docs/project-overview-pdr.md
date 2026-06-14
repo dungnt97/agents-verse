@@ -48,35 +48,35 @@ Four ranked modes (persisted as `av-mode`, default `guarded`):
 
 | Area | Screen(s) | Purpose |
 |------|-----------|---------|
-| Landing | `landing.jsx`, `landing-sections.jsx`, `landing-sections2.jsx` | Hero ("working demos, not proposals"), how-it-works (6 steps), before/after showcase, inside-the-company, value props, 3-tier pricing, trust & safety guardrails, final CTA, footer |
-| Demo request | `requests.jsx` (`DemoRequestModal`) | Public form: business name, industry, URL, contact |
-| Info pages | `pages.jsx` | About, Careers, Contact, Case studies, Guarantees, Status, Privacy, Terms, Security |
-| Site mockups | `site-mock.jsx` | Old-site vs new-site wireframes used in showcase and demos |
+| Landing | `components/landing/landing.tsx`, `components/landing/sections-1.tsx`, `components/landing/sections-2.tsx` | Hero ("working demos, not proposals"), how-it-works (6 steps), before/after showcase, inside-the-company, value props, 3-tier pricing, trust & safety guardrails, final CTA, footer |
+| Demo request | `components/marketing/demo-request-modal.tsx` (`DemoRequestModal`) | Public form: business name, industry, URL, contact |
+| Info pages | `app/(marketing)/[slug]/page.tsx` + `components/info/info-page.tsx` | About, Careers, Contact, Case studies, Guarantees, Status, Privacy, Terms, Security |
+| Site mockups | `components/site-mock.tsx` | Old-site vs new-site wireframes used in showcase and demos |
 
 ### Authenticated workspace (gated by login)
 
 | Area | Screen | File | Purpose |
 |------|--------|------|---------|
-| Floor Overview | `FloorOverview` | `floor-overview.jsx` | Founder command dashboard: 6 headline metrics, spatial floor map, escalation queue, live activity |
-| Floor map | `FloorMap` | `floor-map.jsx` | Animated spatial schematic of 8 rooms with a flowing workflow path |
-| Command Center | `CommandCenter` | `command.jsx` | Escalation review: forecast/net-profit/demos/cost metrics, expandable escalation cards, revenue/cost chart, recommended actions, system health, top agents |
-| Rooms | `RoomsIndex` / `RoomDetail` | `rooms.jsx` | Department grid + per-room detail (projects, agents, timeline, demo peek) |
-| Agents | `AgentsIndex` / `AgentDetail` | `agents.jsx` | AI workforce grid + per-agent detail (task, confidence, skills, tools, outputs, history, founder chat) |
-| Demo requests | `RequestsScreen` | `requests.jsx` | Triage inbox: reply, decline, or convert a request into a real pipeline lead |
-| Leads | `LeadPipeline` | `pipeline.jsx` | Kanban (Found → Audited → Demo → Contacted → Replied → Won/Lost), drag-to-move, filters |
-| Audits | `AuditScreen` | `audit.jsx` | Master list + audit report (current vs redesigned scores, 8 dimensions, problems, redesign direction) |
-| Demos | `DemoManager` / `DemoDrawer` | `demos.jsx` | Demo grid with before/after scores, checklist, changes, outreach templates |
-| Deals | `DealsScreen` / `DealDrawer` | `deals.jsx` | Approval flow, reply interpretation, escalation flags, production timeline |
-| Activity | `ActivityScreen` | `activity.jsx` | Full filterable/searchable system timeline |
-| Settings | `SettingsScreen` | `settings.jsx` | Brand, autonomy mode, pricing rules, outreach guardrails, escalation triggers, AI cost budgets, per-agent toggles |
-| Auth | `LoginScreen` | `auth.jsx` | Workspace login gate (pre-filled demo credentials) |
+| Floor Overview | `FloorOverview` | `components/workspace/overview/floor-overview.tsx` | Founder command dashboard: 6 headline metrics, spatial floor map, escalation queue, live activity |
+| Floor map | `FloorMap` | `components/floor-map.tsx` | Animated spatial schematic of 8 rooms with a flowing workflow path |
+| Command Center | `CommandCenter` | `components/workspace/command/command-center.tsx` | Escalation review: forecast/net-profit/demos/cost metrics, expandable escalation cards, revenue/cost chart, recommended actions, system health, top agents |
+| Rooms | `RoomsIndex` / `RoomDetail` | `components/workspace/rooms/rooms-index.tsx`, `components/workspace/rooms/room-detail.tsx` | Department grid + per-room detail (projects, agents, timeline, demo peek) |
+| Agents | `AgentsIndex` / `AgentDetail` | `components/workspace/agents/agents-index.tsx`, `components/workspace/agents/agent-detail.tsx` | AI workforce grid + per-agent detail (task, confidence, skills, tools, outputs, history, founder chat) |
+| Demo requests | `RequestsScreen` | `components/workspace/requests/requests-screen.tsx` | Triage inbox: reply, decline, or convert a request into a real pipeline lead |
+| Leads | `LeadPipeline` | `components/workspace/pipeline/lead-pipeline.tsx` | Kanban (Found → Audited → Demo → Contacted → Replied → Won/Lost), drag-to-move, filters |
+| Audits | `AuditScreen` | `components/workspace/audit/audit-screen.tsx` | Master list + audit report (current vs redesigned scores, 8 dimensions, problems, redesign direction) |
+| Demos | `DemoManager` / `DemoDrawer` | `components/workspace/demos/demo-manager.tsx` | Demo grid with before/after scores, checklist, changes, outreach templates |
+| Deals | `DealsScreen` / `DealDrawer` | `components/workspace/deals/deals-screen.tsx` | Approval flow, reply interpretation, escalation flags, production timeline |
+| Activity | `ActivityScreen` | `components/workspace/activity/activity-screen.tsx` | Full filterable/searchable system timeline |
+| Settings | `SettingsScreen` | `components/workspace/settings/settings-screen.tsx` | Brand, autonomy mode, pricing rules, outreach guardrails, escalation triggers, AI cost budgets, per-agent toggles |
+| Auth | `LoginScreen` | `components/auth/login-screen.tsx` | Workspace login gate (pre-filled demo credentials) |
 
 ### Cross-cutting shell features
 
-- **App shell** (`app-shell.jsx`): grouped sidebar nav, autonomy selector, command palette (Cmd/Ctrl+K) searching pages/agents/leads, top bar with breadcrumbs, review center bell.
-- **Review center** (`app.jsx`): right-side drawer aggregating items needing approval (demo, outreach, deal, human request, cost).
-- **Assistant chat widget** (`chat.jsx`): bottom-right helper with rule-based replies about approvals, demos, cost, pipeline, and daily summary.
-- **Theming & i18n**: light/dark via `data-theme`; English/Vietnamese dictionary (`i18n.jsx`).
+- **App shell** (`components/workspace/workspace-shell.tsx`): grouped sidebar nav, autonomy selector, command palette (Cmd/Ctrl+K) searching pages/agents/leads, top bar with breadcrumbs, review center bell.
+- **Review center** (`components/workspace/review-center.tsx`): right-side drawer aggregating items needing approval (demo, outreach, deal, human request, cost).
+- **Assistant chat widget** (`components/marketing/chat-widget.tsx`): bottom-right helper with rule-based replies about approvals, demos, cost, pipeline, and daily summary.
+- **Theming & i18n**: light/dark via `data-theme`; English/Vietnamese dictionary (`lib/i18n/` — `i18n-provider.tsx`, `dictionary.ts`, `keys/*`).
 
 ## 5. What Exists Today vs. Planned
 
@@ -111,7 +111,7 @@ The codebase frames the first three screens — **Landing, Floor Overview, Comma
 - **Architecture.** Next.js 16 App Router + React 19 + TypeScript strict + Drizzle ORM. Server Components by default for data fetching; client components marked `'use client'` for interactivity. Database is self-hosted PostgreSQL 17 (docker-compose). Deployment is Docker Compose on a single VPS with a reverse proxy for TLS.
 - **Module system.** ES modules throughout. TypeScript strict mode enforced at build and commit gates. Absolute imports via `@/` alias (app, lib, components). Server-only code uses `'use server'` directive and `server-only` package to prevent client-side import.
 - **Routing.** Next.js App Router (file-based). All 17 routes are dynamic SSR because `app/layout.tsx` reads cookies on the server. No static export; deploy on Node runtime.
-- **Design system.** CSS custom properties in `styles/globals.css` (identical byte-for-byte with legacy `styles.css`) define color, shadow, radius, typography tokens with light/dark variants toggled by `data-theme`. Fonts: Hanken Grotesk + JetBrains Mono via Google Fonts. No Tailwind; inline `style={{}}` objects + utility classes throughout.
+- **Design system.** CSS custom properties in `app/globals.css` define color, shadow, radius, typography tokens with light/dark variants toggled by `data-theme`. Fonts: Hanken Grotesk + JetBrains Mono via Google Fonts. No Tailwind; inline `style={{}}` objects + utility classes throughout.
 - **Performance.** Next.js production build with Turbopack (dev) and SWC compilation. All routes are dynamic SSR with cookie-based initial state hydration (no flash). Server-side cookie reads eliminate theme/language flicker on load.
 - **Internationalization.** Dictionary keys split by namespace in `lib/i18n/keys/*.ts` (en + vi), merged in `I18nProvider`. Call `t('ns.key')` for translations; no pluralization yet (KISS).
 - **Accessibility.** ARIA labels in interactive components; focus management in modals and sidebars. A11y audit planned but not yet comprehensive.
@@ -131,4 +131,3 @@ These restate the prototype's implicit goals; they are **inferred** and not yet 
 - Confidence threshold and value/cost thresholds are shown in Settings as defaults — is there a canonical default set the product commits to, or are these placeholder seeds?
 - Is multi-user / multi-seat in scope, or is the single-founder model intentional for v1?
 - Vietnamese localization exists alongside English — is `vi` a launch market, or a demonstration of i18n capability?
-- The `screens/` and `uploads/` directories hold reference PNGs (landing hero, logo check, pasted mockups); these appear to be design references rather than shipped assets — confirm they are not product surfaces.

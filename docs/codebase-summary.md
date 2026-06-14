@@ -21,7 +21,7 @@ Agents Verse is a **production-ready full-stack SaaS** for autonomous, demo-firs
 
 ## Run Model (Next.js + React Server Components)
 
-Next.js 16 App Router with TypeScript. No legacy buildless code is used at runtime.
+Next.js 16 App Router with TypeScript (strict).
 
 **Demo mode (default, no credentials required):**
 ```bash
@@ -66,7 +66,7 @@ All 13 workspace + 4 public routes are **dynamic** (no static export) because `a
 - **Server Components by default.** Workspace layout is an RSC; child routes are client components (marked `'use client'`). Auth check happens in RSC via `getCurrentUser()`.
 - **React Context for state.** Theme, language, auth, toast, workspace mode/requests/leads flow via providers (`lib/providers/`). No Redux/Zustand; localStorage persists across sessions (theme, lang, mode, requests, leads).
 - **Server Actions for mutations.** Create/update/delete operations live in `lib/actions/` and guard auth server-side.
-- **Styling.** CSS custom-property design system in `styles/globals.css` (tokens for color, shadow, radius, typography, layout) plus utility classes (`.btn`, `.card`, `.badge`, `.row/.col`); inline `style={{}}` objects throughout. Fonts: Hanken Grotesk (sans) and JetBrains Mono (mono) via Google Fonts. Primary color is orange. No Tailwind.
+- **Styling.** CSS custom-property design system in `app/globals.css` (tokens for color, shadow, radius, typography, layout) plus utility classes (`.btn`, `.card`, `.badge`, `.row/.col`); inline `style={{}}` objects throughout. Fonts: Hanken Grotesk (sans) and JetBrains Mono (mono) via Google Fonts. Primary color is orange. No Tailwind.
 - **i18n.** Dictionary keys in `lib/i18n/keys/*.ts` (en + vi); merged in `I18nProvider`. Components call `t('ns.key')` to get translation. Strings are kept in English for code/UI; proper nouns/market data stay English always.
 - **Naming.** Kebab-case filenames (`marketing-frame.tsx`, `floor-overview.tsx`); TypeScript interfaces for types. File size target: <200 LOC per file.
 - **No extra libraries.** No state library, no date library, no animation library. CSS `@keyframes` + CSS transitions for motion.
@@ -85,7 +85,7 @@ All 13 workspace + 4 public routes are **dynamic** (no static export) because `a
 
 ### Components & Primitives
 - `components/brand/` — Mark, Logo, Icon (45+ SVG icons).
-- `components/ui/` — Button, Card, Badge, Breadcrumb, etc. (reused from legacy).
+- `components/ui/` — Button, Card, Badge, Breadcrumb, etc. (shared UI primitives).
 - `components/landing/` — LandingNav, Hero, HeroVisual, sections, Pricing, Footer, etc.
 - `components/marketing/` — MarketingFrame, DemoRequestModal, ContactForm, ChatWidget.
 - `components/workspace/` — Sidebar, TopBar, CommandPalette, AutonomyControl, ReviewCenter, FloorMap, Workspace shell components.
@@ -140,7 +140,7 @@ All 13 workspace + 4 public routes are **dynamic** (no static export) because `a
 
 ### i18n & Styling
 - `lib/i18n/` — `I18nProvider`, `useI18n()`, keys in `keys/*.ts` (en + vi).
-- `styles/globals.css` — CSS custom-property design system (tokens, utilities, animations, responsive breakpoints).
+- `app/globals.css` — CSS custom-property design system (tokens, utilities, animations, responsive breakpoints).
 
 ## Domain Model (from lib/data/types.ts + lib/db/schema/)
 
@@ -200,7 +200,7 @@ Core entities are defined in `lib/data/types.ts` and mirrored in `lib/db/schema/
 
 ## Migration Status: FUNCTIONALLY COMPLETE (Dual-Stack, Pending Cleanup)
 
-**As of June 2026, the Agents Verse buildless→Next.js migration is functionally complete.** The full app now runs on Next.js; legacy buildless files remain in the repo root **pending visual review and cleanup**.
+**As of June 2026, the Agents Verse buildless→Next.js migration is functionally complete.** The full app now runs purely on Next.js; the legacy buildless prototype was removed in the June 2026 cleanup.
 
 ### Next.js App (Sets 1 + 2 — LIVE)
 **Next.js 16.2.9 + React 19.2.7 + TypeScript** handles all 17 routes (marketing + workspace):
@@ -213,8 +213,8 @@ Core entities are defined in `lib/data/types.ts` and mirrored in `lib/db/schema/
 - **Workspace shell:** `app/(workspace)/layout.tsx` wires Sidebar, TopBar, CommandPalette, scroll-reset, and global keyboard handlers (Cmd/Ctrl+K palette, Escape).
 - **State management:** `WorkspaceStateProvider` manages mode (autonomy), requests (demo inbox), and leads (pipeline), seeded from extended `lib/data` and persisted to localStorage (`av-mode`, `av-requests`, `av-leads`).
 
-### Legacy Buildless Files (Retained, Not Removed)
-The original buildless prototype (`index.html`, `*.jsx`, `*.js`, `styles.css` in repo root) **still exists** as a complete reference. It is not loaded by the Next.js app and is intentionally retained in git history for visual review before deletion. **Do not use or modify**; the codebase is now Next.js-first.
+### Legacy Buildless Prototype (Removed)
+The original buildless prototype (root `*.jsx` / `data*.js` / `index.html` / `styles.css`) was removed in the June 2026 cleanup. It is preserved only in git history. The codebase is Next.js-first.
 
 ### Build-out Status
 **Set 1 (marketing) — Complete.** 11 routes live; `tsc` + lint + `next build` pass.
@@ -234,5 +234,4 @@ The original buildless prototype (`index.html`, `*.jsx`, `*.js`, `styles.css` in
 
 ## Unresolved Questions
 
-- Some reader analysis described several business screens as "Coming Soon," but `index.html` and `app.jsx` show them wired and routed (pipeline, audit, demos, deals, settings, activity, requests). The summary reflects the actual wiring; remaining "Coming Soon" applies only to unrecognized routes. Confirm whether any wired screen is intentionally a stub.
-- `autonomy mode` values appear inconsistently across analyses (manual/review/guarded/full vs. guarded/autopilot). The exact enum was not re-verified against `settings.jsx` / `app-shell.jsx` for this summary.
+- `autonomy mode` values appear inconsistently across analyses (manual/review/guarded/full vs. guarded/autopilot). The exact enum was not re-verified against the live settings schema (`lib/db/schema/enums.ts`) for this summary.

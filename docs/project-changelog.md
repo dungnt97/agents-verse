@@ -4,6 +4,24 @@ Significant milestones and releases. For detailed implementation phases, see `pl
 
 ---
 
+## [2026-06-14] Repository Cleanup — Legacy Prototype Removed
+
+**Removed:**
+- Deleted the original buildless CDN-React prototype: root `index.html`, `styles.css`, `.thumbnail`, `data.js`/`data2.js`/`data3.js`/`data4.js`, and all 24 root `*.jsx` files (`app.jsx`, `app-shell.jsx`, `i18n.jsx`, `agents.jsx`, `deals.jsx`, `demos.jsx`, `rooms.jsx`, `landing.jsx`, `pages.jsx`, etc.). These were retained for visual reference only and are no longer needed.
+- Deleted dev artifact directories: `uploads/` (9 pasted PNGs) and `screens/` (2 PNGs).
+
+**Moved:**
+- Relocated `styles/globals.css` → `app/globals.css` (Next.js App Router convention); updated the import in `app/layout.tsx`.
+
+**Housekeeping:**
+- Added `/uploads/`, `/screens/`, and `.thumbnail` to `.gitignore`.
+- Synced docs to drop references to the deleted prototype: `README.md`, `CLAUDE.md`, `docs/system-architecture.md`, `docs/code-standards.md`, `docs/codebase-summary.md`, `docs/project-overview-pdr.md`.
+
+**Verification:**
+- `npm run typecheck`, `npm run lint`, and `npm run build` all pass (build exit 0, all routes compile) in mock mode (no DB or keys).
+
+---
+
 ## [2026-06-14] Audit Subsystem Complete (Subsystem 2)
 
 **Features:**
