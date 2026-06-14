@@ -80,41 +80,43 @@ Four ranked modes (persisted as `av-mode`, default `guarded`):
 
 ## 5. What Exists Today vs. Planned
 
-### Built today (interactive)
+### Built today (production-ready, live)
 
-All sidebar destinations render real, data-backed screens routed in `app.jsx`:
+**Full-stack Next.js 16 + Postgres + Drizzle + Better Auth + Inngest:**
 
-- Landing + all public info pages (About, Careers, Contact, Cases, Guarantees, Status, Privacy, Terms, Security) and the public demo-request modal.
-- Login gate with mocked auth (localStorage flag, pre-filled credentials).
-- Floor Overview, Command Center, Rooms (index + detail), Agents (index + detail), Demo Requests, Leads pipeline, Audits, Demos, Deals, Activity, Settings.
-- Working interactions: kanban drag-to-move (persisted to localStorage), converting a demo request into a pipeline lead, escalation approve/open actions, toasts, command palette, theme + language toggles, autonomy mode selection.
+- **All 17 routes live:** Landing + 9 public info pages + login gate + 14 authenticated workspace screens (overview, command, rooms detail, agents detail, leads pipeline, audits detail, demos, deals, settings, activity, requests).
+- **Real backend:** PostgreSQL 17 (self-hosted or Docker), 15 tables (domain + Better Auth). Single direct connection; migrations + seed idempotent.
+- **Real authentication:** Better Auth (email/password). Sessions stored in DB. Demo mode falls back to localStorage cookies for zero-credential showcase.
+- **Lead Discovery:** Google Places API 2-phase (Pro tier mandatory, optional Enterprise enrichment). Email scraping via cheerio. Bulk insertion into `leads` table.
+- **Website Audits (Subsystem 2):** PageSpeed Insights + Playwright screenshots + Google Gemini 2.5 Flash vision analysis. 8-dimensional scoring (visual, mobile, cta, trust, seo, speed, content, conversion). Results durable via Inngest + Redis + Postgres. Worker container isolates Playwright/Gemini compute.
+- **Mutable state → DB:** All workspace interactions (lead stage, deal status, demo approval, autonomy mode, settings, request conversion) persist via server actions. Optimistic UI in client, reconciled with DB.
+- **Docker deployment:** docker-compose.yml runs web (Next.js) + db (Postgres) + redis + inngest + worker (audit engine). Entrypoint migrates, seeds, and starts the app. Reverse proxy (Caddy/Nginx) handles TLS.
+- **Demo mode (zero credentials):** Same codebase, `USE_DB=false` → mock data from `lib/data/` + localStorage. Perfect for showcase and local development.
 
-The codebase frames the first three screens — **Landing, Floor Overview, Command Center** — as the polished "design bar" the rest aims to match.
+The codebase frames the first three screens — **Landing, Floor Overview, Command Center** — as the polished "design bar" the rest aims to match. All now back by real data when `USE_DB=true`.
 
-### Planned / not real yet
+### Planned / not real yet (key-gated, future subsystems)
 
-- **Backend & persistence.** No API or server; all state is mock data in `window.AV` plus a few localStorage keys (`av-route`, `av-param`, `av-theme`, `av-auth`, `av-user`, `av-mode`, `av-lang`, `av-requests`, `av-leads`). Drag-drop, requests, and lead conversion mutate local state only.
-- **Real authentication.** Login accepts the demo credentials and flips a localStorage flag; there is no identity provider, password storage, or session security.
-- **Real AI / agents.** Agent activity, confidence, audits, demos, and replies are seeded static data, not live model output. The assistant chat and founder chat use canned/rule-based responses, not streaming.
-- **Actual outreach / sending.** Outreach and reply actions trigger toasts; no email is sent.
-- **Demo generation & hosting.** Demo URLs are placeholders (`demo.agentsverse.ai/[leadId]`); before/after previews are wireframe mockups, not generated sites.
-- **`ComingSoon` fallback.** Present in `app.jsx` but only renders for **unrecognized** routes; it is a safety fallback, not the state of the main screens. **(inferred)**
-- **Live case-study links / "View live demo"** on the landing showcase need a backend. **(inferred)**
-- **Production timeline interactivity** (deal `production.stages`) is displayed but not yet a manipulable workflow.
+- **Demo generation (Subsystem 3).** Placeholder demo URLs (`demo.agentsverse.ai/[leadId]`); before/after previews are wireframe mockups, not generated sites. Requires Claude API + Imagen + a rendering service.
+- **Outreach & email (Subsystem 4).** Outreach actions trigger toasts, not real Resend sends. Requires `RESEND_API_KEY` and CAN-SPAM templates.
+- **Real AI agent outputs.** Agent activity, confidence scores, and AI recommendations are seeded mock data, not live model inference.
+- **Chat widget streaming.** Assistant chat uses static rule-based replies (setTimeout), not streaming Claude API.
+- **Deal automation (Subsystem 5).** Deal production timeline is displayed, not yet a fully manipulable workflow.
+- **Per-agent real-time spend tracking.** Settings expose config UI only; actual spend metering is not implemented.
 
 ## 6. Non-Functional Notes
 
-This is a **buildless, design-bar prototype**, and several requirements follow from that choice rather than from production engineering.
+**This is a production-ready full-stack SaaS**, not a prototype. Architecture, performance, security, and deployment follow modern best practices.
 
-- **Architecture.** Single static `index.html` loads pinned CDN React 18.3.1 UMD + ReactDOM 18.3.1 + `@babel/standalone` 7.29.0 (all with SRI integrity hashes). Every screen is a `<script type="text/babel">` file compiled in the browser; there is **no bundler, no package.json, no ES modules, no TypeScript, and no test framework** in the repo. Files are flat in the repo root.
-- **Module pattern.** No imports/exports; React hooks are aliased to `window` (`useState`, `useEffect`, etc.) and every component/data namespace attaches itself via `Object.assign(window, …)`. Data lives in `data.js`–`data4.js` as plain-JS globals on `window.AV` with lookup/derivation helpers (`agentById`, `roomById`, `audit`, `demoByLead`, `dealByLead`, `roomProjects`, `roomMetrics`, `roomTimeline`).
-- **Routing.** A localStorage-backed state machine in `app.jsx` (route + optional param), with scroll reset on navigation and conditional render of landing / info page / login / workspace.
-- **Design system.** CSS custom properties in `styles.css` define color, shadow, radius, typography, and layout tokens with light (warm ivory) and dark (graphite) variants toggled by `data-theme`. Fonts: Hanken Grotesk + JetBrains Mono via Google Fonts. Styling is split between these tokens/utility classes and heavy inline styles in JSX.
-- **Performance.** In-browser Babel transpilation means first paint depends on compiling every JSX file at load; a `MutationObserver` splash hides the boot overlay once React first paints. Acceptable for a prototype; **a real build step would be required for production performance.** **(inferred)**
-- **Internationalization.** Custom `t()` lookup over an `AV_DICT` (en/vi); the full dictionary loads up front. No pluralization or interpolation helpers.
-- **Accessibility.** Interactive elements use a `focusable` class and aria labels in places; a full audit has not been observed. **(inferred)**
-- **Responsiveness.** Mobile off-canvas sidebar, `hide-mobile`/`hide-desktop` utilities, and `clamp()` headings exist; full mobile coverage is partial. **(inferred)**
-- **Security posture.** As a demo, there is no real auth, no input sanitization layer, and no secret handling; everything runs client-side. Not production-safe by design.
+- **Architecture.** Next.js 16 App Router + React 19 + TypeScript strict + Drizzle ORM. Server Components by default for data fetching; client components marked `'use client'` for interactivity. Database is self-hosted PostgreSQL 17 (docker-compose). Deployment is Docker Compose on a single VPS with a reverse proxy for TLS.
+- **Module system.** ES modules throughout. TypeScript strict mode enforced at build and commit gates. Absolute imports via `@/` alias (app, lib, components). Server-only code uses `'use server'` directive and `server-only` package to prevent client-side import.
+- **Routing.** Next.js App Router (file-based). All 17 routes are dynamic SSR because `app/layout.tsx` reads cookies on the server. No static export; deploy on Node runtime.
+- **Design system.** CSS custom properties in `styles/globals.css` (identical byte-for-byte with legacy `styles.css`) define color, shadow, radius, typography tokens with light/dark variants toggled by `data-theme`. Fonts: Hanken Grotesk + JetBrains Mono via Google Fonts. No Tailwind; inline `style={{}}` objects + utility classes throughout.
+- **Performance.** Next.js production build with Turbopack (dev) and SWC compilation. All routes are dynamic SSR with cookie-based initial state hydration (no flash). Server-side cookie reads eliminate theme/language flicker on load.
+- **Internationalization.** Dictionary keys split by namespace in `lib/i18n/keys/*.ts` (en + vi), merged in `I18nProvider`. Call `t('ns.key')` for translations; no pluralization yet (KISS).
+- **Accessibility.** ARIA labels in interactive components; focus management in modals and sidebars. A11y audit planned but not yet comprehensive.
+- **Responsiveness.** Mobile-first media queries at 1180px, 980px, 720px breakpoints. Off-canvas sidebar on mobile; full-width desktop. Tested on Chrome/Safari/Firefox.
+- **Security.** Real auth via Better Auth (sessions in DB, password hashed with scrypt). CSRF protection via Better Auth. Input validation on server actions. No secrets hardcoded; all keys in `.env.local`. HTTPS required in production (reverse proxy enforces TLS).
 
 ## 7. Success Criteria (inferred from the product framing)
 

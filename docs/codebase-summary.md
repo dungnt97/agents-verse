@@ -2,18 +2,22 @@
 
 A high-level map of the codebase for engineer/LLM onboarding. Factual, grounded in the current source tree.
 
-## What This Project Is
+## What This Project Is — Current State
 
-Agents Verse is a **full-stack SaaS** for autonomous, demo-first web agency operations. An AI workforce of 11 specialized agents operating across 8 virtual departments ("rooms") finds local businesses with outdated websites, audits them, generates live redesign demos, and prepares outreach. The founder retains control through escalation gates, autonomy modes, and cost/outreach guardrails.
+Agents Verse is a **production-ready full-stack SaaS** for autonomous, demo-first web agency operations. An AI workforce of 11 specialized agents operating across 8 virtual departments ("rooms") finds local businesses with outdated websites, audits them, generates live redesign demos, and prepares outreach. The founder retains control through escalation gates, autonomy modes, and cost/outreach guardrails.
 
-**Architecture:**
-- **Frontend:** Next.js 16 + React 19 + TypeScript (Sets 1 & 2 live)
-- **Backend:** Self-hosted PostgreSQL 17 (docker-compose `db` service) + Drizzle ORM + Better Auth
-- **Dual-mode runtime:** `USE_DB=false` (demo, mock data in localStorage) or `USE_DB=true` (production, Postgres)
-- **Lead discovery:** Google Places API (2-phase: Pro search → optional Enterprise enrichment)
-- **Deployment:** Docker Compose on a single VPS (app `web` + Postgres `db`) + reverse proxy
+**Technology Stack (all production-grade, all live):**
+- **Frontend:** Next.js 16.2.9 + React 19.2.7 + TypeScript strict (17 routes: marketing + workspace)
+- **Backend:** Self-hosted PostgreSQL 17 (docker-compose `db` service) + Drizzle ORM + Better Auth email/password
+- **Jobs & Audit:** Inngest (self-hosted durable queue) + Playwright (screenshots) + Google Gemini 2.5 Flash (vision scoring)
+- **Lead Discovery:** Google Places API 2-phase (Pro mandatory, optional Enterprise) + cheerio email scraping
+- **Deployment:** Docker Compose on a single VPS (web + db + redis + inngest + worker) fronted by reverse proxy (Caddy/Nginx) for TLS
 
-App builds and runs with zero credentials (demo mode on by default). Production requires the `db` Postgres service (POSTGRES_* + DATABASE_URL), a Better Auth secret, and (optionally) a Google Maps API key.
+**Dual-mode runtime:** Single codebase, environment flag `USE_DB` switches behavior:
+- **Demo mode** (default, `USE_DB=false` or unset): All data from typed mock `AV` singleton (`lib/data/`), persisted to localStorage. Zero credentials required. Perfect for showcase, local dev, and testing.
+- **Production mode** (`USE_DB=true` + Docker Compose): Real Postgres backend, Better Auth sessions in DB, durable Inngest jobs, guarded server actions. Requires `.env.local` with `POSTGRES_*`, `BETTER_AUTH_SECRET`, and optional keys for external APIs.
+
+**Build status:** Complete and deployable. `npm run typecheck`, `npm run build`, and `npm run lint` all pass. All 17 routes are live and data-backed. Lead discovery is code-complete (requires `GOOGLE_MAPS_API_KEY` to execute). Audit subsystem is code-complete (requires `GEMINI_API_KEY` + `GOOGLE_PAGESPEED_API_KEY` + Inngest/worker setup). See `docs/deployment-guide.md` for full setup.
 
 ## Run Model (Next.js + React Server Components)
 

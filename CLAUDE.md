@@ -4,28 +4,43 @@ Guidance for Claude Code working in this repository. Read `./README.md` first fo
 
 ## What this is
 
-**Agents Verse** — a frontend prototype (demo-first autonomous AI web agency) built with **Next.js 16 (App Router) + React 19 + TypeScript (strict)**. Frontend-only: all data is mock/seed data in `lib/data` (the `AV` singleton). No backend, no network calls.
+**Agents Verse** — a demo-first autonomous AI web agency on **Next.js 16 (App Router) + React 19 + TypeScript (strict)**, now **full-stack**: self-hosted **PostgreSQL + Drizzle ORM + Better Auth + self-hosted Inngest**, deployable via **Docker Compose on one VPS** (no Supabase, no managed services).
 
-It was migrated from a buildless CDN-React prototype; the original files are retained (see "Legacy" below).
+**Dual-mode via the `USE_DB` env flag — the single most important thing to know:**
+- `USE_DB` unset/false (default) → the app runs **entirely on the mock `AV` singleton** (`lib/data/`), no database. `npm run dev` works with **zero credentials** — this is the demo/showcase.
+- `USE_DB=true` (+ a migrated & seeded Postgres) → the same screens read **real data** through the server-only **repository layer** (`lib/repositories/`), auth is real (Better Auth), and writes persist via **server actions** (`lib/actions/`).
+
+**Components NEVER import `AV` directly** — they receive entity data via async Server-Component props (page → screen), with a small server-seeded directory context (`workspace-data-provider`) for pervasive room/agent lookups. The mock `AV` is now only the repositories' fallback when `USE_DB` is off. Every new mutation MUST honor dual-mode (degrade gracefully with no DB).
+
+**Built so far** (all merged to `main`): Foundation (DB client/schema/seed/repos), Lead Discovery (Google Places), real Auth, mutable-state→DB, Docker self-host Postgres, the **Audit subsystem** (PageSpeed + Playwright + Gemini, durable via an Inngest worker), and the full workspace **state machine** wired to Postgres. **NOT built** (roadmap, key-gated at their core): Subsystem 3 demo-generation, 4 outreach/email, 5 deal/CRM automation. See `docs/development-roadmap.md`.
+
+The repo root still contains the **original buildless CDN-React prototype** (`index.html`, `*.jsx`, `data*.js`, `styles.css`) as legacy reference only — see "Legacy" below.
 
 ## Commands
 
 ```bash
-npm run dev         # dev server (Turbopack) → http://localhost:3000
+npm run dev         # dev server (Turbopack) → http://localhost:3000  (USE_DB=false → mock, no creds)
 npm run build       # production build
-npm run typecheck   # tsc --noEmit  (primary type gate)
+npm run typecheck   # tsc --noEmit  (PRIMARY gate — always run after .ts/.tsx changes)
 npm run lint        # eslint app lib components
+npm run db:generate # drizzle-kit generate (after editing lib/db/schema/*)
+npm run db:migrate  # apply migrations  (needs DATABASE_URL in .env.local)
+npm run db:seed     # seed mock data + founder (needs DATABASE_URL + BETTER_AUTH_SECRET)
+docker compose up -d --build   # full stack: web + db(Postgres) + inngest + redis + worker
 ```
 
-Always run `npm run typecheck` (and ideally `npm run build`) after changing `.ts`/`.tsx` files.
+Always run `npm run typecheck` (and ideally `npm run build`) after changing `.ts`/`.tsx` files. `typecheck`/`build` pass with **no DB or keys** (mock fallback); that's the standard verification gate. Note: `package-lock.json` IS committed (Docker `npm ci` needs it).
 
 ## Architecture
 
-- **App Router** under `app/`. Route groups: `app/(marketing)/[slug]` (9 info pages), `app/(workspace)/*` (auth-gated shell + 14 screens). `app/layout.tsx` reads theme/lang/auth **cookies** server-side and seeds the client providers — this is why routes are **dynamic SSR** (no static export; deploy on Node/edge).
-- **State = React Context** (`lib/providers/` + `lib/i18n/`): Theme, I18n, Toast, Auth, WorkspaceState. Persistence: **cookies** for `av-theme`/`av-lang`/`av-auth`; **localStorage** for `av-mode`/`av-requests`/`av-leads`. (Plain-string localStorage values are stored raw — do NOT `JSON.stringify` a bare string, it re-escapes on every reload.)
-- **Data** (`lib/data/`): one typed `AV` object (rooms, agents, leads, demos, deals, audits, activity, statusMap, fmt, lookups). Read-mostly; screens read `AV.*` directly.
-- **Styling**: a CSS-variable design system in `styles/globals.css` (light + `[data-theme="dark"]`). **No Tailwind.** Use the existing tokens (`var(--…)`) and utility classes (`.btn`, `.card`, `.badge`, `.row/.col`, …); components also use inline `style={}` heavily.
-- **Auth gate**: `middleware.ts` redirects unauthenticated `/(workspace)` requests to `/login`.
+- **App Router** under `app/`. Route groups: `app/(marketing)/[slug]` info pages, `app/(workspace)/*` (auth-gated shell + screens). All routes are **dynamic SSR** (root layout reads theme/lang cookies; workspace layout fetches data + runs the auth gate). No static export; deploy on Node.
+- **Data access (`lib/repositories/`, server-only):** async functions mirroring the old `AV` helpers. `USE_DB` flag → return mock `AV` or query Drizzle. NEVER import these (or `lib/db/*`, `next/headers`) from a `'use client'` file. Pure presentation helpers (`fmt`, `statusMap`, enums, `hueFor`) live in `lib/data/format.ts` (client-safe). Pages are **async Server Components** that fetch repos and pass props to client screens.
+- **DB (`lib/db/`):** Drizzle + postgres-js → self-hosted Postgres. `client.ts` = single direct connection (one `DATABASE_URL`, no pooler split). `schema/*` = domain tables + enums + Better Auth tables + `audit_jobs`. `seed.ts` ports the mock `AV` into Postgres + founder. Migrations in `drizzle/migrations/` — `db:generate` then apply via `db:migrate` (committed; don't hand-edit applied SQL).
+- **Auth (`lib/auth/`, Better Auth, dual-mode):** `middleware.ts` does a cheap cookie-existence check (Edge, no DB); the REAL gate is `getCurrentUser()` in the workspace Server-Component layout. Demo mode uses the legacy `av-auth` cookie. Server actions are auth-guarded via `lib/actions/guard.ts`.
+- **Mutations (`lib/actions/`, `'use server'`):** state-machine writes (lead/deal/demo/request stage+status, escalation resolve, settings, discovery, audit-request). `WorkspaceStateProvider` does optimistic update + action (DB mode) or localStorage (demo). Each action degrades gracefully without DB.
+- **Audit subsystem:** `lib/audit/*` (PageSpeed/screenshot/vision) + `lib/inngest/*` (durable function + worker). **Playwright + Gemini run ONLY in the `worker` container** (outbound `connect()`); `web` only `inngest.send`s — keep it that way (don't import the audit function/engine into web).
+- **Styling:** CSS-variable design system in `styles/globals.css` (light + `[data-theme="dark"]`). **No Tailwind.** Use existing tokens (`var(--…)`) + utility classes (`.btn`, `.card`, `.row/.col`, …); heavy inline `style={}`. **UI fidelity is sacred** — match existing markup; don't restyle.
+- **Worker tsx-safety:** the Inngest worker chain runs under `tsx`, where `import 'server-only'` THROWS and the `@/` alias isn't resolved. Worker-chain modules (`lib/audit/*`, `lib/inngest/*`) use **relative imports** and **no `server-only`**.
 
 ## Conventions (follow these)
 
@@ -48,6 +63,12 @@ Root `index.html`, `*.jsx`, `data*.js`, `styles.css` are the **original buildles
 
 ## Where things live
 
-- Docs: `./docs/` (codebase-summary, system-architecture, code-standards, journals)
-- Plans: `./plans/` (**written in Vietnamese** — see "Plan language" above)
+- Docs: `./docs/` — `codebase-summary.md` (START HERE for current state), `system-architecture.md`, `deployment-guide.md` (run/deploy + required keys), `development-roadmap.md` (done vs pending), `code-standards.md`, `journals/`.
+- Plans: `./plans/` (**written in Vietnamese** — see "Plan language" above). Done: `260613-…-backend-foundation-discovery`, `260614-…-audit-subsystem-…`.
 - ClaudeKit workflow rules: `./.claude/rules/`
+
+## Required external keys (only to RUN built features; not needed for typecheck/build/demo)
+- **`GOOGLE_MAPS_API_KEY`** (Google Cloud, Places API New, **billing**) — Lead Discovery.
+- **`GEMINI_API_KEY`** (Google AI Studio; `GEMINI_MODEL` overridable) — Audit vision.
+- **`GOOGLE_PAGESPEED_API_KEY`** (free; falls back to the Maps key) — Audit performance.
+- Self-generated (no purchase): `BETTER_AUTH_SECRET`, `POSTGRES_PASSWORD`, `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY`. Postgres + Inngest are self-hosted (free). See `.env.example` + `docs/deployment-guide.md`.

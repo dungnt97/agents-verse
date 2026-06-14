@@ -1,9 +1,9 @@
 # Code Standards — Agents Verse
 
-**Status (June 2026):** Agents Verse is a full-stack Next.js SaaS with Postgres + Drizzle + Better Auth + Google Places. Dual-mode runtime (demo or production). Code-complete but requires credentials to run production features. This document covers:
+**Status (June 2026):** Agents Verse is a **production-ready full-stack Next.js SaaS** with self-hosted PostgreSQL + Drizzle + Better Auth + Inngest. Dual-mode runtime (demo with zero credentials, or production with Postgres + keys). Code-complete and deployable via Docker Compose. This document covers:
 
-- **Sections 1–9:** **Next.js code standards (full-stack, live)** — App Router, TypeScript, RSC, Drizzle, Better Auth, server actions, lead discovery.
-- **Sections 10+:** **Legacy buildless code standards** (root `*.jsx`, `index.html` — retained for reference, not used).
+- **Sections 1–9:** **Next.js code standards (active, production)** — App Router, TypeScript strict, RSC, Drizzle, Better Auth, server actions, lead discovery, audit subsystem.
+- **Sections 10+:** **Legacy buildless code standards** (root `*.jsx`, `index.html` — retained in repo for historical reference, not used by Next.js app).
 
 ## NEXT.JS CODE STANDARDS (SET 1, LIVE) — Start here if building in `app/`, `lib/`, `components/`
 

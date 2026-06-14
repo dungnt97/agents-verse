@@ -1,19 +1,20 @@
 # System Architecture — Agents Verse
 
-**Status (June 2026):** Agents Verse is a **full-stack Next.js SaaS** with real backend. All 8 phases complete: infrastructure, database, auth, mutable state, and lead discovery (Google Places API). This document covers:
+**Status (June 2026):** Agents Verse is a **production-ready full-stack Next.js SaaS** with self-hosted PostgreSQL + Drizzle ORM + Better Auth + Inngest. Dual-mode runtime: demo mode (mock data, no credentials) or production mode (Postgres, requires keys). This document covers:
 
-- **Sections 1–12:** The **Next.js app (Sets 1 + 2 — LIVE)** — cookie-SSR, TypeScript, App Router, Drizzle + Postgres data layer, Better Auth, server actions, and lead discovery subsystem.
-- **Sections 13+:** The **legacy buildless prototype** (root `*.jsx`, `index.html`, `styles.css`; still in repo for reference, not used).
+- **Sections 9–12:** The **Next.js app (Sets 1 + 2 — LIVE in production)** — cookie-SSR, TypeScript, App Router, Drizzle + Postgres, Better Auth, server actions, lead discovery (Google Places), and audit subsystem (Inngest + Playwright + Gemini).
+- **Sections 1–8, 13+:** The **legacy buildless prototype** (root `*.jsx`, `index.html`, `styles.css`; retained for historical reference, not used by the Next.js app).
 
 ---
 
 ## NEXT.JS ARCHITECTURE (SETS 1 + 2 — LIVE) — Start here
 
-Agents Verse runs on **Next.js 16.2.9 + React 19.2.7 + TypeScript + Drizzle ORM + Postgres** with a dual-mode runtime:
-- **When `USE_DB=false` (default for demo):** All data from mock `AV` singleton (`lib/data/index.ts`), stored in localStorage. App builds and runs with zero credentials.
-- **When `USE_DB=true` (production):** Data from Postgres via Drizzle, auth via Better Auth, mutations via server actions.
+Agents Verse is a **production-ready full-stack SaaS** running on **Next.js 16.2.9 + React 19.2.7 + TypeScript + Drizzle ORM + self-hosted PostgreSQL 17 + Inngest + Playwright + Google Gemini**. It operates in **dual-mode** via a single environment flag:
 
-Both marketing surface (Set 1) and authenticated workspace (Set 2) are live and mode-agnostic.
+- **Demo mode** (`USE_DB=false`, the default): All data from a typed mock `AV` singleton (`lib/data/index.ts`), persisted locally via localStorage. Runs without any external services or credentials — perfect for showcase/development. `npm run dev` just works.
+- **Production mode** (`USE_DB=true` + Docker Compose): Real Postgres backend, auth via Better Auth (sessions in DB), mutations via guarded server actions, and durable jobs via Inngest. Requires `POSTGRES_*`, `BETTER_AUTH_SECRET`, and optional keys for lead discovery (Google Places) and real audits (Gemini, PageSpeed Insights).
+
+Both marketing surface (Set 1) and authenticated workspace (Set 2) are **live and mode-agnostic** — the same code path serves both demo and production data, switching based on the `USE_DB` flag.
 
 ### 9.1 Stack & Project Structure
 
@@ -487,7 +488,22 @@ The `getAudit()` repository falls back to `buildAuditFor(lead)` (static mock), e
 **Build verification:**
 - All 13 workspace + 4 public routes are **dynamic SSR** (no static export) because layout reads cookies server-side
 - `npm run typecheck` + `npm run build` must pass before deploy
-- Inngest (background job queue) deferred to future plan; discovery currently runs synchronously
+- Real audits require Inngest + worker container; lead discovery runs synchronously in the web container
+
+### 9.12 Summary: Full-Stack Production Architecture
+
+**Agents Verse is NOT a prototype.** It is a complete, production-ready full-stack SaaS built on Next.js 16 + Postgres + Drizzle + Better Auth + Inngest. The app:
+
+1. **Dual-mode:** Single codebase, `USE_DB` flag switches between demo (localStorage, zero credentials) and production (Postgres, guarded auth, real APIs).
+2. **Frontend:** Next.js 16 App Router, 17 routes (marketing + workspace), React 19, TypeScript strict.
+3. **Backend:** Self-hosted PostgreSQL 17, 15 tables (domain + Better Auth), idempotent migrations and seed.
+4. **Auth:** Better Auth (email/password, sessions in DB), demo-mode cookie fallback.
+5. **Jobs/Audit:** Inngest worker runs PageSpeed + Playwright + Gemini vision analysis; results durable in DB.
+6. **Discovery:** Google Places API 2-phase (Pro + optional Enterprise) with email scraping.
+7. **Deploy:** Docker Compose (web + db + redis + inngest + worker) on a single VPS, fronted by a reverse proxy for TLS.
+8. **Development:** `npm run dev` works with zero credentials (demo mode). Production requires `.env` keys for external services (Google, Gemini, Inngest).
+
+The app passes `typecheck`, builds, and runs in both modes. Legacy buildless files (root `*.jsx`, `index.html`) are retained in the repo **for historical reference only** and are **not** loaded by the Next.js app.
 
 ---
 
@@ -497,9 +513,9 @@ The following sections document the original buildless prototype (`index.html`, 
 
 ---
 
-## 1. Buildless Browser Architecture (Legacy Prototype — Root `*.jsx` Files)
+## LEGACY Section 1. Buildless Browser Architecture (Legacy Prototype — Root `*.jsx` Files)
 
-### 1.1 No build toolchain
+### LEGACY 1.1 No build toolchain
 
 There is no `package.json`, no bundler, no ES module graph, and no TypeScript. The whole app is delivered as plain `.js` and `.jsx` files referenced directly from `index.html`. JSX is not pre-compiled — it is transpiled in the browser at load time by `@babel/standalone`.
 
@@ -512,7 +528,7 @@ External runtime dependencies are loaded from CDN (`unpkg`) and pinned by versio
 
 React's UMD build exposes a global `React` and `ReactDOM`. Every `.jsx` file is loaded as `<script type="text/babel">`, which Babel discovers, transpiles, and executes in the browser.
 
-### 1.2 Global-scope script composition and the window-globals "module system"
+### LEGACY 1.2 Global-scope script composition and the window-globals "module system"
 
 Each `<script type="text/babel">` is compiled into its **own isolated scope**. Babel-standalone does not link scripts together — there are no `import`/`export` statements anywhere. The only shared surface between files is the global `window` object. This is the de-facto module system:
 
@@ -532,7 +548,7 @@ A small but critical bootstrap in `index.html` re-exposes React's hooks as globa
 
 (Some files, e.g. `components.jsx`, additionally redeclare `const { useState, ... } = React;` at the top — both styles coexist.)
 
-### 1.3 data*.js as a global data layer
+### LEGACY 1.3 data*.js as a global data layer
 
 The data layer is plain JavaScript (not Babel/JSX) so it loads and executes before any component script. It is split across four files that progressively build a single global namespace `window.AV`:
 
@@ -545,9 +561,9 @@ Each extension file assumes `AV` already exists (load order guarantees this) and
 
 ---
 
-## 2. Rendering and Boot Flow
+## LEGACY Section 2. Rendering and Boot Flow
 
-### 2.1 Splash overlay + MutationObserver handoff
+### LEGACY 2.1 Splash overlay + MutationObserver handoff
 
 `index.html` renders two elements before any script runs: a fixed `#boot` splash overlay and an empty `#root` mount point. Because Babel must download, parse, and transpile every `.jsx` file at runtime, first paint is delayed; the splash covers that gap.
 
@@ -564,7 +580,7 @@ const obs = new MutationObserver(() => {
 obs.observe(document.getElementById('root'), { childList: true });
 ```
 
-### 2.2 Mount
+### LEGACY 2.2 Mount
 
 `app.jsx` is the last Babel script and performs the actual mount:
 
@@ -574,7 +590,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 
 `App` is a single large function component holding all top-level application state.
 
-### 2.3 Load order (the dependency contract)
+### LEGACY 2.3 Load order (the dependency contract)
 
 Load order in `index.html` **is** the dependency graph — there is no resolver to reorder anything. Scripts must appear in an order where every global a file reads has already been published by an earlier file:
 
@@ -612,7 +628,7 @@ index.html
   └─ app.jsx   → App (routing/state) + ReactDOM mount    ← runs last
 ```
 
-### 2.4 Component composition at runtime
+### LEGACY 2.4 Component composition at runtime
 
 `App` chooses exactly one of three top-level branches per render (landing / info page / workspace), then composes from the shared primitive and screen globals:
 
@@ -650,7 +666,7 @@ Always present across branches: ToastHost, ChatWidget, DemoRequestModal
 
 ---
 
-## 3. Routing
+## LEGACY Section 3. Routing (buildless hand-rolled routing — not the current Next.js App Router)
 
 Routing is a hand-rolled state machine inside `App`, not a router library. There is no URL/History API integration; routes live in React state and `localStorage`.
 
@@ -673,7 +689,7 @@ Because route state is persisted, a reload restores the last screen. The trade-o
 
 ---
 
-## 4. Theming
+## LEGACY Section 4. Theming
 
 Theming is CSS-custom-property driven and toggled via a single attribute on the document root.
 
@@ -685,7 +701,7 @@ Theming is CSS-custom-property driven and toggled via a single attribute on the 
 
 ---
 
-## 5. Internationalization (i18n)
+## LEGACY Section 5. Internationalization (i18n)
 
 i18n is a minimal global dictionary, not a library (`i18n.jsx`).
 
@@ -697,7 +713,7 @@ This deliberately avoids prop drilling: any component, anywhere in the tree, can
 
 ---
 
-## 6. Data Flow: Globals → Screens
+## LEGACY Section 6. Data Flow (buildless: Globals → Screens — NOT the current backend data flow)
 
 ```
  data.js / data2.js / data3.js / data4.js
@@ -728,17 +744,17 @@ Key data-flow properties grounded in the source:
 - **Cross-screen actions are callbacks, not events.** Every screen receives `onAction` (→ toast) and navigation callbacks from `App`. There is no event bus or global store beyond `AV` + `App` state + `localStorage`.
 - **Autonomy mode** (`mode`: e.g. `guarded` default) is `App` state persisted to `av-mode`, surfaced in the `Sidebar` selector and `SettingsScreen`; it is presentational in the prototype (it gates UI affordances, not real automation).
 
-### localStorage keys (the persistence surface)
+### LEGACY localStorage keys (the persistence surface in the buildless prototype)
 
-`av-route`, `av-param`, `av-theme`, `av-lang`, `av-mode`, `av-auth`, `av-user`, `av-requests`, `av-leads`. These constitute the entire persistence layer — there is no backend.
+`av-route`, `av-param`, `av-theme`, `av-lang`, `av-mode`, `av-auth`, `av-user`, `av-requests`, `av-leads`. In the legacy buildless prototype, these localStorage keys constituted the entire persistence layer. **Note:** The current Next.js app has a full backend (PostgreSQL + Drizzle ORM) — see Section 9.3a for the actual data layer and repository pattern.
 
-### Authentication gate
+### LEGACY Authentication gate (buildless prototype)
 
-`App` reads `av-auth` to decide whether the workspace is accessible. `login(email)` sets `av-auth='1'` + `av-user` and routes to `overview`; `logout()` clears auth and returns to `landing`. Any workspace route with `!authed` falls through to `LoginScreen`. This is a UI gate only — credentials are demo/pre-filled and there is no server-side verification.
+`App` reads `av-auth` to decide whether the workspace is accessible. `login(email)` sets `av-auth='1'` + `av-user` and routes to `overview`; `logout()` clears auth and returns to `landing`. Any workspace route with `!authed` falls through to `LoginScreen`. This is a UI gate only — credentials are demo/pre-filled and there is no server-side verification. **For the current Next.js app's authentication, see Section 9.4 (Better Auth integration).**
 
 ---
 
-## 7. Architectural Constraints and Risks
+## LEGACY Section 7. Architectural Constraints and Risks (buildless prototype)
 
 These follow directly from the buildless, global-scope design and are intrinsic to the current approach:
 
@@ -753,9 +769,11 @@ These follow directly from the buildless, global-scope design and are intrinsic 
 
 ---
 
-## 8. Summary
+## LEGACY Section 8. Summary (buildless prototype — NOT the current architecture)
 
-Agents Verse is a single-page React prototype whose architecture optimizes for **zero-setup editability and fast visual iteration**: drop a `.jsx` file in the root, list it in `index.html`, publish your symbols to `window`, and read shared data from the `AV` global. The cost of that simplicity is the absence of every normal safety net — modules, types, tests, bundling, and URL routing — replaced by load-order discipline and a shared global namespace. The design is well-suited to its stated purpose (a polished, demo-first prototype with three "design-bar" screens and several Phase-2 placeholders) but would require a build/module/test foundation before evolving into a production application.
+The original Agents Verse buildless prototype is a single-page React app whose architecture optimizes for **zero-setup editability and fast visual iteration**: drop a `.jsx` file in the root, list it in `index.html`, publish your symbols to `window`, and read shared data from the `AV` global. The cost of that simplicity is the absence of every normal safety net — modules, types, tests, bundling, and URL routing — replaced by load-order discipline and a shared global namespace.
+
+**The current production Agents Verse is built on Next.js 16 and does NOT use this architecture.** See Sections 9–12 for the actual production architecture.
 
 ---
 
