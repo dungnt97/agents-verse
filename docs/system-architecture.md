@@ -390,7 +390,74 @@ Discovered prospects are bulk-inserted into the `leads` table with:
 
 Lead then flows through audit → demo → outreach pipeline.
 
-### 9.10 Deployment
+### 9.10 Subsystem 2: Website Audit (Real Scoring via Inngest Worker)
+
+The audit subsystem performs **live, multi-dimensional scoring** of a lead's website using PageSpeed Insights, Playwright screenshots, and Gemini vision analysis. Results are durable via **self-hosted Inngest + Redis**, with Playwright + Gemini computation isolated in a dedicated worker container to keep the web app slim.
+
+**High-level flow:**
+1. User clicks "Run real audit" on the audit detail page (`/audits/[id]`)
+2. Server action `requestAudit()` queues an Inngest event (authenticated, guarded)
+3. The `run-audit` function orchestrates 4 steps: mark-running → fetch PageSpeed + screenshot → score with Gemini → save results
+4. Results written to `audits` table (8-dim scores: visual, mobile, cta, trust, seo, speed, content, conversion; plus problems, redesign direction, confidence, summary)
+5. UI badge/status reflects job state from `audit_jobs` table (queued → running → done/failed)
+
+**Architecture (web-stays-slim boundary):**
+
+- **Web container** (`web`): Knows Inngest client only (`lib/inngest/client.ts`). Sends audit events via `Inngest.send()` after auth check. Never imports Playwright, Gemini SDK, or the audit engine.
+- **Worker container** (`worker`): Runs the actual job function (`lib/inngest/functions/run-audit.ts`). Has Inngest `connect()` outbound to the event queue, runs all PageSpeed/screenshot/vision steps, commits results to shared Postgres, closes gracefully on SIGTERM.
+- **Shared services** (via docker-compose): Redis (Inngest event store), Inngest server (event ingestion + job orchestration), Postgres (audits + audit_jobs tables).
+
+**Engine modules (`lib/audit/`):**
+- `pagespeed-client.ts` — Calls Google PageSpeed Insights API with `GOOGLE_PAGESPEED_API_KEY` (or falls back to `GOOGLE_MAPS_API_KEY`). Returns performance, accessibility, SEO, and best-practices scores (0–100 each); also computes a blended `mobile` score.
+- `screenshot.ts` — Uses Playwright to navigate to `lead.url` and capture screenshots (desktop + mobile viewports). Buffers are kept in memory and not serialized across Inngest step boundaries.
+- `vision-scoring.ts` — Calls Google Gemini 2.5 Flash (`@google/genai` v2.x, structured JSON output) to analyze screenshots. Scores: visual design, CTA clarity, trust signals, content quality, conversion potential (0–100 each).
+- `scoring-rubric.ts` — Combines PageSpeed + Gemini scores into the 8-dim profile, applies clamp/rounding guards, maps to redesign direction (e.g., "Mobile UX" if speed/mobile are weak).
+- `map-audit-result.ts` — Merges PageSpeed + Gemini outputs into the `MappedAudit` structure (scores, problems, redesign, confidence, summary).
+
+**Job state tracking (`audit_jobs` table + `AuditJob` enum):**
+- `status`: queued → running → done/failed
+- `error`: stores the root cause if a step fails (not shown to unauthenticated users)
+- `audit_jobs` is a separate table (not nullable columns on `audits`) so the `/audits/[id]` screen always renders full mock/discovered results even if the real audit is queued/failed
+
+**Inngest configuration (self-hosted, durable concurrency):**
+- `INNGEST_BASE_URL` — the Inngest server (e.g., `http://inngest:3000` in docker-compose)
+- `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` — authentication between web + worker and the Inngest server
+- `INNGEST_DEV=0` (production) or `INNGEST_DEV=1` (local dev with `npx inngest dev`)
+- Concurrency guards: a **global cap** (e.g., 2 concurrent Chromium instances to prevent OOM on 2 GB worker) AND a **per-lead serialization** (key: `leadId`, limit: 1) so the same lead never has overlapping audits
+- Worker uses `inngest.connect()` to register the `run-audit` function and poll for events
+
+**Environment variables (audit-specific, added to `.env.local`):**
+```
+GEMINI_API_KEY=<your-key>                      # Google Gemini API key
+GEMINI_MODEL=gemini-2.5-flash                  # Gemini model (overridable; default used in code)
+GOOGLE_PAGESPEED_API_KEY=<key>                 # PageSpeed Insights API key (optional; falls back to GOOGLE_MAPS_API_KEY)
+INNGEST_EVENT_KEY=<key>                        # Inngest auth: web → server
+INNGEST_SIGNING_KEY=<key>                      # Inngest auth: server → worker
+INNGEST_BASE_URL=http://inngest:3000           # Inngest server (docker-compose) or https://... (managed)
+INNGEST_DEV=0                                  # 0 = production; 1 = local dev
+REDIS_URL=redis://redis:6379                   # Redis for Inngest (docker-compose)
+AUDIT_CONCURRENCY=2                            # Global concurrency limit (Chromium OOM guard)
+```
+
+**Migration (`drizzle/migrations/0001_high_sauron.sql`):**
+- `audit_jobs` table (leadId FK, status, error, metadata); new `audit_status` enum; indexes on (leadId, createdAt)
+- `audits` table: unchanged (existing 8-dim + problems + redesign stay NOT NULL for demo/fallback)
+
+**Fallback (graceful degradation without Inngest/keys):**
+When `USE_DB=false` or Inngest is unreachable, `requestAudit()` returns a friendly message: "Real audits require database + Inngest. Use demo mode to see mock results."
+The `getAudit()` repository falls back to `buildAuditFor(lead)` (static mock), ensuring the screen never crashes.
+
+**Applied from code review:**
+- **Concurrency** uses the array form `[{ limit: AUDIT_CONCURRENCY }, { limit: 1, key: 'event.data.leadId' }]` — a global cap (VPS OOM guard) AND per-lead serialization (a single keyed limit would give neither).
+- **SSRF guard** — `captureScreenshots` runs `assertSafeUrl()` before `page.goto`, rejecting non-http(s) and non-public hosts (localhost / link-local-metadata / RFC1918) by literal hostname.
+
+**Known limitations / verify-at-runtime:**
+1. **Headline numbers** — after a real audit, the report header `site`/`score`/delta and the rail sort still reflect the lead's stored values; only the 8-dim breakdown updates from the audit row. Updating the lead's headline score from the audit is a deliberate open decision (touches a user-facing number).
+2. **Playwright base image (`mcr.microsoft.com/playwright:v1.60.0-noble`)** — verify it does NOT pin `NODE_ENV=production` (would make `npm ci` skip `tsx`).
+3. **Inngest self-hosted flags / `connect()`** — docker-compose runs `inngest/inngest:v1.27.0 start`; confirm the exact env/flags and that self-hosted `connect()` is supported for the pinned version.
+4. **Gemini model id** — `GEMINI_MODEL` (default `gemini-2.5-flash`) is env-overridable; confirm a current vision model at deploy.
+
+### 9.11 Deployment
 
 **Self-hosted Docker + VPS (`Dockerfile`, `docker-compose.yml`):**
 - Next.js 16 image (`output: 'standalone'` set; entrypoint uses `next start` with the full toolchain)

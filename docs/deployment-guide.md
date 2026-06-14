@@ -1,13 +1,16 @@
 # Deployment Guide — Self-hosted on a single VPS
 
-Agents Verse runs as **two Docker Compose services on one VPS**: `web` (the Next.js app) and
-`db` (self-hosted PostgreSQL 17). No managed database, no external dependencies beyond the
-optional Google Places API. Postgres is **not** exposed to the internet — only `web` reaches it
-over the internal compose network (`db:5432`).
+Agents Verse runs as **five Docker Compose services on one VPS**: `web` (Next.js app), `db` (PostgreSQL 17), `redis` (event store), `inngest` (job orchestrator), and `worker` (audit engine). Postgres, Redis, and Inngest are **not** exposed to the internet — only `web` reaches them over the internal compose network. The `worker` runs Playwright + Gemini vision analysis, keeping those heavy dependencies out of the main app container.
 
 ```
-            Internet ──TLS──▶ reverse proxy (Caddy/Nginx) ──:3000──▶ web ──:5432──▶ db
-                                                                              (internal only)
+            Internet ──TLS──▶ reverse proxy ──:3000──▶ web ──┐
+                                                              ├─→ db (internal, :5432)
+                                                              ├─→ redis (internal, :6379)
+                                                              └─→ inngest (internal, :3000)
+                                                    worker (no external ingress) ──┐
+                                                                                   ├─→ db
+                                                                                   ├─→ redis
+                                                                                   └─→ inngest
 ```
 
 ---
@@ -50,14 +53,25 @@ BETTER_AUTH_URL=https://your-domain.com
 FOUNDER_EMAIL=founder@agentsverse.ai
 FOUNDER_PASSWORD=<a strong password>
 
-# Lead discovery (optional — only needed to run Phase 8)
+# Lead discovery (optional)
 GOOGLE_MAPS_API_KEY=<key>
 DISCOVERY_DEFAULT_INDUSTRY=dentists
 DISCOVERY_DEFAULT_CITY=Austin TX
 DISCOVERY_DAILY_CAP=450
+
+# Real website audits (optional — requires Inngest + worker)
+GEMINI_API_KEY=<key>                           # Google Gemini API key for vision analysis
+GEMINI_MODEL=gemini-2.5-flash                  # Override Gemini model (optional)
+GOOGLE_PAGESPEED_API_KEY=<key>                 # PageSpeed Insights API (optional; falls back to GOOGLE_MAPS_API_KEY)
+INNGEST_EVENT_KEY=<key>                        # Inngest authentication (web ↔ server)
+INNGEST_SIGNING_KEY=<key>                      # Inngest job signing (server ↔ worker)
+INNGEST_BASE_URL=http://inngest:3000           # Inngest server URL (docker-compose internal)
+INNGEST_DEV=0                                  # 0 = production (self-hosted); 1 = local dev
+REDIS_URL=redis://redis:6379                   # Redis URL (docker-compose internal)
+AUDIT_CONCURRENCY=2                            # Global concurrency limit (Chromium OOM guard on 2GB worker)
 ```
 
-> Generate strong values: `openssl rand -base64 32` (password), `openssl rand -hex 32` (auth secret).
+> Generate strong values: `openssl rand -base64 32` (password), `openssl rand -hex 32` (auth secret), `openssl rand -hex 16` (Inngest keys).
 
 ---
 
@@ -67,20 +81,30 @@ DISCOVERY_DAILY_CAP=450
 docker compose up -d --build
 ```
 
-What happens on boot (per `scripts/docker-entrypoint.sh`):
-1. `web` waits until `db` passes its `pg_isready` healthcheck (`depends_on: service_healthy`), then a
-   second in-app `SELECT 1` retry loop confirms the role/db are actually reachable.
-2. `npm run db:migrate` applies `drizzle/migrations/` (**fail-fast** — a migration error stops boot).
-3. `npm run db:seed` loads demo data + the founder account (**idempotent + non-fatal** — a transient
-   seed error logs and continues so the container doesn't crash-loop).
-4. `next start -p 3000`.
+What happens on boot:
+
+1. **`redis`** starts (Inngest event store).
+2. **`inngest`** (v1.27.0) starts with `--event-key`, `--signing-key`, `--postgres-uri`, `--redis-uri` flags (verify exact syntax for your Inngest version).
+3. **`db`** starts; `web` waits until it passes `pg_isready` healthcheck (`depends_on: service_healthy`), then confirms role/db are reachable via in-app `SELECT 1` retry loop.
+4. **`web` entrypoint** (`scripts/docker-entrypoint.sh`):
+   - `npm run db:migrate` applies `drizzle/migrations/` (**fail-fast**).
+   - `npm run db:seed` loads demo data + founder account (**idempotent + non-fatal**).
+   - `next start -p 3000`.
+5. **`worker`** starts and registers the `run-audit` function via `inngest.connect()` (outbound to Inngest server). Polls for audit events and runs Playwright + Gemini on each job.
 
 First boot is slower (initdb + migrate + seed + scrypt); the `web` healthcheck `start_period` is 120s.
 
 Watch it:
 ```bash
 docker compose logs -f web
-docker compose ps               # both services should become healthy
+docker compose logs -f worker                  # audit job progress
+docker compose ps                              # all services should become healthy
+```
+
+**Verify Inngest is wired correctly:**
+```bash
+docker compose logs inngest                    # should show event-key/signing-key accepted
+docker compose logs worker | grep "Registered"  # should show run-audit function registered
 ```
 
 ---
@@ -103,6 +127,7 @@ only: change the `web` port mapping to `"127.0.0.1:3000:3000"` in `docker-compos
 - Open `https://your-domain.com` → marketing site renders.
 - `https://your-domain.com/login` → sign in with `FOUNDER_EMAIL` / `FOUNDER_PASSWORD`.
 - Workspace screens render from Postgres; `/leads` "Run discovery" works if `GOOGLE_MAPS_API_KEY` is set.
+- Navigate to `/audits/[any-lead-id]` and click "Run real audit" (button visible only if `USE_DB=true` and Inngest/Gemini keys are set). The audit should queue; monitor progress via `docker compose logs worker`. Results appear in the 8-dimension breakdown once the job completes.
 
 ---
 
@@ -159,16 +184,36 @@ DELETES it** — never use `-v` in production unless you mean to wipe the databa
 | Founder can't log in | Seed didn't run or password mismatch — `docker compose logs web` for `seed`, confirm `FOUNDER_PASSWORD`. |
 | `npm ci` fails in build | `package-lock.json` must be present (it's committed); don't delete it. |
 | Discovery returns "requires the database" / "API key not configured" | Set `USE_DB=true` and `GOOGLE_MAPS_API_KEY`. |
+| "Run real audit" button not visible / audit queues but never runs | `GEMINI_API_KEY` or `INNGEST_*` keys not set. Also check `docker compose logs worker` for function registration errors. Worker must call `inngest.connect()` and register `run-audit`. |
+| Audit job stuck in "running" state | Worker crashed or lost connection to Inngest. Check `docker compose logs worker` for errors (e.g., Playwright timeout, Gemini API error, Postgres connection drop). Logs show the root cause in the `audit_jobs.error` field. |
+| `worker` container OOM-killed | Global concurrency cap too high for available RAM. Lower `AUDIT_CONCURRENCY` (default 2) or increase worker `mem_limit` in compose. Each Chromium instance ~500MB. |
 
 ---
 
 ## 10. Local development (no Docker)
 
-Run Postgres on the host (or `docker run` a single Postgres), then point `DATABASE_URL` at
-`localhost:5432`:
+**Option A: Mock data (default, no setup):**
 ```bash
-cp .env.example .env.local      # set DATABASE_URL=postgresql://...@localhost:5432/agentsverse, USE_DB=true
+cp .env.example .env.local      # defaults: USE_DB=false, INNGEST_DEV=0
+npm run dev                     # http://localhost:3000
+```
+All data comes from localStorage. Audits show mock results from the static fallback.
+
+**Option B: With Postgres (to test discovery + DB persistence):**
+```bash
+cp .env.example .env.local      # DATABASE_URL=postgresql://...@localhost:5432/agentsverse, USE_DB=true
 npm run db:migrate && npm run db:seed
 npm run dev                     # http://localhost:3000
 ```
-Or skip the DB entirely: leave `USE_DB=false` and `npm run dev` runs on mock data.
+
+**Option C: With Inngest local dev (to test real audits):**
+Requires Gemini + PageSpeed keys in `.env.local`. Also start Inngest local server in a separate terminal:
+```bash
+# Terminal 1: Inngest local dev server (watches for code changes, re-registers functions)
+npx inngest dev
+
+# Terminal 2: Next.js app
+cp .env.local               # set INNGEST_DEV=1, GEMINI_API_KEY, GOOGLE_PAGESPEED_API_KEY, etc.
+npm run dev                 # http://localhost:3000
+```
+The app sends audit events to the local Inngest server; functions register automatically. No separate worker container needed for local dev (the Inngest CLI runs everything in-process).

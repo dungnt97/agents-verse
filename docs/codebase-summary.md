@@ -119,6 +119,20 @@ All 13 workspace + 4 public routes are **dynamic** (no static export) because `a
 - `lib/actions/requests.ts` — `createDemoRequest()` (public), `updateDemoRequest()`, `convertToLead()`.
 - `lib/actions/settings.ts` — `setAutonomyMode()`.
 - `lib/actions/run-discovery.ts` — `runDiscovery()` (trigger Google Places + enrichment).
+- `lib/actions/run-audit.ts` — `requestAudit()` (auth-guarded, queues real audit via Inngest).
+
+### Audit Engine (Inngest Subsystem 2)
+- `lib/audit/` — Scoring modules:
+  - `pagespeed-client.ts` — Google PageSpeed Insights API (performance, accessibility, SEO, best-practices).
+  - `screenshot.ts` — Playwright headless browser (desktop + mobile viewports).
+  - `vision-scoring.ts` — Google Gemini 2.5 Flash structured JSON output (visual, cta, trust, content, conversion).
+  - `scoring-rubric.ts` — Combines PageSpeed + Gemini into 8-dim profile; maps to redesign direction.
+  - `map-audit-result.ts` — Merges scores, problems, confidence, summary into `MappedAudit`.
+- `lib/inngest/` — Durable job orchestration:
+  - `client.ts` — Inngest client (web sends events).
+  - `functions/run-audit.ts` — Job function (4 steps: mark-running → pagespeed → screenshot-and-score → save).
+  - `worker-entrypoint.ts` — Worker main entry (registers function, polls for events, graceful shutdown).
+- `lib/repositories/audit-jobs.ts` — Tracks job state (queued → running → done/failed); repo pattern matching leads/demos/deals.
 
 ### i18n & Styling
 - `lib/i18n/` — `I18nProvider`, `useI18n()`, keys in `keys/*.ts` (en + vi).
@@ -171,26 +185,14 @@ Core entities are defined in `lib/data/types.ts` and mirrored in `lib/db/schema/
 - **Database:** Drizzle ORM + 15 tables (design complete, migrations generated; apply with `npm run db:migrate` against `DATABASE_URL`)
 - **Auth:** Better Auth (setup complete, requires `BETTER_AUTH_SECRET` + Postgres to authenticate)
 - **Lead Discovery:** Google Places API 2-phase (code complete, requires `GOOGLE_MAPS_API_KEY` to execute)
-- **Docker deploy:** Standalone setup with entrypoint (design complete, requires VPS + env vars)
+- **Subsystem 2 (Audit):** Real website scoring via PageSpeed Insights + Playwright + Gemini vision (8-dimension: visual, mobile, cta, trust, seo, speed, content, conversion). Durable execution via self-hosted Inngest + Redis. Requires `GEMINI_API_KEY`, `GOOGLE_PAGESPEED_API_KEY`, `INNGEST_*` keys, and a separate `worker` container (see docker-compose). Demo mode shows mock audit results.
+- **Docker deploy:** Multi-service setup with entrypoint (web + db + redis + inngest + worker). Requires VPS + env vars + reverse proxy for TLS.
 
 **Future subsystems (roadmap, not in this release):**
-- **Subsystem 2:** Audit (PageSpeed Insights + Playwright + Gemini vision → 8-dimension scoring)
 - **Subsystem 3:** Demo Gen (template + Claude + Imagen/Nano → single renderer)
 - **Subsystem 4:** Outreach (Resend + approval gate + CAN-SPAM compliance)
-- **Subsystem 5:** Deal/CRM (reply interpreter + escalation + production timeline)
-- **Inngest integration:** Background job queue (deferred; discovery currently synchronous)
 
-**Demo data:** Seed includes 8 leads (dentists in Austin, TX) + 11 agents + 4 rooms + 5 demo requests + 4 deals. Fully functional UI with mock state; no network calls.
-| `auth.jsx` | business | Login gate |
-| `chat.jsx` | business | Assistant chat widget (rule-based) |
-| `pages.jsx` | landing/info | Public marketing/legal pages, `INFO_PAGES` |
-| `landing.jsx` | landing | Nav + hero + landing assembly |
-| `landing-sections.jsx` | landing | Difference, How-it-works, Showcase, Inside, Why |
-| `landing-sections2.jsx` | landing | Pricing, Trust, Final CTA, Footer |
-| `data.js` | data | `AV` core: rooms/agents/leads/metrics/escalations/activity |
-| `data2.js` | data | Agent/room detail helpers |
-| `data3.js` | data | Redesign templates, audit scores, demos |
-| `data4.js` | data | Deals, demo requests |
+**Demo data:** Seed includes 8 leads (dentists in Austin, TX) + 11 agents + 8 rooms + 5 demo requests + 4 deals. Fully functional UI with mock state; discovery and real audits require credentials to execute (Google Places API, Gemini, PageSpeed Insights).
 
 ## Migration Status: FUNCTIONALLY COMPLETE (Dual-Stack, Pending Cleanup)
 
@@ -212,17 +214,19 @@ The original buildless prototype (`index.html`, `*.jsx`, `*.js`, `styles.css` in
 
 ### Build-out Status
 **Set 1 (marketing) — Complete.** 11 routes live; `tsc` + lint + `next build` pass.
-**Set 2 (workspace) — Complete.** 14 routes live; all workspace screens operational (14 total: overview, command, rooms detail, agents detail, leads pipeline, audits, demos, deals, settings, activity, requests, + 2 layout routes).
+**Set 2 (workspace) — Complete.** 14 routes live; all workspace screens operational (overview, command, rooms detail, agents detail, leads pipeline, audits detail, demos, deals, settings, activity, requests, + 2 layout routes).
+**Subsystems:**
+- **Subsystem 1 (Lead Discovery)** — Complete. Google Places API 2-phase (Pro + optional Enterprise) with email scraping.
+- **Subsystem 2 (Audit)** — Complete. Real website scoring via PageSpeed Insights + Playwright + Gemini 2.5 Flash. Durable execution via self-hosted Inngest + Redis. Worker runs Chromium + vision analysis in isolation.
 
-**Known gaps (mock-only, expected):**
-- No backend — all data is `lib/data` types (Next.js); mutations are local state or `localStorage` only.
-- Outreach/reply/demo "send" actions trigger toast callbacks, not real sends.
-- Chat widget is static rule-based (`setTimeout`), not streaming AI.
-- Demo URLs are placeholders (e.g. `demo.agentsverse.ai/[leadId]`).
-- Agent history/outputs are richly seeded only for a couple of roles; others fall back to defaults.
-- No per-agent real-time spend tracking; settings expose config only.
-- Production timelines and `demoRequests` lifecycles are partially seeded, not fully interactive.
-- No automated test framework; linting and type-checking pre-commit (no CI enforced).
+**Known gaps (mock-only or future, expected):**
+- Demo generation (Subsystem 3) — mock demo URLs only; no real Claude+Imagen renderer yet.
+- Outreach engine (Subsystem 4) — replies and "send" actions trigger toast callbacks, not real Resend sends yet.
+- Chat widget — static rule-based (`setTimeout`), not streaming Claude AI yet.
+- Agent history/outputs — richly seeded only for a couple of roles; others fall back to defaults.
+- No per-agent real-time spend tracking; settings expose config UI only.
+- Production timelines — `deals` lifecycle is partially seeded, not fully interactive yet.
+- No automated test framework; linting and type-checking pre-commit (no CI enforced yet).
 
 ## Unresolved Questions
 
