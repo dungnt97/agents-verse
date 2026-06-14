@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, configDefaults } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 // Root dir (trailing slash) used to resolve the `@/…` path alias the app uses.
@@ -17,5 +17,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    // DB-mode integration tests (tests/db/**) need a live Postgres; they run separately
+    // via `npm run test:db` (vitest.config.db.ts) so the default suite stays infra-free.
+    exclude: [...configDefaults.exclude, 'tests/db/**'],
   },
 });

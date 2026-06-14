@@ -53,8 +53,8 @@ Agents Verse is **feature-complete for Subsystems 1 and 2**. All 17 routes are l
 - **Escalation gates:** Exact thresholds (deal value, cost budget, confidence floor for auto-approval) are in `settings.ts` as defaults; confirm these match business logic with product/growth.
 
 ### Testing & Coverage
-- Vitest suite covers pure/logic critical paths (i18n en/vi key parity, `lib/data/format`, discovery dedup + place→lead mapping, audit scoring-rubric + result mapping, `USE_DB` flag) — 119 tests, run via `npm run test`. DB-mode repository integration tests (real Postgres / testcontainers) and server-action/auth-gate path tests are the next testing phase.
-- CI (`.github/workflows/ci.yml`) runs typecheck → lint → test → build on every push/PR to `main` (Node 20, no secrets — mock mode).
+- Vitest suite covers pure/logic critical paths (i18n en/vi key parity, `lib/data/format`, discovery dedup + place→lead mapping, audit scoring-rubric + result mapping, `USE_DB` flag) — 119 tests, run via `npm run test`. Plus a DB-mode repository integration suite (`npm run test:db`, 14 tests) asserting the `USE_DB=true` path returns the same entities as the mock `AV` against a real seeded Postgres. Next testing phase: server-action / auth-gate paths and the audit job state machine.
+- CI (`.github/workflows/ci.yml`, Node 22 / npm 10): `verify` job runs typecheck → lint → test → build (no secrets, mock mode); `test-db` job spins up `postgres:17` + db:migrate → db:seed → test:db.
 - Lint (`npm run lint`), typecheck (`npm run typecheck`), test (`npm run test`), and build all pass; dev server works in both modes.
 
 ### Documentation
@@ -89,7 +89,7 @@ Agents Verse is **feature-complete for Subsystems 1 and 2**. All 17 routes are l
 5. **Test:** Move a deal through its lifecycle; verify stage transitions and escalations.
 
 ### Long-term Improvements (Not Required for Initial Ship)
-- **Automated tests:** Vitest foundation added (pure/logic paths — 119 tests + CI gate). Remaining: DB-mode repository integration (real Postgres), server-action/auth-gate paths, and the audit job state machine.
+- **Automated tests:** Vitest foundation (119 pure/logic tests) + DB-mode repository integration (14 tests vs real Postgres) + CI gate. Remaining: server-action/auth-gate paths and the audit job state machine.
 - **Chat widget:** Replace rule-based `setTimeout` with streaming Claude API integration.
 - **Per-agent real-time spend tracking:** Wire actual usage meters (cost per agent per day) instead of UI-only config.
 - **Demo cleanup:** Mark completed or old demos for archival; avoid demo URL explosion.
