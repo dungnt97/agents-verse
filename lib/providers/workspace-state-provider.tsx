@@ -1,12 +1,12 @@
 /* =========================================================================
    AGENTS VERSE — WorkspaceStateProvider + useWorkspaceState()
-   Ports the mutable app-level state from app.jsx (~lines 87-110):
-     - mode       (av-mode localStorage, default 'guarded')
-     - requests   (av-requests localStorage, seeded from AV.demoRequests when absent)
-     - leads      (av-leads localStorage, seeded from AV.leads)
-     - badges     (command: 3 fixed, requests: count of status==='new')
-   SSR-safe: state is initialized from static AV seeds (no localStorage read);
-   useEffect hydrates from localStorage after mount to avoid hydration mismatch.
+   Mutable app-level state: mode (autonomy), requests (inbound), leads, badges.
+   Dual-mode, seeded from the server (props) so SSR matches hydration:
+     - DB mode (useDb): the database is the source of truth. Writes go through
+       server actions (createLead/createDemoRequest/setAutonomyMode) with an
+       optimistic local update; no localStorage.
+     - Demo mode (no DB): preserves the prototype — seeds from the mock (via
+       props) and persists to localStorage so added leads/requests survive reload.
    ========================================================================= */
 'use client';
 
@@ -14,12 +14,10 @@ import {
   createContext, useContext, useState, useEffect, useCallback,
   type ReactNode,
 } from 'react';
-import { AV } from '@/lib/data';
+import { createLead } from '@/lib/actions/leads';
+import { createDemoRequest } from '@/lib/actions/requests';
+import { setAutonomyMode } from '@/lib/actions/settings';
 import type { DemoRequest, Lead } from '@/lib/data/types';
-
-/* -------------------------------------------------------------------------
-   Context shape
-   ------------------------------------------------------------------------- */
 
 interface Badges {
   command: number;
@@ -40,10 +38,9 @@ interface WorkspaceStateContextValue {
 
 const WorkspaceStateContext = createContext<WorkspaceStateContextValue | null>(null);
 
-/* -------------------------------------------------------------------------
-   Safe localStorage helpers — guard for SSR and private-mode browsers
-   ------------------------------------------------------------------------- */
+const AUTONOMY_IDS = ['manual', 'review', 'guarded', 'full'];
 
+/* Safe localStorage helpers — guard for SSR and private-mode browsers (demo mode only) */
 function lsGet<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
@@ -52,7 +49,6 @@ function lsGet<T>(key: string, fallback: T): T {
     return fallback;
   }
 }
-
 function lsSet(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -61,71 +57,73 @@ function lsSet(key: string, value: unknown): void {
   }
 }
 
-/* -------------------------------------------------------------------------
-   Provider
-   ------------------------------------------------------------------------- */
+export interface WorkspaceStateProviderProps {
+  initialLeads: Lead[];
+  initialRequests: DemoRequest[];
+  initialMode: string;
+  useDb: boolean;
+  children: ReactNode;
+}
 
-export function WorkspaceStateProvider({ children }: { children: ReactNode }) {
-  // Initialize from static seeds (SSR-safe). Effects below override with
-  // localStorage values after the first client mount.
-  const [mode, setModeState] = useState<string>('guarded');
-  const [requests, setRequests] = useState<DemoRequest[]>(AV.demoRequests);
-  const [leads, setLeads] = useState<Lead[]>(AV.leads);
+export function WorkspaceStateProvider({
+  initialLeads,
+  initialRequests,
+  initialMode,
+  useDb,
+  children,
+}: WorkspaceStateProviderProps) {
+  const [mode, setModeState] = useState<string>(initialMode);
+  const [requests, setRequests] = useState<DemoRequest[]>(initialRequests);
+  const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [mounted, setMounted] = useState(false);
 
-  // Hydrate from localStorage once mounted on the client.
-  // Mirrors the legacy LS() helper pattern: use stored value if present,
-  // otherwise keep the AV seed (av-requests / av-leads empty-seed behavior).
+  // Demo mode only: hydrate from localStorage after mount (DB mode trusts the server props).
   useEffect(() => {
-    // mode is a plain string stored RAW (not JSON). Validate against the known autonomy ids so a
-    // missing or previously-corrupted value falls back to the default instead of rendering garbage.
+    if (useDb) return;
     const storedMode = localStorage.getItem('av-mode');
-    setModeState(['manual', 'review', 'guarded', 'full'].includes(storedMode ?? '') ? (storedMode as string) : 'guarded');
-    setRequests(lsGet<DemoRequest[]>('av-requests', AV.demoRequests));
-    setLeads(lsGet<Lead[]>('av-leads', AV.leads));
+    setModeState(AUTONOMY_IDS.includes(storedMode ?? '') ? (storedMode as string) : initialMode);
+    setRequests(lsGet<DemoRequest[]>('av-requests', initialRequests));
+    setLeads(lsGet<Lead[]>('av-leads', initialLeads));
     setMounted(true);
-  }, []);
+  }, [useDb, initialMode, initialRequests, initialLeads]);
 
-  // Persist mode to localStorage whenever it changes (after mount).
-  // Stored RAW (a plain string) so it round-trips with the raw read above — JSON.stringify here
-  // would re-escape the value on every reload and accumulate into a corrupted string.
+  // Demo-mode persistence (raw string for mode so it round-trips without re-escaping).
   useEffect(() => {
-    if (!mounted) return;
+    if (useDb || !mounted) return;
     try { localStorage.setItem('av-mode', mode); } catch { /* private mode */ }
-  }, [mode, mounted]);
-
-  // Persist requests to localStorage whenever they change (after mount)
+  }, [mode, mounted, useDb]);
   useEffect(() => {
-    if (!mounted) return;
+    if (useDb || !mounted) return;
     lsSet('av-requests', requests);
-  }, [requests, mounted]);
-
-  // Persist leads to localStorage whenever they change (after mount)
+  }, [requests, mounted, useDb]);
   useEffect(() => {
-    if (!mounted) return;
+    if (useDb || !mounted) return;
     lsSet('av-leads', leads);
-  }, [leads, mounted]);
+  }, [leads, mounted, useDb]);
 
-  const setMode = useCallback((next: string) => {
-    setModeState(next);
-  }, []);
+  const setMode = useCallback(
+    (next: string) => {
+      setModeState(next);
+      if (useDb) void setAutonomyMode(next).catch(() => { /* optimistic; revalidate reconciles */ });
+    },
+    [useDb],
+  );
 
-  // Mirrors app.jsx — prepend new request with generated id/timestamp/status
   const addRequest = useCallback(
     (data: Partial<DemoRequest> & { business: string; industry: string; city?: string }) => {
-      setRequests(x => [
+      setRequests((x) => [
         { ...data, id: 'rq' + Date.now(), t: 'just now', status: 'new', city: data.city || '—' } as DemoRequest,
         ...x,
       ]);
+      if (useDb) void createDemoRequest(data).catch(() => { /* optimistic */ });
     },
-    [],
+    [useDb],
   );
 
-  // Mirrors app.jsx — dedupe by company name; prepend with default lead shape
   const addLead = useCallback(
     (r: { business: string; industry: string; city?: string; url?: string }) => {
-      setLeads(x =>
-        x.find(l => l.company === r.business)
+      setLeads((x) =>
+        x.find((l) => l.company === r.business)
           ? x
           : [
               {
@@ -144,12 +142,12 @@ export function WorkspaceStateProvider({ children }: { children: ReactNode }) {
               ...x,
             ],
       );
+      if (useDb) void createLead(r).catch(() => { /* optimistic */ });
     },
-    [],
+    [useDb],
   );
 
-  // badges.requests = count of status==='new', or undefined when 0 (mirrors app.jsx)
-  const newReqCount = requests.filter(r => r.status === 'new').length;
+  const newReqCount = requests.filter((r) => r.status === 'new').length;
   const badges: Badges = {
     command: 3,
     requests: newReqCount || undefined,
@@ -163,10 +161,6 @@ export function WorkspaceStateProvider({ children }: { children: ReactNode }) {
     </WorkspaceStateContext.Provider>
   );
 }
-
-/* -------------------------------------------------------------------------
-   Hook
-   ------------------------------------------------------------------------- */
 
 export function useWorkspaceState(): WorkspaceStateContextValue {
   const ctx = useContext(WorkspaceStateContext);
