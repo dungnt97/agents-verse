@@ -18,8 +18,17 @@ import { TopBar } from '@/components/workspace/top-bar';
 import { CommandPalette } from '@/components/workspace/command-palette';
 import { ReviewCenter } from '@/components/workspace/review-center';
 import { ChatWidget } from '@/components/marketing/chat-widget';
+import type { Escalation } from '@/lib/data/types';
 
-export function WorkspaceShell({ children }: { children: ReactNode }) {
+export function WorkspaceShell({
+  children,
+  escalations,
+  useDb,
+}: {
+  children: ReactNode;
+  escalations: Escalation[];
+  useDb: boolean;
+}) {
   const { authed } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -88,7 +97,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
       </div>
 
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
-      <ReviewCenter open={review} onClose={() => setReview(false)} onAction={pushToast} />
+      <ReviewCenter open={review} onClose={() => setReview(false)} onAction={pushToast} escalations={escalations} useDb={useDb} />
       <ChatWidget />
     </div>
   );

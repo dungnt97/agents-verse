@@ -10,7 +10,9 @@ import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { getRooms } from '@/lib/repositories/rooms';
 import { getAgents } from '@/lib/repositories/agents';
+import { getOpenEscalations } from '@/lib/repositories/ops';
 import { getCurrentUser } from '@/lib/auth/session';
+import { USE_DB } from '@/lib/repositories/config';
 import { WorkspaceDataProvider } from '@/lib/providers/workspace-data-provider';
 import { WorkspaceShell } from '@/components/workspace/workspace-shell';
 
@@ -21,10 +23,16 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const [rooms, agents] = await Promise.all([getRooms(), getAgents()]);
+  const [rooms, agents, escalations] = await Promise.all([
+    getRooms(),
+    getAgents(),
+    getOpenEscalations(),
+  ]);
   return (
     <WorkspaceDataProvider rooms={rooms} agents={agents}>
-      <WorkspaceShell>{children}</WorkspaceShell>
+      <WorkspaceShell escalations={escalations} useDb={USE_DB}>
+        {children}
+      </WorkspaceShell>
     </WorkspaceDataProvider>
   );
 }
