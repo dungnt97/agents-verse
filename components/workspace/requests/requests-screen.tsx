@@ -12,6 +12,7 @@ import { Icon } from '@/components/brand/icon';
 import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n/i18n-provider';
 import { REQ_STATUS, hueFor } from '@/lib/data/format';
+import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { DemoRequest } from '@/lib/data/types';
 import type { ToastKind } from '@/lib/providers/toast-provider';
 
@@ -179,9 +180,10 @@ function RequestCard({ r, onAction, onConvert, onUpdate }: RequestCardProps) {
    ------------------------------------------------------------------------- */
 
 export function RequestsScreen({
-  requests, setRequests, onAction, goLead, onConvertLead,
+  requests, setRequests, onAction, goLead,
 }: RequestsScreenProps) {
   const { t } = useI18n();
+  const { setRequestStatus, convertRequest } = useWorkspaceState();
 
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('All');
@@ -202,12 +204,16 @@ export function RequestsScreen({
 
   const c = (s: string) => requests.filter(r => r.status === s).length;
 
-  const update = (id: string, status: string) =>
+  const update = (id: string, status: string) => {
     setRequests(x => x.map(r => r.id === id ? { ...r, status } : r));
+    setRequestStatus(id, status);
+  };
 
   const convert = (r: DemoRequest) => {
-    update(r.id, 'converted');
-    if (onConvertLead) onConvertLead(r);
+    // convertRequest handles it all: optimistic request→converted + optimistic local lead +
+    // the single DB write (convertRequestToLead). Do NOT also call addLead — that creates a
+    // second lead row (no unique on company at the time of the race).
+    convertRequest(r.id);
     onAction('Converting ' + r.business + ' → audit started', 'success');
     setTimeout(() => goLead && goLead(), 500);
   };

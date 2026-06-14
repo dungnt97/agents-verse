@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db/client';
 import { settings, autonomyModeEnum } from '@/lib/db/schema';
 import { getCurrentUser } from '@/lib/auth/session';
+import { guardMutation, type MutationResult } from './guard';
 
 type AutonomyMode = (typeof autonomyModeEnum.enumValues)[number];
 
@@ -25,4 +26,28 @@ export async function setAutonomyMode(mode: string): Promise<void> {
     });
 
   revalidatePath('/settings');
+}
+
+// Persist founder guardrails (auto-approve limit, daily cost cap, …) to the settings singleton.
+export async function updateGuardrails(guardrails: Record<string, unknown>): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+  await db
+    .insert(settings)
+    .values({ id: 'default', guardrails })
+    .onConflictDoUpdate({ target: settings.id, set: { guardrails, updatedAt: new Date() } });
+  revalidatePath('/settings');
+  return { ok: true };
+}
+
+// Persist founder pricing (package prices) to the settings singleton.
+export async function updatePricing(pricing: Record<string, unknown>): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+  await db
+    .insert(settings)
+    .values({ id: 'default', pricing })
+    .onConflictDoUpdate({ target: settings.id, set: { pricing, updatedAt: new Date() } });
+  revalidatePath('/settings');
+  return { ok: true };
 }

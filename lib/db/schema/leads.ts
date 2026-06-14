@@ -11,7 +11,9 @@ import { leadStageEnum, demoStatusEnum, reqStatusEnum } from './enums';
 export const leads = pgTable('leads', {
   // String id from the mock (e.g. 'atlas-d') so seeded FK references resolve unchanged.
   id: text('id').primaryKey(),
-  company: text('company').notNull(),
+  // Unique so createLead / convertRequestToLead (insert … onConflictDoNothing) can't create a
+  // second row for the same company even under concurrent calls.
+  company: text('company').notNull().unique(),
   industry: text('industry').notNull(),
   city: text('city').notNull(),
   url: text('url').notNull(),

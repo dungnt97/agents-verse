@@ -54,6 +54,13 @@ export const reqStatusEnum = pgEnum('req_status', [
   'declined',
 ]);
 
+// Escalation resolution lifecycle (CEO control room / command center).
+export const escalationStatusEnum = pgEnum('escalation_status', [
+  'open',
+  'resolved',
+  'dismissed',
+]);
+
 // Founder autonomy posture for the agent company (CEO control room / settings).
 // Literals match the validated set the workspace provider accepts (default 'guarded').
 export const autonomyModeEnum = pgEnum('autonomy_mode', [

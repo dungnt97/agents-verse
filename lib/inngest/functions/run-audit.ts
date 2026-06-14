@@ -56,6 +56,12 @@ export const runAudit = inngest.createFunction(
           .insert(audits)
           .values({ leadId, ...mapped })
           .onConflictDoUpdate({ target: audits.leadId, set: { ...mapped } });
+        // M3(a): reflect the real audit on the lead headline + pipeline sort.
+        // site = measured current-site quality (avg of the 8 dims); score = redesign potential.
+        const dims = Object.values(mapped.scores);
+        const site = Math.round(dims.reduce((sum, n) => sum + n, 0) / dims.length);
+        const score = Math.min(95, site + 40);
+        await db.update(leads).set({ site, score }).where(eq(leads.id, leadId));
         await db
           .insert(auditJobs)
           .values({ leadId, status: 'done', finishedAt: new Date() })

@@ -1,5 +1,5 @@
 import { pgTable, text, integer, real, timestamp, jsonb } from 'drizzle-orm/pg-core';
-import { autonomyModeEnum } from './enums';
+import { autonomyModeEnum, escalationStatusEnum } from './enums';
 
 export const escalations = pgTable('escalations', {
   id: text('id').primaryKey(),
@@ -14,6 +14,9 @@ export const escalations = pgTable('escalations', {
   conf: integer('conf').notNull(),
   // Relative time label kept for UI fidelity ('8 min ago').
   time: text('time').notNull(),
+  // Resolution lifecycle (approve → resolved, dismiss → dismissed). Seeded rows default 'open'.
+  status: escalationStatusEnum('status').notNull().default('open'),
+  resolvedAt: timestamp('resolved_at'),
 });
 
 // ActivityItem has no natural key in the mock; the seed assigns a deterministic id

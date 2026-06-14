@@ -6,7 +6,8 @@
    ========================================================================= */
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { CountUp } from '@/components/ui/count-up';
 import { AgentAvatar, AvatarStack } from '@/components/ui/agent-avatar';
@@ -15,6 +16,8 @@ import { useI18n } from '@/lib/i18n/i18n-provider';
 import { fmt, hueFor } from '@/lib/data/format';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { useToast } from '@/lib/providers/toast-provider';
+import { updateDemoStatus } from '@/lib/actions/demos';
+import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { Demo } from '@/lib/data/types';
 
 /* ---- OverviewBand (local) — value via CountUp (rounds, ignores prefix), like the shared original ---- */
@@ -121,9 +124,22 @@ function DemoCard({ d, onOpen }: { d: Demo; onOpen: (id: string) => void; onActi
 function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => void; onAction: (msg: string, kind?: string) => void }) {
   const { t } = useI18n();
   const { agentById } = useWorkspaceData();
+  const { useDb } = useWorkspaceState();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
   const d = demo;
   const hue = hueFor(d.industry);
   const first = d.business.split(' ')[0];
+
+  // Persist a status change then refresh. Demo mode (no DB) → cosmetic toast fallback.
+  const changeStatus = (status: Parameters<typeof updateDemoStatus>[1], successMsg: string) => {
+    if (!useDb) { onAction(successMsg, 'success'); return; }
+    startTransition(async () => {
+      const r = await updateDemoStatus(d.id, status);
+      onAction(r.message ?? successMsg, r.ok ? 'success' : 'warning');
+      router.refresh();
+    });
+  };
 
   /* Outreach tone variants — body text for each tone */
   const tones: Record<string, string> = {
@@ -261,15 +277,22 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
 
         {/* Footer actions */}
         <div className="row" style={{ gap:10, padding:'14px 20px', borderTop:'1px solid var(--border)', flex:'none', flexWrap:'wrap' }}>
-          {d.status==='review'   && <button className="btn btn-primary grow" onClick={() => onAction('Demo approved · '+d.business,'success')}><Icon name="check" size={16}/> {t('demos.btnApprove')}</button>}
-          {d.status==='approved' && <button className="btn btn-primary grow" onClick={() => onAction('Outreach prepared · '+d.business,'success')}><Icon name="send" size={15}/> {t('demos.btnPrepareOutreach')}</button>}
-          {(d.status==='sent'||d.status==='replied') && <button className="btn btn-primary grow" onClick={() => onAction('Reply handling opened · '+d.business)}>{t('demos.btnHandleReply')}</button>}
-          {d.status==='won'      && <button className="btn btn-primary grow" onClick={() => onAction('Production started · '+d.business,'success')}>{t('demos.btnStartProduction')}</button>}
-          {d.status==='draft'    && <button className="btn btn-primary grow" onClick={() => onAction('Sent for review · '+d.business,'success')}>{t('demos.btnSendReview')}</button>}
-          <button className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Improvement requested')}>
+          {/* review → approved: human approves the demo before outreach */}
+          {d.status==='review'   && <button disabled={pending} className="btn btn-primary grow" onClick={() => changeStatus('approved', 'Demo approved · '+d.business)}><Icon name="check" size={16}/> {t('demos.btnApprove')}</button>}
+          {/* approved → sent: human confirms outreach is prepared and demo is sent */}
+          {d.status==='approved' && <button disabled={pending} className="btn btn-primary grow" onClick={() => changeStatus('sent', 'Outreach prepared · '+d.business)}><Icon name="send" size={15}/> {t('demos.btnPrepareOutreach')}</button>}
+          {/* sent/replied: cosmetic only — no single well-defined target status (could be won or replied); leave as informational toast */}
+          {(d.status==='sent'||d.status==='replied') && <button disabled={pending} className="btn btn-primary grow" onClick={() => onAction('Reply handling opened · '+d.business)}>{t('demos.btnHandleReply')}</button>}
+          {/* won: cosmetic only — production is a separate workflow outside demo status enum */}
+          {d.status==='won'      && <button disabled={pending} className="btn btn-primary grow" onClick={() => onAction('Production started · '+d.business,'success')}>{t('demos.btnStartProduction')}</button>}
+          {/* draft → review: sends the draft demo into the review queue */}
+          {d.status==='draft'    && <button disabled={pending} className="btn btn-primary grow" onClick={() => changeStatus('review', 'Sent for review · '+d.business)}>{t('demos.btnSendReview')}</button>}
+          {/* Improve AI: cosmetic only — triggers background AI job, not a status transition */}
+          <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Improvement requested')}>
             <Icon name="spark" size={15}/> {t('demos.btnImproveAI')}
           </button>
-          <button className="btn btn-soft" onClick={() => onAction('Demo link copied','success')}>{t('demos.btnCopyLink')}</button>
+          {/* Copy link: cosmetic only — clipboard action */}
+          <button disabled={pending} className="btn btn-soft" onClick={() => onAction('Demo link copied','success')}>{t('demos.btnCopyLink')}</button>
         </div>
       </div>
     </>
