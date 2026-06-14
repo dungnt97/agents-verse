@@ -73,6 +73,27 @@ AUDIT_CONCURRENCY=2                            # Global concurrency limit (Chrom
 
 > Generate strong values: `openssl rand -base64 32` (password), `openssl rand -hex 32` (auth secret), `openssl rand -hex 16` (Inngest keys).
 
+### Estimated monthly cost
+
+Self-generated secrets (`*_PASSWORD`, `BETTER_AUTH_SECRET`, `INNGEST_*`) are free. Paid items below — **prices verified June 2026**; re-check before committing budget. Google Maps is SKU-based (cost varies with the field mask requested) and the universal $200/month Maps credit was removed in 2025.
+
+Assumes a small operation (~1,000 leads discovered + ~500 audits / month):
+
+| Item | When | ~USD/month | Notes |
+|------|------|-----------|-------|
+| VPS (web + db + redis + inngest + worker) | now | $25–45 | needs ≥ 4GB RAM for Playwright/Chromium |
+| Google Places API (lead discovery) | now | $0–40 | new free tier: 5k Pro + 10k Essentials per SKU/month; overage ~$17–32/1k |
+| Gemini 2.5 Flash (audit vision) | now | ~$1 | ~$0.002/audit ($0.30 / $2.50 per 1M tokens) |
+| PageSpeed Insights | now | $0 | free |
+| **Subtotal — Subsystems 1+2 (built)** | | **~$30–90** | mostly VPS + Places |
+| Claude API (S3 demo design) | future | ~$0.04–0.10/demo | Sonnet 4.6 $3/$15; Haiku $1/$5 per 1M |
+| Imagen 4 Fast (S3 images) | future | ~$0.02/image | ~3–5 images/demo; render self-hosted (free) |
+| Resend (S4 outreach email) | future | $0–20 | free 3,000 emails/month; Pro $20 |
+
+- **To start (S1+S2): ~$30–90/month** — much of it is the VPS; Gemini + PageSpeed stay within free tiers at low volume.
+- **Full (S3+S4 at small volume): ~$60–170/month.** All API costs scale with volume.
+- Cap spend in the Google Cloud Console (the app also guards via `DISCOVERY_DAILY_CAP`).
+
 ---
 
 ## 3. Deploy
