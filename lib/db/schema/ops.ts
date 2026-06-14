@@ -1,5 +1,6 @@
 import { pgTable, text, integer, real, timestamp, jsonb } from 'drizzle-orm/pg-core';
 import { autonomyModeEnum, escalationStatusEnum } from './enums';
+import { deals } from './pipeline';
 
 export const escalations = pgTable('escalations', {
   id: text('id').primaryKey(),
@@ -17,6 +18,9 @@ export const escalations = pgTable('escalations', {
   // Resolution lifecycle (approve → resolved, dismiss → dismissed). Seeded rows default 'open'.
   status: escalationStatusEnum('status').notNull().default('open'),
   resolvedAt: timestamp('resolved_at'),
+  // Links a deal-approval escalation back to its deal so resolving it can advance the deal.
+  // Nullable: human/cost escalations carry no deal.
+  dealId: text('deal_id').references(() => deals.id, { onDelete: 'set null' }),
 });
 
 // ActivityItem has no natural key in the mock; the seed assigns a deterministic id

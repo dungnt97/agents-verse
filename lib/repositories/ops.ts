@@ -1,5 +1,5 @@
 import 'server-only';
-import { asc } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db/client';
 import {
   metrics as metricsTable,
@@ -22,6 +22,17 @@ export async function getEscalations(): Promise<Escalation[]> {
   if (!USE_DB) return AV.escalations;
   // Stable order (e1, e2, e3…) so DB-mode render order is deterministic.
   return db.select().from(escalationsTable).orderBy(asc(escalationsTable.id));
+}
+
+// Open (unresolved) escalations only — drives the ReviewCenter panel. Mock mode has no
+// resolution lifecycle, so all mock escalations are treated as open.
+export async function getOpenEscalations(): Promise<Escalation[]> {
+  if (!USE_DB) return AV.escalations;
+  return db
+    .select()
+    .from(escalationsTable)
+    .where(eq(escalationsTable.status, 'open'))
+    .orderBy(asc(escalationsTable.id));
 }
 
 export async function getActivity(): Promise<ActivityItem[]> {

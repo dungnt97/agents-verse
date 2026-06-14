@@ -34,7 +34,9 @@ export const en: Record<string, string> = {
   // ---- ReviewCenter ----
   'shell.reviewCenter': 'Review center',
   'shell.approve': 'Approve',
+  'shell.dismiss': 'Dismiss',
   'shell.open': 'Open',
+  'shell.rcEmpty': 'No items awaiting review.',
 
   // ---- ReviewCenter item titles / tags (chrome labels, not data) ----
   'shell.rcDemoTitle': 'Demo needs approval',
@@ -161,7 +163,9 @@ export const vi: Record<string, string> = {
   // ---- ReviewCenter ----
   'shell.reviewCenter': 'Trung tâm duyệt',
   'shell.approve': 'Duyệt',
+  'shell.dismiss': 'Bỏ qua',
   'shell.open': 'Mở',
+  'shell.rcEmpty': 'Không có mục nào cần duyệt.',
 
   // ---- ReviewCenter item titles / tags ----
   'shell.rcDemoTitle': 'Demo cần duyệt',

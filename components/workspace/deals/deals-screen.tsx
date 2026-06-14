@@ -301,19 +301,29 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
             <button disabled={pending} className="btn btn-primary grow" onClick={() => onAction('Founder call scheduled · '+d.client,'success')}>
               <Icon name="clock" size={15}/> {t('deals.btnScheduleCall')}
             </button>
-            {/* Take over: cosmetic only — owner reassignment not modeled as a stage */}
-            <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('You took over · '+d.client)}>
+            {/* Take over → won: founder takes the call and closes the deal (call → won) */}
+            <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => changeStage('won', 'You took over · '+d.client)}>
               {t('deals.btnTakeOver')}
             </button>
           </>}
           {d.stage==='approval' && <>
-            {/* Approve quote → quoted: human confirms the AI-drafted quote, moves to quoted state */}
-            <button disabled={pending} className="btn btn-primary grow" onClick={() => changeStage('quoted', 'Quote approved · '+d.client)}>
+            {/* Approve → won: founder approves at the approval stage, closing the deal */}
+            <button disabled={pending} className="btn btn-primary grow" onClick={() => changeStage('won', 'Deal approved · '+d.client)}>
               <Icon name="check" size={15}/> {t('deals.btnApproveQuote')}
             </button>
             {/* Reject → lost: human rejects the deal at approval stage */}
             <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => changeStage('lost', 'Quote rejected · '+d.client)}>
               {t('deals.btnReject')}
+            </button>
+          </>}
+          {d.stage==='quoted' && <>
+            {/* Close → won. Triggers the approval gate: high-value / low-confidence deals route
+                to founder review (escalation) instead of closing directly. */}
+            <button disabled={pending} className="btn btn-primary grow" onClick={() => changeStage('won', 'Deal closed · '+d.client)}>
+              <Icon name="check" size={15}/> {t('deals.btnCloseWon')}
+            </button>
+            <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => changeStage('lost', 'Deal marked lost · '+d.client)}>
+              {t('deals.btnMarkLost')}
             </button>
           </>}
           {d.stage==='pricing' && <>
@@ -327,8 +337,8 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
             </button>
           </>}
           {d.stage==='created' && <>
-            {/* Send reply: cosmetic only — reply is sent but no defined enum transition from 'created' */}
-            <button disabled={pending} className="btn btn-primary grow" onClick={() => onAction('Reply sent · '+d.client,'success')}>
+            {/* Send reply → quoted: reply sent, quote prepared (created → quoted) */}
+            <button disabled={pending} className="btn btn-primary grow" onClick={() => changeStage('quoted', 'Reply sent · '+d.client)}>
               {t('deals.btnSendReply')}
             </button>
             {/* Follow up: cosmetic only — scheduling action, not a stage change */}

@@ -237,7 +237,7 @@ The original buildless prototype (root `*.jsx` / `data*.js` / `index.html` / `st
 - Chat widget — static rule-based (`setTimeout`), not streaming Claude AI yet.
 - Agent history/outputs — richly seeded only for a couple of roles; others fall back to defaults.
 - No per-agent real-time spend tracking; settings expose config UI only.
-- Production timelines — `deals` lifecycle is partially seeded, not fully interactive yet.
+- Deal lifecycle — stage machine + autonomy/value approval gate + escalation flow are live (`lib/data/deal-stage-machine.ts`, `lib/actions/deals.ts`, dynamic ReviewCenter). Production-timeline editing + Command Center escalation-status consistency remain.
 - Test coverage: Vitest unit suite (pure/logic, 119 tests) + DB-mode repository integration (14 tests vs a real seeded Postgres), both gated in CI (`.github/workflows/ci.yml`: typecheck → lint → test → build, plus a Postgres `test-db` job). Not yet covered: server-action / auth-gate paths and the audit job state machine.
 
 ## Unresolved Questions
