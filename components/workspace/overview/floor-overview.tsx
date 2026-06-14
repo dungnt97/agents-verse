@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
@@ -13,7 +14,9 @@ import { CountUp } from '@/components/ui/count-up';
 import { Sparkline } from '@/components/ui/sparkline';
 import { FloorMap, ROOM_ICON } from '@/components/floor-map';
 import { useI18n } from '@/lib/i18n';
-import { AV } from '@/lib/data';
+import { useToast } from '@/lib/providers/toast-provider';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
+import { fmt, statusMap } from '@/lib/data/format';
 import type { Escalation, ActivityItem } from '@/lib/data/types';
 
 /* ---- MetricStat ---- */
@@ -64,6 +67,7 @@ export function MetricStat({ label, value, decimals = 0, prefix = '', suffix = '
 /* ---- ActivityRow ---- */
 
 function ActivityRow({ a }: { a: ActivityItem }) {
+  const { agentById, roomById } = useWorkspaceData();
   const statusColor = ({ success: 'var(--success)', warning: 'var(--warning)', review: 'var(--warning)', info: 'var(--info)', danger: 'var(--danger)' } as Record<string, string>)[a.status] || 'var(--ink-3)';
   return (
     <div className="row" style={{ gap: 12, padding: '11px 0', borderBottom: '1px solid var(--border-soft)', alignItems: 'flex-start' }}>
@@ -71,9 +75,9 @@ function ActivityRow({ a }: { a: ActivityItem }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13.5, lineHeight: 1.4, color: 'var(--ink)' }}>{a.text}</div>
         <div className="row" style={{ gap: 8, marginTop: 4 }}>
-          <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{AV.agentById(a.agent)?.name}</span>
+          <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{agentById(a.agent)?.name}</span>
           <span style={{ width: 3, height: 3, borderRadius: 99, background: 'var(--border-strong)' }} />
-          <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{AV.roomById(a.room)?.short}</span>
+          <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{roomById(a.room)?.short}</span>
           <span style={{ width: 3, height: 3, borderRadius: 99, background: 'var(--border-strong)' }} />
           <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{a.t}</span>
         </div>
@@ -104,7 +108,7 @@ export function EscalationMini({ e, onAction }: EscalationMiniProps) {
         <span className="mono" style={{ fontSize: 10.5, color: 'var(--ink-3)' }}>{e.time}</span>
       </div>
       <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, lineHeight: 1.3 }}>{e.title}</div>
-      <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 12 }}>{e.who}{e.value > 0 && ' · ' + AV.fmt.money(e.value)}</div>
+      <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 12 }}>{e.who}{e.value > 0 && ' · ' + fmt.money(e.value)}</div>
       <div className="row" style={{ gap: 8 }}>
         <button className="btn btn-primary btn-sm grow" onClick={() => onAction('Approved: ' + e.title)}>{t('dash.approve')}</button>
         <button className="btn btn-ghost btn-sm grow" onClick={() => onAction('Opened review for ' + e.who, 'success')} style={{ borderColor: 'var(--border)' }}>{t('dash.review')}</button>
@@ -124,10 +128,11 @@ interface RoomPeekProps {
 
 export function RoomPeek({ roomId, onClose, onAction, goRoom }: RoomPeekProps) {
   const { t } = useI18n();
-  const r = AV.roomById(roomId);
+  const { roomById, agents } = useWorkspaceData();
+  const r = roomById(roomId);
   if (!r) return null;
-  const sm = AV.statusMap[r.status];
-  const roomAgents = AV.agents.filter(a => a.room === r.id);
+  const sm = statusMap[r.status];
+  const roomAgents = agents.filter(a => a.room === r.id);
   return (
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(20,18,12,.32)', backdropFilter: 'blur(2px)', animation: 'fade-in .25s' }} />
@@ -183,13 +188,16 @@ export function RoomPeek({ roomId, onClose, onAction, goRoom }: RoomPeekProps) {
 /* ---- FloorOverview ---- */
 
 export interface FloorOverviewProps {
-  onAction: (msg: string, kind?: 'success' | 'warning' | 'danger') => void;
-  goCommand: () => void;
-  goRoom: (id: string) => void;
+  escalations: Escalation[];
+  activity: ActivityItem[];
 }
 
-export function FloorOverview({ onAction, goCommand, goRoom }: FloorOverviewProps) {
+export function FloorOverview({ escalations, activity }: FloorOverviewProps) {
   const { t } = useI18n();
+  const router = useRouter();
+  const onAction = useToast();
+  const goCommand = () => router.push('/command');
+  const goRoom = (id: string) => router.push('/rooms/' + id);
   const [peek, setPeek] = useState<string | null>(null);
   // The greeting depends on the local hour. Computing it during render would differ between the
   // server's hour-bucket and the client's, causing a hydration mismatch on the headline — so it
@@ -250,10 +258,10 @@ export function FloorOverview({ onAction, goCommand, goRoom }: FloorOverviewProp
           {/* escalations */}
           <div className="card" style={{ padding: 18 }}>
             <div className="row between" style={{ marginBottom: 14 }}>
-              <div className="row" style={{ gap: 9 }}><h2 style={{ fontSize: 16 }}>{t('ov.attention')}</h2><span style={{ minWidth: 20, height: 20, padding: '0 6px', borderRadius: 99, background: 'var(--warning)', color: '#fff', fontSize: 11.5, fontWeight: 600, display: 'grid', placeItems: 'center' }}>{AV.escalations.length}</span></div>
+              <div className="row" style={{ gap: 9 }}><h2 style={{ fontSize: 16 }}>{t('ov.attention')}</h2><span style={{ minWidth: 20, height: 20, padding: '0 6px', borderRadius: 99, background: 'var(--warning)', color: '#fff', fontSize: 11.5, fontWeight: 600, display: 'grid', placeItems: 'center' }}>{escalations.length}</span></div>
               <button onClick={goCommand} style={{ fontSize: 12.5, color: 'var(--primary)', fontWeight: 600 }}>{t('ov.viewAll')}</button>
             </div>
-            {AV.escalations.map(e => <EscalationMini key={e.id} e={e} onAction={onAction} />)}
+            {escalations.map(e => <EscalationMini key={e.id} e={e} onAction={onAction} />)}
           </div>
           {/* activity */}
           <div className="card" style={{ padding: 18 }}>
@@ -262,7 +270,7 @@ export function FloorOverview({ onAction, goCommand, goRoom }: FloorOverviewProp
               <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{t('ov.updating')}</span>
             </div>
             <div style={{ maxHeight: 420, overflowY: 'auto', marginRight: -6, paddingRight: 6 }}>
-              {AV.activity.map((a, i) => <ActivityRow key={i} a={a} />)}
+              {activity.map((a, i) => <ActivityRow key={i} a={a} />)}
             </div>
           </div>
         </div>

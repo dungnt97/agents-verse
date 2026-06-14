@@ -1,9 +1,9 @@
-'use client';
-
 import { CommandCenter } from '@/components/workspace/command/command-center';
-import { useToast } from '@/lib/providers/toast-provider';
+import { getEscalations } from '@/lib/repositories/ops';
 
-export default function CommandPage() {
-  const onAction = useToast();
-  return <CommandCenter onAction={onAction} />;
+// Server Component — fetches escalation queue and passes to the client screen.
+// Toast is wired inside CommandCenter via useToast.
+export default async function CommandPage() {
+  const escalations = await getEscalations();
+  return <CommandCenter escalations={escalations} />;
 }

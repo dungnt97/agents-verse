@@ -1,9 +1,13 @@
 /* =========================================================================
    AGENTS VERSE — AgentAvatar + AvatarStack
    Abstract geometric identity tiles — no robot clichés.
-   Reads agent data from AV singleton via agentById.
+   Resolves agent identity from the workspace data directory (server-seeded
+   context) so a bare id is enough, as before.
    ========================================================================= */
-import { AV } from '@/lib/data';
+'use client';
+
+import { statusMap } from '@/lib/data/format';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 
 export interface AgentAvatarProps {
   id: string;
@@ -12,9 +16,10 @@ export interface AgentAvatarProps {
 }
 
 export function AgentAvatar({ id, size = 36, ring }: AgentAvatarProps) {
-  const a = AV.agentById(id) || { name: '?', hue: 220, status: 'idle' };
+  const { agentById } = useWorkspaceData();
+  const a = agentById(id) || { name: '?', hue: 220, status: 'idle' };
   const h = a.hue;
-  const sm = AV.statusMap[a.status];
+  const sm = statusMap[a.status];
   return (
     <span style={{ position: 'relative', width: size, height: size, flex: 'none' }}>
       <span style={{

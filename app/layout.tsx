@@ -3,6 +3,10 @@ import { cookies } from 'next/headers';
 import { type ReactNode } from 'react';
 import type { Metadata } from 'next';
 import { Providers } from './providers';
+import { getCurrentUser } from '@/lib/auth/session';
+import { USE_DB } from '@/lib/repositories/config';
+import { getLeads } from '@/lib/repositories/leads';
+import { getDemoRequests, getSettings } from '@/lib/repositories/ops';
 import type { Theme } from '@/lib/providers/theme-provider';
 import type { Lang } from '@/lib/i18n';
 
@@ -19,8 +23,17 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const store = await cookies();
   const theme: Theme = store.get('av-theme')?.value === 'dark' ? 'dark' : 'light';
   const lang: Lang = store.get('av-lang')?.value === 'vi' ? 'vi' : 'en';
-  const initialAuthed = store.get('av-auth')?.value === '1';
-  const initialUser = store.get('av-user')?.value ?? '';
+  // Seed auth + mutable workspace state from the server (repositories return the mock in
+  // demo mode and Postgres in DB mode), so the first paint matches client hydration.
+  const [currentUser, initialLeads, initialRequests, settingsRow] = await Promise.all([
+    getCurrentUser(),
+    getLeads(),
+    getDemoRequests(),
+    getSettings(),
+  ]);
+  const initialAuthed = currentUser !== null;
+  const initialUser = currentUser?.email ?? '';
+  const initialMode = settingsRow?.autonomyMode ?? 'guarded';
 
   return (
     <html lang={lang} data-theme={theme} suppressHydrationWarning>
@@ -37,7 +50,16 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         />
       </head>
       <body>
-        <Providers theme={theme} lang={lang} initialAuthed={initialAuthed} initialUser={initialUser}>
+        <Providers
+          theme={theme}
+          lang={lang}
+          initialAuthed={initialAuthed}
+          initialUser={initialUser}
+          useDb={USE_DB}
+          initialLeads={initialLeads}
+          initialRequests={initialRequests}
+          initialMode={initialMode}
+        >
           {children}
         </Providers>
       </body>

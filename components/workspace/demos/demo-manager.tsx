@@ -1,7 +1,8 @@
 /* =========================================================================
    AGENTS VERSE — Demo Preview Manager (grid + before/after detail drawer)
-   Ported verbatim from demos.jsx. Reads AV.demos static list; opens drawer
-   for before/after comparison, checklist, and tone-selectable outreach.
+   Ported verbatim from demos.jsx. Receives demos via props (server-fetched from the
+   repository layer); opens drawer for before/after comparison, checklist, and
+   tone-selectable outreach.
    ========================================================================= */
 'use client';
 
@@ -11,7 +12,9 @@ import { CountUp } from '@/components/ui/count-up';
 import { AgentAvatar, AvatarStack } from '@/components/ui/agent-avatar';
 import { SiteMock, NewSite } from '@/components/site-mock';
 import { useI18n } from '@/lib/i18n/i18n-provider';
-import { AV } from '@/lib/data';
+import { fmt, hueFor } from '@/lib/data/format';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
+import { useToast } from '@/lib/providers/toast-provider';
 import type { Demo } from '@/lib/data/types';
 
 /* ---- OverviewBand (local) — value via CountUp (rounds, ignores prefix), like the shared original ---- */
@@ -76,9 +79,9 @@ function DemoThumb({ hue, label }: { hue: number; label?: string }) {
 
 /* ---- DemoCard ---- */
 
-function DemoCard({ d, onOpen, onAction }: { d: Demo; onOpen: (id: string) => void; onAction: (msg: string, kind?: string) => void }) {
+function DemoCard({ d, onOpen }: { d: Demo; onOpen: (id: string) => void; onAction: (msg: string, kind?: string) => void }) {
   const [hover, setHover] = useState(false);
-  const hue = AV.hueFor(d.industry);
+  const hue = hueFor(d.industry);
   return (
     <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onClick={() => onOpen(d.id)}
       className="card" style={{ padding:0, overflow:'hidden', cursor:'pointer', transition:'transform .2s, box-shadow .2s, border-color .2s',
@@ -94,7 +97,7 @@ function DemoCard({ d, onOpen, onAction }: { d: Demo; onOpen: (id: string) => vo
       <div style={{ padding:'14px 15px' }}>
         <div className="row between" style={{ marginBottom:5 }}>
           <span style={{ fontSize:14.5, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{d.business}</span>
-          <span className="mono" style={{ fontSize:12.5, fontWeight:600, color:'var(--success)' }}>{AV.fmt.k(d.value)}</span>
+          <span className="mono" style={{ fontSize:12.5, fontWeight:600, color:'var(--success)' }}>{fmt.k(d.value)}</span>
         </div>
         <div style={{ fontSize:12, color:'var(--ink-3)', marginBottom:12 }}>{d.industry} · {d.city}</div>
         <div className="row between">
@@ -117,8 +120,9 @@ function DemoCard({ d, onOpen, onAction }: { d: Demo; onOpen: (id: string) => vo
 
 function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => void; onAction: (msg: string, kind?: string) => void }) {
   const { t } = useI18n();
+  const { agentById } = useWorkspaceData();
   const d = demo;
-  const hue = AV.hueFor(d.industry);
+  const hue = hueFor(d.industry);
   const first = d.business.split(' ')[0];
 
   /* Outreach tone variants — body text for each tone */
@@ -224,7 +228,7 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
           <div style={{ padding:'13px 15px', borderRadius:12, background:'var(--surface-muted)', marginBottom:20 }}>
             <div className="row" style={{ gap:8, marginBottom:7 }}>
               <AgentAvatar id={d.agents[0]} size={22}/>
-              <span style={{ fontSize:12.5, fontWeight:600 }}>{AV.agentById(d.agents[0])?.name}&apos;s notes</span>
+              <span style={{ fontSize:12.5, fontWeight:600 }}>{agentById(d.agents[0])?.name}&apos;s notes</span>
             </div>
             <p style={{ fontSize:13, color:'var(--ink-2)', lineHeight:1.5 }}>{d.notes}</p>
           </div>
@@ -275,17 +279,22 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
 /* ---- DemoManager ---- */
 
 export interface DemoManagerProps {
+  demos: Demo[];
   initialLead?: string | null;
-  onAction: (msg: string, kind?: string) => void;
 }
 
-export function DemoManager({ initialLead, onAction }: DemoManagerProps) {
+export function DemoManager({ demos, initialLead }: DemoManagerProps) {
   const { t } = useI18n();
+  // onAction wired here so demos/page.tsx is a pure Server Component
+  const onAction = useToast();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('All');
   const [ind, setInd] = useState('All industries');
-  // Open demo-<leadId> if initialLead supplied, else null
-  const [open, setOpen] = useState<string | null>(initialLead ? ('demo-'+initialLead) : null);
+  // Open the demo whose leadId matches initialLead, if supplied
+  const [open, setOpen] = useState<string | null>(() => {
+    if (!initialLead) return null;
+    return demos.find(d => d.leadId === initialLead)?.id ?? null;
+  });
 
   const STAT = [
     t('demos.fAll'),
@@ -311,24 +320,23 @@ export function DemoManager({ initialLead, onAction }: DemoManagerProps) {
     return enStatus === 'All' || d.statusLabel === enStatus;
   };
 
-  const industries = [t('demos.fAll') === status ? ind : ind, ...Array.from(new Set(AV.demos.map(d => d.industry)))];
   const allIndustriesLabel = 'All industries';
-  const industryList = [allIndustriesLabel, ...Array.from(new Set(AV.demos.map(d => d.industry)))];
+  const industryList = [allIndustriesLabel, ...Array.from(new Set(demos.map(d => d.industry)))];
 
-  const list = AV.demos.filter(d =>
+  const list = demos.filter(d =>
     d.business.toLowerCase().includes(q.toLowerCase()) &&
     matchStat(d) &&
     (ind === allIndustriesLabel || d.industry === ind)
   );
 
   const counts = {
-    total:  AV.demos.length,
-    review: AV.demos.filter(d => d.status==='review').length,
-    sent:   AV.demos.filter(d => ['sent','replied'].includes(d.status)).length,
-    won:    AV.demos.filter(d => d.status==='won').length,
+    total:  demos.length,
+    review: demos.filter(d => d.status==='review').length,
+    sent:   demos.filter(d => ['sent','replied'].includes(d.status)).length,
+    won:    demos.filter(d => d.status==='won').length,
   };
 
-  const openDemo = open ? AV.demos.find(d => d.id === open) : null;
+  const openDemo = open ? demos.find(d => d.id === open) : null;
 
   return (
     <div style={{ padding:'26px 28px 60px', maxWidth:1480, margin:'0 auto' }}>

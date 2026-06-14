@@ -1,35 +1,40 @@
 /* =========================================================================
    AGENTS VERSE — /audits route
-   Reads ?lead= query param to pre-select a lead in the audit rail.
-   useSearchParams must be inside Suspense — Next 16 build requirement.
+   Server Component: prefetches audited leads + full audit results + demo
+   lead IDs, then passes them as props to the client AuditScreen.
+   ?lead= searchParams handled here (Next 16: searchParams is a Promise).
    ========================================================================= */
-'use client';
-
-import { Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { auditedLeads, getAudit } from '@/lib/repositories/leads';
+import { getDemos } from '@/lib/repositories/pipeline';
 import { AuditScreen } from '@/components/workspace/audit/audit-screen';
-import { useToast } from '@/lib/providers/toast-provider';
+import type { AuditResult } from '@/lib/data/types';
 
-function AuditsInner() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const toast = useToast();
-  const initialLead = searchParams.get('lead');
+interface Props {
+  searchParams: Promise<{ lead?: string }>;
+}
+
+export default async function AuditsPage({ searchParams }: Props) {
+  const [audited, demos, { lead: initialLead }] = await Promise.all([
+    auditedLeads(),
+    getDemos(),
+    searchParams,
+  ]);
+
+  // Prefetch all audit results so the client can look them up synchronously
+  const auditResults = await Promise.all(audited.map(l => getAudit(l.id)));
+  const auditMap = Object.fromEntries(
+    auditResults.map((a): [string, AuditResult] => [a.id, a])
+  );
+
+  // Pass as plain array — client component converts to Set for O(1) lookup
+  const demoLeadIds = demos.map(d => d.leadId).filter(Boolean) as string[];
 
   return (
     <AuditScreen
-      initialLead={initialLead}
-      onAction={toast}
-      goDemos={(id) => router.push('/demos?lead=' + id)}
-      goLead={() => router.push('/leads')}
+      audited={audited}
+      auditMap={auditMap}
+      demoLeadIds={demoLeadIds}
+      initialLead={initialLead ?? null}
     />
-  );
-}
-
-export default function AuditsPage() {
-  return (
-    <Suspense fallback={null}>
-      <AuditsInner />
-    </Suspense>
   );
 }

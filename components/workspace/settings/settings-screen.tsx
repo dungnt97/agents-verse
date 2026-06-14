@@ -12,7 +12,7 @@ import { Icon } from '@/components/brand/icon';
 import { Mark } from '@/components/brand/mark';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { useI18n } from '@/lib/i18n/i18n-provider';
-import { AV } from '@/lib/data';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { AUTONOMY } from '@/components/workspace/autonomy-control';
 import type { ToastKind } from '@/lib/providers/toast-provider';
 
@@ -150,6 +150,7 @@ interface AgentCfg {
 
 export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps) {
   const { t } = useI18n();
+  const { agents } = useWorkspaceData();
 
   const SECTIONS = [
     { id: 'brand',      label: t('set.sectionBrand'),      icon: 'spark'   },
@@ -197,10 +198,10 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
   // Pricing values
   const [prices, setPrices] = useState({ landing: 900, business: 2400, monthly: 240 });
 
-  // Per-agent config — initialised from AV.agents seed
+  // Per-agent config — initialised from workspace agents directory
   const [agentCfg, setAgentCfg] = useState<Record<string, AgentCfg>>(() =>
     Object.fromEntries(
-      AV.agents.map(a => [a.id, { enabled: true, review: a.status === 'review' || a.conf < 80 }]),
+      agents.map(a => [a.id, { enabled: true, review: a.status === 'review' || a.conf < 80 }]),
     ),
   );
 
@@ -502,7 +503,7 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
                     <span style={{ width: 70, textAlign: 'right' }}>{t('set.colActive')}</span>
                   </div>
                   <div className="col" style={{ gap: 0 }}>
-                    {AV.agents.map(a => (
+                    {agents.map(a => (
                       <div key={a.id} className="row" style={{ padding: '11px 4px', borderTop: '1px solid var(--border-soft)', alignItems: 'center' }}>
                         <span className="row" style={{ gap: 10, flex: 2, minWidth: 0 }}>
                           <AgentAvatar id={a.id} size={28} />

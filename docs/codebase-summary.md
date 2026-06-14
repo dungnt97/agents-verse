@@ -4,100 +4,129 @@ A high-level map of the codebase for engineer/LLM onboarding. Factual, grounded 
 
 ## What This Project Is
 
-Agents Verse is a frontend prototype for an autonomous, demo-first web agency — an AI-workforce SaaS concept. The product narrative: an AI workforce of 11 specialized agents operating across 8 virtual departments ("rooms") finds local businesses with outdated websites, audits them, generates live redesign demos, and prepares outreach, all before human intervention. The founder retains control through escalation gates, autonomy modes, and cost/outreach guardrails.
+Agents Verse is a **full-stack SaaS** for autonomous, demo-first web agency operations. An AI workforce of 11 specialized agents operating across 8 virtual departments ("rooms") finds local businesses with outdated websites, audits them, generates live redesign demos, and prepares outreach. The founder retains control through escalation gates, autonomy modes, and cost/outreach guardrails.
 
-The public landing page positions the offering against traditional agencies: instead of weeks of discovery and proposals, a prospect sees a working redesign demo within ~48 hours. Inside the authenticated workspace, a CEO-style operator reviews escalations, approves deals, and oversees the agent floor.
+**Architecture:**
+- **Frontend:** Next.js 16 + React 19 + TypeScript (Sets 1 & 2 live)
+- **Backend:** Self-hosted PostgreSQL 17 (docker-compose `db` service) + Drizzle ORM + Better Auth
+- **Dual-mode runtime:** `USE_DB=false` (demo, mock data in localStorage) or `USE_DB=true` (production, Postgres)
+- **Lead discovery:** Google Places API (2-phase: Pro search → optional Enterprise enrichment)
+- **Deployment:** Docker Compose on a single VPS (app `web` + Postgres `db`) + reverse proxy
 
-All data is mock/seed data held in browser globals. There is no backend, no network fetches, and no persistence beyond `localStorage`.
+App builds and runs with zero credentials (demo mode on by default). Production requires the `db` Postgres service (POSTGRES_* + DATABASE_URL), a Better Auth secret, and (optionally) a Google Maps API key.
 
-## Run Model (Buildless)
+## Run Model (Next.js + React Server Components)
 
-This is a buildless single-page app. There is no `package.json`, no bundler, no ES modules, no TypeScript, and no test framework. Files are flat in the repo root. The app runs by serving the directory with any static file server and opening `index.html`.
+Next.js 16 App Router with TypeScript. No legacy buildless code is used at runtime.
 
-`index.html` loads, from CDN (unpkg, pinned with SRI hashes):
+**Demo mode (default, no credentials required):**
+```bash
+cp .env.example .env.local
+npm run dev   # http://localhost:3000
+# All data flows from mock AV singleton (lib/data/index.ts) → localStorage
+```
 
-- React 18.3.1 UMD (`react.development.js`)
-- ReactDOM 18.3.1 UMD (`react-dom.development.js`)
-- Babel Standalone 7.29.0 (`babel.min.js`)
+**Production mode (requires credentials):**
+```bash
+# .env.local must include:
+POSTGRES_USER=agentsverse
+POSTGRES_PASSWORD=<strong>     # openssl rand -base64 32
+POSTGRES_DB=agentsverse
+DATABASE_URL=postgresql://agentsverse:<strong>@db:5432/agentsverse  # single direct URL (app+migrations+seed)
+BETTER_AUTH_SECRET=<32-byte hex>
+GOOGLE_MAPS_API_KEY=<key>     # Optional, for lead discovery
+USE_DB=true                   # Enable Postgres
+docker compose up -d --build  # web + db; or host dev with localhost:5432
+```
 
-Each `.jsx` file is a separate `<script type="text/babel">` transpiled in-browser at runtime; each runs in its own scope. Because there are no imports/exports, modules communicate exclusively through `window` globals:
+**Docker deployment:**
+```bash
+docker compose up
+# Entrypoint runs: migrate → seed → start
+# Requires env vars in .env file
+```
 
-- React hooks are aliased to globals in a bootstrap `<script>`: `window.useState`, `useEffect`, `useRef`, `useCallback`, `useMemo`, `useLayoutEffect`.
-- `data*.js` are plain JS that build the `window.AV` namespace.
-- Every `.jsx` ends with `Object.assign(window, { ... })` to publish its components.
+### Build & Verification
 
-A `MutationObserver` in `index.html` watches `#root` for first child render, then fades and removes the `#boot` splash overlay.
+- **Typecheck:** `npm run typecheck` (tsc --noEmit, strict mode)
+- **Build:** `npm run build` (Next.js standalone; all routes dynamic SSR)
+- **Dev:** `npm run dev` (Turbopack on :3000)
+- **Lint:** `npm run lint` (ESLint 9)
 
-### Load Order (from index.html)
+All 13 workspace + 4 public routes are **dynamic** (no static export) because `app/layout.tsx` reads cookies on the server.
 
-1. React UMD → ReactDOM UMD → Babel Standalone → hook-aliasing script
-2. Data: `data.js` → `data2.js` → `data3.js` → `data4.js` (each extends `window.AV`)
-3. Primitives: `brand.jsx` → `components.jsx` → `i18n.jsx` → `site-mock.jsx` → `floor-map.jsx`
-4. Landing: `landing-sections.jsx` → `landing-sections2.jsx` → `landing.jsx`
-5. App screens: `app-shell.jsx` → `floor-overview.jsx` → `command.jsx` → `rooms.jsx` → `agents.jsx` → `pipeline.jsx` → `audit.jsx` → `demos.jsx` → `deals.jsx` → `settings.jsx` → `activity.jsx` → `requests.jsx` → `pages.jsx` → `auth.jsx` → `chat.jsx`
-6. Root: `app.jsx`
+## Architecture & Conventions (Next.js + Dual-Mode)
 
-Load order matters: data and primitives must publish their globals before screens reference them, and `app.jsx` (the root) loads last.
+- **App Router.** Next.js 16 with `app/` directory. Routes are `.tsx` files with TypeScript strict mode. Route groups organize marketing (`/(marketing)`) and workspace (`/(workspace)`) screens.
+- **Dual-mode data access.** Data flows from mock `AV` singleton (`lib/data/index.ts`) when `USE_DB=false`, or from Postgres via Drizzle repositories when `USE_DB=true`. Components remain agnostic.
+- **Server Components by default.** Workspace layout is an RSC; child routes are client components (marked `'use client'`). Auth check happens in RSC via `getCurrentUser()`.
+- **React Context for state.** Theme, language, auth, toast, workspace mode/requests/leads flow via providers (`lib/providers/`). No Redux/Zustand; localStorage persists across sessions (theme, lang, mode, requests, leads).
+- **Server Actions for mutations.** Create/update/delete operations live in `lib/actions/` and guard auth server-side.
+- **Styling.** CSS custom-property design system in `styles/globals.css` (tokens for color, shadow, radius, typography, layout) plus utility classes (`.btn`, `.card`, `.badge`, `.row/.col`); inline `style={{}}` objects throughout. Fonts: Hanken Grotesk (sans) and JetBrains Mono (mono) via Google Fonts. Primary color is orange. No Tailwind.
+- **i18n.** Dictionary keys in `lib/i18n/keys/*.ts` (en + vi); merged in `I18nProvider`. Components call `t('ns.key')` to get translation. Strings are kept in English for code/UI; proper nouns/market data stay English always.
+- **Naming.** Kebab-case filenames (`marketing-frame.tsx`, `floor-overview.tsx`); TypeScript interfaces for types. File size target: <200 LOC per file.
+- **No extra libraries.** No state library, no date library, no animation library. CSS `@keyframes` + CSS transitions for motion.
 
-## Architecture & Conventions
+## File Inventory (Next.js Structure)
 
-- **Window-global module pattern.** No imports/exports. Components and data are published onto `window` and read directly by name.
-- **State-machine routing.** `app.jsx` holds `route` + `param` and renders conditionally (`route === 'overview'`, etc.). A `go(route, param)` helper updates state and syncs to `localStorage`. Cross-screen navigation flows through callbacks passed down as props (`onNav`, `goRoom`, `goLead`, `goDemos`, etc.).
-- **Auth gate.** If unauthenticated, `app.jsx` renders the landing page or `LoginScreen`; otherwise it renders the workspace shell.
-- **localStorage keys.** `av-route`, `av-param`, `av-theme`, `av-auth`, `av-user`, `av-mode` (autonomy), `av-lang`, `av-requests`, `av-leads`.
-- **Theming.** `useTheme` writes a `data-theme` attribute on `<html>`; CSS in `styles.css` cascades light (warm ivory) vs. dark (deep graphite) via `[data-theme="dark"]`.
-- **i18n.** `i18n.jsx` holds `AV_DICT` with `en`/`vi` branches and a `t(key)` lookup that reads `window.__lang` and falls back to the English key, then the raw key string. No i18n library, no pluralization/interpolation.
-- **Styling.** A CSS custom-property design system in `styles.css` (tokens for color, shadow, radius, typography, layout) plus utility classes (`.btn`, `.card`, `.badge`, `.row/.col`, `.chip`, `.mono`); inline `style={}` objects used heavily in JSX. Fonts: Hanken Grotesk (sans) and JetBrains Mono (mono) via Google Fonts. Primary color is orange.
-- **Naming.** Kebab-case multi-word filenames (`floor-overview.jsx`, `landing-sections2.jsx`); exported function names match their feature.
-- **No state library, no date library, no fetch/axios, no animation library.** Animations are CSS keyframes/transitions plus SVG `animateMotion`.
+### App Router & Routing
+- `app/layout.tsx` — Root layout: server-side cookie read (theme, lang, auth), provider composition, dynamic rendering.
+- `app/page.tsx` — Landing page (public).
+- `app/(marketing)/[slug]/page.tsx` — 9 info pages (about, careers, contact, cases, guarantees, privacy, terms, security, status).
+- `app/login/page.tsx` — Auth gate (email/password form).
+- `app/(workspace)/layout.tsx` — Workspace shell: RSC, calls `getCurrentUser()` for auth gate, fetches directory, wraps with providers.
+- `app/(workspace)/overview/page.tsx`, `command/`, `rooms/`, `agents/`, `leads/`, `audits/[id]/`, `demos/[id]/`, `deals/[id]/`, `settings/`, `activity/`, `requests/` — 14 authenticated workspace screens (client components).
+- `app/api/auth/[...all]/route.ts` — Better Auth dynamic route handler (login, signup, session, callback).
+- `middleware.ts` — Edge middleware: cheap auth cookie check, redirects workspace routes to `/login` if missing.
 
-## File Inventory by Concern
+### Components & Primitives
+- `components/brand/` — Mark, Logo, Icon (45+ SVG icons).
+- `components/ui/` — Button, Card, Badge, Breadcrumb, etc. (reused from legacy).
+- `components/landing/` — LandingNav, Hero, HeroVisual, sections, Pricing, Footer, etc.
+- `components/marketing/` — MarketingFrame, DemoRequestModal, ContactForm, ChatWidget.
+- `components/workspace/` — Sidebar, TopBar, CommandPalette, AutonomyControl, ReviewCenter, FloorMap, Workspace shell components.
 
-### Shell / Routing
-- `index.html` — CDN script loading, hook aliasing, boot splash, data + screen load order.
-- `app.jsx` — Root component: routing state machine, `localStorage` sync, keyboard shortcuts (Cmd/Ctrl+K palette, ESC), scroll reset on nav, auth gate, screen dispatch, toasts. Wires every screen via the `go()` callback.
-- `app-shell.jsx` — Sidebar nav tree (`NAV` grouped by section), top bar, command palette (Cmd+K search), review center, autonomy mode selector, responsive mobile sidebar (`.av-sidebar.open` + `.av-backdrop`).
-- `components.jsx` — Shared hooks/primitives: `useTheme`, `useToasts` (auto-dismiss ~3.4s), `useCountUp`, `StatusBadge`, `AgentAvatar` (oklch gradient), `AvatarStack`, `ConfidenceRing`, `Sparkline`, `Reveal` (scroll animation).
-- `brand.jsx` — `Mark` (orange "A" monogram), `Logo`, `Icon` (45+ line SVG icons, 18px default, strokeWidth 1.6).
+### Data & Repositories
+- `lib/data/` — Types + mock singleton:
+  - `types.ts` — Room, Agent, Lead, Audit, Demo, Deal, Request interfaces.
+  - `index.ts` — `AV` singleton (rooms, agents, leads, metrics, escalations, activity, demos, deals, requests, helpers).
+  - `format.ts` — Formatting helpers (`money`, `k`, `truncate`, etc.).
+- `lib/repositories/` — Server-only data access (dual-mode via `USE_DB`):
+  - `leads.ts`, `rooms.ts`, `agents.ts`, `audits.ts`, `demos.ts`, `deals.ts`, `requests.ts` — CRUD functions returning same types as `AV`.
+  - When `USE_DB=false`: return mock data from `AV`.
+  - When `USE_DB=true`: fetch from Postgres via Drizzle.
+- `lib/db/` — Database layer:
+  - `client.ts` — Drizzle client over a single direct connection (postgres-js client-side pool); no pooler.
+  - `schema/` — Table definitions (rooms, agents, leads, audits, demos, deals, escalations, activity, requests, demoRequests, users, sessions, etc.).
+  - `seed.ts` — Idempotent seed with founder creation via Better Auth.
+- `lib/discovery/` — Lead discovery (Google Places API):
+  - `places-fetcher.ts` — HTTP fetch with field masks.
+  - `dedup.ts` — Deduplication by composite key.
+  - `cheerio-scraper.ts` — Email extraction from websites.
 
-### Core Screens (the polished "design-bar" workspace)
-- `floor-overview.jsx` — Founder command dashboard: headline metric strip, `FloorMap` visualization, escalation queue (`EscalationMini`), live activity feed, `RoomPeek` drill-down drawer, reusable `MetricStat`.
-- `command.jsx` — CEO escalation review: headline metrics, expandable `EscalationCard` queue (human/deal/cost), revenue/cost trend chart, today's AI work stats, recommended actions, system health, top agents by quality.
-- `floor-map.jsx` — Animated spatial schematic of 8 rooms on a floorplan; workflow path drawn as a Catmull-Rom spline with animated "packet" circles and a dashed CEO→Design oversight link; `RoomNode` buttons with hover/selection states.
-- `rooms.jsx` — `RoomsIndex` (filterable/sortable grid of room cards) and `RoomDetail` (metrics strip, projects with progress, agents, timeline, `DemoPeek` drawer).
-- `agents.jsx` — `AgentsIndex` (grid of agent cards with confidence rings) and `AgentDetail` (skills/tools, recent outputs, task history, `FounderChat` canned-reply interface).
+### Providers & Auth
+- `lib/providers/theme.tsx` — ThemeProvider + useTheme.
+- `lib/providers/toast.tsx` — ToastProvider + useToast.
+- `lib/providers/auth.tsx` — AuthProvider + useAuth (reads cookies in demo mode, Better Auth session in DB mode).
+- `lib/providers/workspace-data.tsx` — WorkspaceDataProvider (room/agent directory cache).
+- `lib/providers/workspace-state.tsx` — WorkspaceStateProvider (mode, requests, leads; persisted to localStorage).
+- `lib/auth/server.ts` — `getCurrentUser()` (RSC-safe), `getSession()` (Better Auth when USE_DB=true).
+- `lib/auth/client.ts` — Client-side `useSession()` hook.
+- `app/providers.tsx` — Provider composition.
 
-### Business Screens (workflow)
-- `pipeline.jsx` — `LeadPipeline` kanban (Found → Audited → Demo → Contacted → Replied → Won/Lost) with drag-drop, industry/agent filters, value tracking; pipeline state persisted.
-- `audit.jsx` — `AuditScreen`: master list + detail report with current vs. redesigned scores across 8 dimensions, problems detected, suggested redesign direction.
-- `demos.jsx` — `DemoManager` + `DemoDrawer`: demo grid with before/after scores, quality checklist, key changes, AI notes, tone-selectable outreach templates.
-- `deals.jsx` — `DealsScreen` + `DealDrawer`: approval workflow, escalation flags, client-reply interpretation with AI confidence, production timeline with assets.
-- `settings.jsx` — `SettingsScreen`: brand, autonomy mode, pricing rules, outreach guardrails, escalation triggers, AI cost budgets, per-agent enable/review toggles.
-- `activity.jsx` — `ActivityScreen`: filterable/searchable timeline of all agent actions, colored dots per type, live badge.
-- `requests.jsx` — `RequestsScreen` + `DemoRequestModal`: public demo-request submission and admin inbox to triage/reply/convert-to-lead/decline.
-- `auth.jsx` — `LoginScreen`: email/password gate with pre-filled demo credentials.
-- `chat.jsx` — `ChatWidget`: bottom-right assistant with static rule-based replies (no streaming).
-- `pages.jsx` — Public marketing/info pages (About, Careers, Contact, Cases, Guarantees, Status, Privacy/Terms/Security), `ContactForm`, `CasesPage`; builds `window.INFO_PAGES`.
+### Actions & Mutations
+- `lib/actions/leads.ts` — `createLead()`, `updateLead()` (drag/drop, stage change).
+- `lib/actions/requests.ts` — `createDemoRequest()` (public), `updateDemoRequest()`, `convertToLead()`.
+- `lib/actions/settings.ts` — `setAutonomyMode()`.
+- `lib/actions/run-discovery.ts` — `runDiscovery()` (trigger Google Places + enrichment).
 
-### Landing
-- `landing.jsx` — `LandingNav` (scroll-transparent header, theme/language toggles, CTAs), `Hero`, `HeroVisual`; assembles the landing page.
-- `landing-sections.jsx` — `DifferenceSection`, `HowItWorks` (6-step timeline), `Showcase` (before/after case switcher), `InsideCompany`, `WhyWins`.
-- `landing-sections2.jsx` — `Pricing` (3 tiers), `TrustSafety` (6 guardrail cards), `FinalCTA`, `Footer`.
-- `site-mock.jsx` — `SiteMock` device wireframes (`OldSite` vs `NewSite`) used in showcases and demos.
+### i18n & Styling
+- `lib/i18n/` — `I18nProvider`, `useI18n()`, keys in `keys/*.ts` (en + vi).
+- `styles/globals.css` — CSS custom-property design system (tokens, utilities, animations, responsive breakpoints).
 
-### Data
-- `data.js` — IIFE that creates `window.AV`: `rooms`, `agents`, `leads`, `metrics`, `escalations`, `activity`, `statusMap`, `fmt`, and lookup helpers (`agentById`, `roomById`).
-- `data2.js` — Extends `AV` with detail helpers: `agentDetail`, `roomProjects`, `roomTimeline`, `roomMetrics`.
-- `data3.js` — `REDESIGN` industry templates, `SCORE_PROFILES` (8-dimension audit scores), derived `demos`, `audit()`, `demoByLead()`.
-- `data4.js` — `deals` (4 live deals with reply interpretation and production tracking) and `demoRequests` (5 inbound public requests).
+## Domain Model (from lib/data/types.ts + lib/db/schema/)
 
-### Design / i18n
-- `styles.css` — CSS custom-property design system: color/shadow/radius/typography/layout tokens; light defaults + `[data-theme="dark"]` overrides; component and utility classes; responsive breakpoints (1180/980/720px); Google Fonts `@import`.
-- `i18n.jsx` — `AV_DICT` (en/vi, ~scoped dot-notation keys), `t()` lookup, `LangToggle`, published as globals.
-
-## De-facto Domain Model (from data\*.js)
-
-Everything hangs off the single global `window.AV`. Core entities:
+Core entities are defined in `lib/data/types.ts` and mirrored in `lib/db/schema/` when `USE_DB=true`. Everything hangs off the `AV` singleton (demo mode) or Postgres tables (production). Entities:
 
 - **rooms** `[{ id, name, short, purpose, status, agents[], active, running, done, health, mission, x, y, pos }]` — 8 rooms: CEO Control, Research, Audit, Design, Code, Sales, Support, Finance. `x`/`y` (0–100) drive the floor-map layout; `status` ∈ active|idle|review|warning.
 - **agents** `[{ id, name, role, room, status, conf, tasks, quality, cost, task, hue }]` — 11 agents (e.g., "Lead Hunter Agent", "UI Designer Agent"). `status` ∈ working|idle|waiting|review|escalate; `conf`/`quality` are 0–100; `hue` colors avatars.
@@ -120,46 +149,38 @@ Everything hangs off the single global `window.AV`. Core entities:
 
 ## Key Shared Primitives
 
-| Primitive | Source | Purpose |
-|-----------|--------|---------|
-| `useTheme` | `components.jsx` | Light/dark toggle; writes `data-theme`, persists to `localStorage` |
-| `useToasts` / `pushToast` | `components.jsx` / `app.jsx` | Auto-dismissing toast notifications |
-| `useCountUp` / `CountUp` | `components.jsx` | Animated number transitions |
-| `StatusBadge` | `components.jsx` | Status pill via `AV.statusMap` |
-| `AgentAvatar` / `AvatarStack` | `components.jsx` | oklch-gradient avatars; overlapped stacks |
-| `ConfidenceRing` | `components.jsx` | Circular 0–100% SVG gauge, color-coded |
-| `Sparkline` | `components.jsx` | 7-point mini trend chart |
-| `Reveal` | `components.jsx` | Scroll-triggered reveal wrapper with delay |
-| `Icon` / `Logo` / `Mark` | `brand.jsx` | 45+ line SVG icons and brand marks |
-| `t()` / `LangToggle` | `i18n.jsx` | en/vi translation lookup and switch |
-| `SiteMock` | `site-mock.jsx` | Before/after device wireframes |
-| `FloorMap` | `floor-map.jsx` | Animated spatial room schematic |
-| `MetricStat` | `floor-overview.jsx` | Compact metric card with sparkline/meter |
+| Hook / Component | Source | Purpose |
+|-----------------|--------|---------|
+| `useTheme` | `lib/providers/theme.tsx` | Light/dark toggle; writes `data-theme` on `<html>`, persists to `av-theme` cookie |
+| `useI18n` / `t()` | `lib/i18n/` | en/vi translation lookup; reads `av-lang` cookie; call `t('ns.key')` |
+| `useToast` / `pushToast` | `lib/providers/toast.tsx` | Auto-dismissing (3.4s) toast queue |
+| `useAuth` | `lib/providers/auth.tsx` | Auth state; reads `av-auth` cookie (demo) or Better Auth session (DB) |
+| `useWorkspaceState` | `lib/providers/workspace-state.tsx` | Workspace state: mode, requests, leads (persisted to localStorage) |
+| `useWorkspaceData` | `lib/providers/workspace-data.tsx` | Room/agent directory cache (seeded by workspace layout RSC) |
+| `StatusBadge` | `components/ui/` | Status pill with color coding |
+| `AgentAvatar` / `AvatarStack` | `components/ui/` | oklch-gradient avatars; overlapped stacks |
+| `ConfidenceRing` | `components/ui/` | Circular 0–100% SVG gauge |
+| `Sparkline` | `components/ui/` | 7-point mini trend chart |
+| `Icon` / `Logo` / `Mark` | `components/brand/` | 45+ line SVG icons and brand marks |
+| `SiteMock` | `components/ui/` | Before/after device wireframes |
+| `FloorMap` | `components/workspace/` | Animated spatial room schematic |
 
-## File Table
+## Next Steps & Known Limitations
 
-| File | Concern | Role |
-|------|---------|------|
-| `index.html` | shell | CDN loads, hook aliasing, load order, boot splash |
-| `app.jsx` | shell/routing | Root: routing state machine, auth gate, screen dispatch, toasts |
-| `app-shell.jsx` | shell | Sidebar, top bar, command palette, review center, mobile nav |
-| `components.jsx` | primitives | Hooks + shared UI primitives |
-| `brand.jsx` | primitives | Icons, logo, mark |
-| `i18n.jsx` | design/i18n | `AV_DICT` en/vi, `t()`, `LangToggle` |
-| `styles.css` | design | CSS-variable design system, theming, utilities |
-| `site-mock.jsx` | primitives | Before/after site wireframes |
-| `floor-map.jsx` | core | Animated room floorplan |
-| `floor-overview.jsx` | core | Founder dashboard + escalations + activity |
-| `command.jsx` | core | Escalation review / approvals |
-| `rooms.jsx` | core | Rooms index + room detail |
-| `agents.jsx` | core | Agents index + agent detail + chat |
-| `pipeline.jsx` | business | Lead kanban pipeline |
-| `audit.jsx` | business | Website audit reports |
-| `demos.jsx` | business | Demo manager + outreach templates |
-| `deals.jsx` | business | Deal approval + production tracking |
-| `settings.jsx` | business | Brand, autonomy, pricing, guardrails, budgets |
-| `activity.jsx` | business | Cross-room activity timeline |
-| `requests.jsx` | business | Public demo requests + admin inbox |
+**Code-complete features (require credentials to run):**
+- **Database:** Drizzle ORM + 15 tables (design complete, migrations generated; apply with `npm run db:migrate` against `DATABASE_URL`)
+- **Auth:** Better Auth (setup complete, requires `BETTER_AUTH_SECRET` + Postgres to authenticate)
+- **Lead Discovery:** Google Places API 2-phase (code complete, requires `GOOGLE_MAPS_API_KEY` to execute)
+- **Docker deploy:** Standalone setup with entrypoint (design complete, requires VPS + env vars)
+
+**Future subsystems (roadmap, not in this release):**
+- **Subsystem 2:** Audit (PageSpeed Insights + Playwright + Gemini vision → 8-dimension scoring)
+- **Subsystem 3:** Demo Gen (template + Claude + Imagen/Nano → single renderer)
+- **Subsystem 4:** Outreach (Resend + approval gate + CAN-SPAM compliance)
+- **Subsystem 5:** Deal/CRM (reply interpreter + escalation + production timeline)
+- **Inngest integration:** Background job queue (deferred; discovery currently synchronous)
+
+**Demo data:** Seed includes 8 leads (dentists in Austin, TX) + 11 agents + 4 rooms + 5 demo requests + 4 deals. Fully functional UI with mock state; no network calls.
 | `auth.jsx` | business | Login gate |
 | `chat.jsx` | business | Assistant chat widget (rule-based) |
 | `pages.jsx` | landing/info | Public marketing/legal pages, `INFO_PAGES` |

@@ -12,8 +12,9 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { ConfidenceRing } from '@/components/ui/confidence-ring';
 import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n';
-import { AV } from '@/lib/data';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { ROOM_ICON } from '@/components/floor-map';
+import type { Agent } from '@/lib/data/types';
 import { EmptyState } from '@/components/workspace/rooms/rooms-index';
 // Side-effect import: merges rooms.* + agents.* keys into AV_DICT
 import '@/lib/i18n/keys/rooms-agents';
@@ -54,9 +55,10 @@ interface AgentCardProps {
 
 function AgentCard({ id, onOpen, onRoom }: AgentCardProps) {
   const { t } = useI18n();
-  const a = AV.agentById(id)!;
+  const { agentById, roomById } = useWorkspaceData();
+  const a = agentById(id)!;
   const [hover, setHover] = useState(false);
-  const room = AV.roomById(a.room)!;
+  const room = roomById(a.room)!;
   return (
     <div
       onMouseEnter={() => setHover(true)}
@@ -108,7 +110,7 @@ function AgentCard({ id, onOpen, onRoom }: AgentCardProps) {
 /* -------------------------------------------------------------------------
    Filter / sort maps — internal English keys drive logic; labels are t()-resolved
    ------------------------------------------------------------------------- */
-type AgentData = NonNullable<ReturnType<typeof AV.agentById>>;
+type AgentData = Agent;
 
 const STAT_KEYS = ['All', 'Working', 'Needs review', 'Waiting', 'Escalating', 'Idle'] as const;
 const STAT: Record<string, (a: AgentData) => boolean> = {
@@ -154,19 +156,20 @@ export interface AgentsIndexProps {
 
 export function AgentsIndex({ onOpen, onRoom }: AgentsIndexProps) {
   const { t } = useI18n();
+  const { agents, rooms, roomById } = useWorkspaceData();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('All');
   const [roomF, setRoomF] = useState('All rooms');
   const [sort, setSort] = useState('Top quality');
 
-  let list = AV.agents
+  let list = agents
     .filter(STAT[status])
-    .filter(a => roomF === 'All rooms' || AV.roomById(a.room)?.name === roomF)
+    .filter(a => roomF === 'All rooms' || roomById(a.room)?.name === roomF)
     .filter(a => (a.name + a.role).toLowerCase().includes(q.toLowerCase()));
   list = [...list].sort(SORT[sort]);
 
-  const avgConf = Math.round(AV.agents.reduce((s, a) => s + a.conf, 0) / AV.agents.length);
-  const needReview = AV.agents.filter(a => a.status === 'review' || a.status === 'escalate').length;
+  const avgConf = Math.round(agents.reduce((s, a) => s + a.conf, 0) / agents.length);
+  const needReview = agents.filter(a => a.status === 'review' || a.status === 'escalate').length;
 
   return (
     <div style={{ padding: '26px 28px 60px', maxWidth: 1480, margin: '0 auto' }}>
@@ -201,7 +204,7 @@ export function AgentsIndex({ onOpen, onRoom }: AgentsIndexProps) {
         <div className="row" style={{ gap: 8 }}>
           <select value={roomF} onChange={e => setRoomF(e.target.value)} className="focusable" style={{ height: 38, padding: '0 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 13.5, color: 'var(--ink)', fontWeight: 500 }}>
             <option value="All rooms">{t('agents.allRoomsOption')}</option>
-            {AV.rooms.filter(r => r.id !== 'ceo').map(r => <option key={r.id}>{r.name}</option>)}
+            {rooms.filter(r => r.id !== 'ceo').map(r => <option key={r.id}>{r.name}</option>)}
           </select>
           <select value={sort} onChange={e => setSort(e.target.value)} className="focusable" style={{ height: 38, padding: '0 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 13.5, color: 'var(--ink)', fontWeight: 500 }}>
             {SORT_KEYS.map(s => <option key={s} value={s}>{t(SORT_I18N[s])}</option>)}

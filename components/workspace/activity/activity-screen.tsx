@@ -1,35 +1,40 @@
 /* =========================================================================
    AGENTS VERSE — ActivityScreen
    Port of activity.jsx → TypeScript / Next.js 'use client'.
-   Reads AV.activity (static seed); filter chips + search box narrow the
-   timeline list. goAgent / goRoom callbacks drive router navigation from
-   the page layer.
+   Receives activity[] as a prop (server-fetched by page.tsx). Filter chips
+   + search box narrow the timeline list. Router navigation and toast are
+   wired internally via useRouter / useToast.
    ========================================================================= */
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { useI18n } from '@/lib/i18n/i18n-provider';
-import { AV } from '@/lib/data';
-import type { ToastKind } from '@/lib/providers/toast-provider';
+import { useToast } from '@/lib/providers/toast-provider';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
+import type { ActivityItem } from '@/lib/data/types';
 
 /* -------------------------------------------------------------------------
    Prop types
    ------------------------------------------------------------------------- */
 
 export interface ActivityScreenProps {
-  onAction: (msg: string, kind?: ToastKind) => void;
-  goAgent?: (id: string) => void;
-  goRoom?: (id: string) => void;
+  activity: ActivityItem[];
 }
 
 /* -------------------------------------------------------------------------
    ActivityScreen
    ------------------------------------------------------------------------- */
 
-export function ActivityScreen({ onAction, goAgent, goRoom }: ActivityScreenProps) {
+export function ActivityScreen({ activity }: ActivityScreenProps) {
   const { t } = useI18n();
+  const router = useRouter();
+  const onAction = useToast();
+  const { agentById, roomById } = useWorkspaceData();
+  const goAgent = (id: string) => router.push('/agents/' + id);
+  const goRoom = (id: string) => router.push('/rooms/' + id);
 
   /* ACT_TYPE: labels resolved via t() so badges switch language at runtime.
      The map is rebuilt inside the component so t() is in scope. */
@@ -69,14 +74,14 @@ export function ActivityScreen({ onAction, goAgent, goRoom }: ActivityScreenProp
     Cost: 'cost', Production: 'production',
   };
 
-  const list = AV.activity.filter(a =>
+  const list = activity.filter(a =>
     (filter === 'All' || a.type === FMAP[filter]) &&
-    (a.text + (AV.agentById(a.agent)?.name || '') + (AV.roomById(a.room)?.name || ''))
+    (a.text + (agentById(a.agent)?.name || '') + (roomById(a.room)?.name || ''))
       .toLowerCase().includes(q.toLowerCase()),
   );
 
   // Count per type for chip badges
-  const counts = AV.activity.reduce<Record<string, number>>((m, a) => {
+  const counts = activity.reduce<Record<string, number>>((m, a) => {
     m[a.type] = (m[a.type] || 0) + 1;
     return m;
   }, {});
@@ -108,7 +113,7 @@ export function ActivityScreen({ onAction, goAgent, goRoom }: ActivityScreenProp
         <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
           {FILTERS.map(f => {
             const typeKey = FMAP[f.key];
-            const c = f.key === 'All' ? AV.activity.length : (counts[typeKey] || 0);
+            const c = f.key === 'All' ? activity.length : (counts[typeKey] || 0);
             return (
               <button
                 key={f.key}
@@ -150,8 +155,8 @@ export function ActivityScreen({ onAction, goAgent, goRoom }: ActivityScreenProp
             <div className="eyebrow" style={{ padding: '14px 0 6px' }}>{t('act.today')}</div>
             {list.map((a, i) => {
               const tType = ACT_TYPE[a.type] || ACT_TYPE.lead;
-              const ag = AV.agentById(a.agent);
-              const room = AV.roomById(a.room);
+              const ag = agentById(a.agent);
+              const room = roomById(a.room);
               return (
                 <div key={i} className="row" style={{ gap: 16, alignItems: 'stretch' }}>
                   {/* Time + vertical rail */}

@@ -40,8 +40,14 @@ Always run `npm run typecheck` (and ideally `npm run build`) after changing `.ts
 
 Root `index.html`, `*.jsx`, `data*.js`, `styles.css` are the **original buildless prototype**, retained for reference. They are **not** part of the Next.js build (only `app/` defines routes). Don't edit or delete them unless explicitly asked.
 
+## Plan language (MANDATORY)
+
+- **All plan files MUST be written in Vietnamese** — everything under `./plans/` (`plan.md`, `phase-XX-*.md`, research/reports `*.md`). Prose, headings, descriptions, todo items, success criteria → Tiếng Việt.
+- **Keep in English** (do NOT translate): code, identifiers, file/dir paths, commands, type/field names, API/library names, proper nouns, and code-block contents. Only the surrounding narrative prose is Vietnamese.
+- This applies to plans authored directly and by any delegated `planner`/`researcher` subagent — pass this instruction along when spawning them.
+
 ## Where things live
 
 - Docs: `./docs/` (codebase-summary, system-architecture, code-standards, journals)
-- Plans: `./plans/` (the two migration plans + reports)
+- Plans: `./plans/` (**written in Vietnamese** — see "Plan language" above)
 - ClaudeKit workflow rules: `./.claude/rules/`

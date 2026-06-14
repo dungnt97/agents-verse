@@ -6,11 +6,13 @@
    ========================================================================= */
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { AvatarStack } from '@/components/ui/agent-avatar';
 import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n';
-import { AV } from '@/lib/data';
+import { statusMap } from '@/lib/data/format';
+import type { Room } from '@/lib/data/types';
 import { ROOM_ICON } from '@/components/floor-map';
 // Side-effect import: merges rooms.* + agents.* keys into AV_DICT
 import '@/lib/i18n/keys/rooms-agents';
@@ -102,7 +104,7 @@ export function EmptyState({ icon, title, sub, action }: { icon: string; title: 
    RoomCard — single room tile in the grid
    ------------------------------------------------------------------------- */
 interface RoomCardProps {
-  room: ReturnType<typeof AV.roomById> & object;
+  room: Room;
   onOpen: (id: string) => void;
   onAgent: (id: string) => void;
 }
@@ -110,11 +112,10 @@ interface RoomCardProps {
 function RoomCard({ room, onOpen, onAgent }: RoomCardProps) {
   const { t } = useI18n();
   const [hover, setHover] = useState(false);
-  const sm = AV.statusMap[room.status];
+  const sm = statusMap[room.status];
   const attention = room.status === 'review' || room.status === 'warning';
-  const lastAct = AV.activity.find(a => a.room === room.id);
-  // lastAct referenced to mirror source — currently only used in legacy; kept for parity
-  void lastAct;
+  // onAgent prop is threaded through for future use (e.g. clicking agent avatars)
+  void onAgent;
   return (
     <div
       onMouseEnter={() => setHover(true)}
@@ -161,15 +162,13 @@ function RoomCard({ room, onOpen, onAgent }: RoomCardProps) {
 /* -------------------------------------------------------------------------
    Sort helpers — attention rank mirrors original attRank()
    ------------------------------------------------------------------------- */
-type RoomData = NonNullable<ReturnType<typeof AV.roomById>>;
-
-function attRank(r: RoomData): number {
+function attRank(r: Room): number {
   return r.status === 'warning' ? 3 : r.status === 'review' ? 2 : r.status === 'active' ? 1 : 0;
 }
 
 // Internal keys (English) used for filter/sort logic — labels are t()-resolved in the component
 const FILT_KEYS = ['All', 'Active', 'Needs review', 'Warning', 'Idle'] as const;
-const FILT: Record<string, (r: RoomData) => boolean> = {
+const FILT: Record<string, (r: Room) => boolean> = {
   'All':          () => true,
   'Active':       r => r.status === 'active',
   'Needs review': r => r.status === 'review',
@@ -178,7 +177,7 @@ const FILT: Record<string, (r: RoomData) => boolean> = {
 };
 
 const SORT_KEYS = ['Needs attention', 'Most active', 'Highest output', 'Lowest health'] as const;
-const SORT: Record<string, (a: RoomData, b: RoomData) => number> = {
+const SORT: Record<string, (a: Room, b: Room) => number> = {
   'Needs attention': (a, b) => attRank(b) - attRank(a),
   'Most active':     (a, b) => b.running - a.running,
   'Highest output':  (a, b) => b.done - a.done,
@@ -203,23 +202,25 @@ const SORT_I18N: Record<string, string> = {
 
 /* -------------------------------------------------------------------------
    RoomsIndex — exported screen component
+   Receives pre-fetched rooms from the Server Component page.
+   Router is wired internally since the page no longer needs 'use client'.
    ------------------------------------------------------------------------- */
 export interface RoomsIndexProps {
-  onOpen: (id: string) => void;
-  onAgent: (id: string) => void;
+  rooms: Room[];
 }
 
-export function RoomsIndex({ onOpen, onAgent }: RoomsIndexProps) {
+export function RoomsIndex({ rooms: allRooms }: RoomsIndexProps) {
   const { t } = useI18n();
+  const router = useRouter();
   const [q, setQ] = useState('');
   const [active, setActive] = useState('All');
   const [sort, setSort] = useState('Needs attention');
 
-  let rooms = AV.rooms.filter(FILT[active]).filter(r => (r.name + r.purpose).toLowerCase().includes(q.toLowerCase()));
+  let rooms = allRooms.filter(FILT[active]).filter(r => (r.name + r.purpose).toLowerCase().includes(q.toLowerCase()));
   rooms = [...rooms].sort(SORT[sort]);
 
-  const activeCount = AV.rooms.filter(r => r.status === 'active').length;
-  const attn = AV.rooms.filter(r => r.status === 'review' || r.status === 'warning').length;
+  const activeCount = allRooms.filter(r => r.status === 'active').length;
+  const attn = allRooms.filter(r => r.status === 'review' || r.status === 'warning').length;
 
   const filterChips = FILT_KEYS.map(k => ({ key: k, label: t(FILT_I18N[k]) }));
   const sortChips   = SORT_KEYS.map(k => ({ key: k, label: t(SORT_I18N[k]) }));
@@ -250,7 +251,7 @@ export function RoomsIndex({ onOpen, onAgent }: RoomsIndexProps) {
       {rooms.length === 0
         ? <EmptyState icon="rooms" title={t('rooms.emptyTitle')} sub={`${t('rooms.emptySubPrefix')}${q || active}${t('rooms.emptySubSuffix')}`} />
         : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(330px,1fr))', gap: 18 }}>
-            {rooms.map(r => <RoomCard key={r.id} room={r} onOpen={onOpen} onAgent={onAgent} />)}
+            {rooms.map(r => <RoomCard key={r.id} room={r} onOpen={id => router.push('/rooms/' + id)} onAgent={id => router.push('/agents/' + id)} />)}
           </div>}
     </div>
   );

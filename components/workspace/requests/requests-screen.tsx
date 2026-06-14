@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { Icon } from '@/components/brand/icon';
 import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n/i18n-provider';
-import { AV } from '@/lib/data';
+import { REQ_STATUS, hueFor } from '@/lib/data/format';
 import type { DemoRequest } from '@/lib/data/types';
 import type { ToastKind } from '@/lib/providers/toast-provider';
 
@@ -82,8 +82,8 @@ function OverviewBand({ items }: { items: BandItem[] }) {
 
 function RequestCard({ r, onAction, onConvert, onUpdate }: RequestCardProps) {
   const { t } = useI18n();
-  const st = AV.REQ_STATUS[r.status] ?? AV.REQ_STATUS.new;
-  const hue = AV.hueFor(r.industry);
+  const st = REQ_STATUS[r.status] ?? REQ_STATUS.new;
+  const hue = hueFor(r.industry);
 
   return (
     <div
@@ -196,7 +196,7 @@ export function RequestsScreen({
   ];
 
   const list = requests.filter(r =>
-    (filter === 'All' || AV.REQ_STATUS[r.status]?.label === filter) &&
+    (filter === 'All' || REQ_STATUS[r.status]?.label === filter) &&
     (r.business + r.name + r.email + r.industry).toLowerCase().includes(q.toLowerCase()),
   );
 

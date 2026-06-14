@@ -1,0 +1,50 @@
+# Agents Verse — single-VPS compose: Next app ('web') + self-hosted Postgres ('db').
+# Both run on the default internal compose network. Postgres is NOT published to the host
+# (no `ports:` on db) — only `web` reaches it via the service DNS name `db:5432`.
+#
+# Secrets live in .env.local (git-ignored, chmod 600 on the VPS), loaded via env_file:
+#   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+#   DATABASE_URL=postgresql://<POSTGRES_USER>:<POSTGRES_PASSWORD>@db:5432/<POSTGRES_DB>
+#   BETTER_AUTH_SECRET, BETTER_AUTH_URL, FOUNDER_EMAIL, FOUNDER_PASSWORD, GOOGLE_MAPS_API_KEY, ...
+# Put a reverse proxy (Caddy/Nginx) in front of `web` to terminate TLS (omitted — use your edge).
+services:
+  db:
+    image: postgres:17-alpine
+    # No `ports:` — Postgres stays on the internal network only (not reachable from host/Internet).
+    env_file:
+      - .env.local            # provides POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      # pg_isready ships in the image; gate `web` start on the cluster accepting connections.
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s        # covers first-boot initdb before marking unhealthy
+
+  web:
+    build:
+      context: .
+    env_file:
+      - .env.local             # DATABASE_URL now points at db:5432
+    environment:
+      USE_DB: "true"
+    depends_on:
+      db:
+        condition: service_healthy   # don't start web until Postgres healthcheck passes
+    ports:
+      - "3000:3000"            # behind your reverse proxy; bind "127.0.0.1:3000:3000" if proxy is on-host
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s       # entrypoint runs wait-for-db -> migrate -> seed (scrypt) before listening
+
+volumes:
+  pgdata:

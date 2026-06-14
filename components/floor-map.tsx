@@ -7,7 +7,8 @@
 'use client';
 
 import { useState } from 'react';
-import { AV } from '@/lib/data';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
+import { statusMap } from '@/lib/data/format';
 import { Icon } from '@/components/brand/icon';
 import { AvatarStack } from '@/components/ui/agent-avatar';
 import type { Room } from '@/lib/data/types';
@@ -37,7 +38,7 @@ export interface FloorMapProps {
 }
 
 export function FloorMap({ compact = false, selected, onRoom, onAgent, height }: FloorMapProps) {
-  const rooms = AV.rooms;
+  const { rooms } = useWorkspaceData();
   const byId = Object.fromEntries(rooms.map(r => [r.id, r]));
   const flowPts = WORKFLOW.map(id => ({ x: byId[id].x, y: byId[id].y }));
   const pathD = smoothPath(flowPts);
@@ -114,7 +115,7 @@ interface RoomNodeProps {
 
 function RoomNode({ room, compact, selected, onClick, onAgent: _onAgent }: RoomNodeProps) {
   const [hover, setHover] = useState(false);
-  const sm = AV.statusMap[room.status];
+  const sm = statusMap[room.status];
   const w = compact ? 116 : 168;
   const live = room.status === 'active';
   const attention = room.status === 'review' || room.status === 'warning';

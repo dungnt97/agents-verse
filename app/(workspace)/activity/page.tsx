@@ -1,17 +1,9 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
 import { ActivityScreen } from '@/components/workspace/activity/activity-screen';
-import { useToast } from '@/lib/providers/toast-provider';
+import { getActivity } from '@/lib/repositories/ops';
 
-export default function ActivityPage() {
-  const router = useRouter();
-  const onAction = useToast();
-  return (
-    <ActivityScreen
-      onAction={onAction}
-      goAgent={(id) => router.push('/agents/' + id)}
-      goRoom={(id) => router.push('/rooms/' + id)}
-    />
-  );
+// Server Component — fetches activity feed and passes to the client screen.
+// Router navigation and toast are wired inside ActivityScreen via useRouter/useToast.
+export default async function ActivityPage() {
+  const activity = await getActivity();
+  return <ActivityScreen activity={activity} />;
 }

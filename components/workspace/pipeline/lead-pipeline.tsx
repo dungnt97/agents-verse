@@ -6,10 +6,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { usePipelineAuditT } from '@/lib/i18n/keys/pipeline-audit';
-import { AV } from '@/lib/data';
+import { fmt, hueFor } from '@/lib/data/format';
+import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
+import { useToast } from '@/lib/providers/toast-provider';
+import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { Lead } from '@/lib/data/types';
 
 /* ---- Stage metadata — colours match CSS custom properties exactly ---- */
@@ -53,6 +57,8 @@ interface LeadCardProps {
   onOpenAudit: (id: string) => void;
   onOpenDemo: (id: string) => void;
   dragging: boolean;
+  // Set built from the server-prefetched string[] for O(1) has() lookups
+  demoLeadSet: Set<string>;
   dragProps: {
     draggable: boolean;
     onDragStart: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -60,10 +66,11 @@ interface LeadCardProps {
   };
 }
 
-function LeadCard({ lead, stage, onMove, onAction, onOpenAudit, onOpenDemo, dragging, dragProps }: LeadCardProps) {
+function LeadCard({ lead, stage, onMove, onAction, onOpenAudit, onOpenDemo, dragging, demoLeadSet, dragProps }: LeadCardProps) {
   const { t } = usePipelineAuditT();
+  const { agentById } = useWorkspaceData();
   const next = NEXT[stage];
-  const hue = AV.hueFor(lead.industry);
+  const hue = hueFor(lead.industry);
   return (
     <div {...dragProps} className="card" style={{ padding:13, cursor:'grab', userSelect:'none', opacity: dragging?0.4:1,
       boxShadow:'var(--sh-xs)', transition:'opacity .15s, box-shadow .15s, transform .15s' }}
@@ -74,7 +81,7 @@ function LeadCard({ lead, stage, onMove, onAction, onOpenAudit, onOpenDemo, drag
           <span style={{ width:8, height:8, borderRadius:99, background:`oklch(0.62 0.14 ${hue})`, flex:'none' }} />
           <span style={{ fontSize:13.5, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{lead.company}</span>
         </span>
-        <span className="mono" style={{ fontSize:12, fontWeight:600, color:'var(--success)' }}>{AV.fmt.k(lead.value)}</span>
+        <span className="mono" style={{ fontSize:12, fontWeight:600, color:'var(--success)' }}>{fmt.k(lead.value)}</span>
       </div>
       <div className="row" style={{ gap:6, marginBottom:11, fontSize:11.5, color:'var(--ink-3)', whiteSpace:'nowrap', overflow:'hidden' }}>
         <span style={{flex:'none'}}>{lead.industry}</span>
@@ -88,7 +95,7 @@ function LeadCard({ lead, stage, onMove, onAction, onOpenAudit, onOpenDemo, drag
       <div className="row between" style={{ paddingTop:10, borderTop:'1px solid var(--border-soft)' }}>
         <span className="row" style={{ gap:7 }}>
           <AgentAvatar id={lead.agent} size={22} />
-          <span style={{ fontSize:11.5, color:'var(--ink-3)' }}>{AV.agentById(lead.agent)?.name}</span>
+          <span style={{ fontSize:11.5, color:'var(--ink-3)' }}>{agentById(lead.agent)?.name}</span>
         </span>
         {stage!=='lost' && next && (
           <button className="btn btn-soft btn-sm" style={{ height:26, fontSize:11.5, padding:'0 9px' }}
@@ -100,7 +107,7 @@ function LeadCard({ lead, stage, onMove, onAction, onOpenAudit, onOpenDemo, drag
       {(['audited','demo','contacted','replied','won'].includes(stage)) && (
         <div className="row" style={{ gap:12, marginTop:9 }}>
           <button onClick={()=>onOpenAudit(lead.id)} style={{ fontSize:11.5, color:'var(--primary)', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0 }}>{t('leads.cardAudit')}</button>
-          {AV.demoByLead(lead.id) && (
+          {demoLeadSet.has(lead.id) && (
             <button onClick={()=>onOpenDemo(lead.id)} style={{ fontSize:11.5, color:'var(--primary)', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0 }}>{t('leads.cardDemo')}</button>
           )}
         </div>
@@ -112,14 +119,21 @@ function LeadCard({ lead, stage, onMove, onAction, onOpenAudit, onOpenDemo, drag
 /* ---- LeadPipeline ---- */
 
 export interface LeadPipelineProps {
-  onAction: (msg: string, kind?: string) => void;
-  onOpenAudit: (id: string) => void;
-  onOpenDemo: (id: string) => void;
-  leads?: Lead[];
+  // Serializable array from Server Component; converted to Set inside this component
+  demoLeadIds?: string[];
 }
 
-export function LeadPipeline({ onAction, onOpenAudit, onOpenDemo, leads = AV.leads }: LeadPipelineProps) {
+export function LeadPipeline({ demoLeadIds = [] }: LeadPipelineProps) {
+  // Build Set once at render time for O(1) has() in LeadCard
+  const demoLeadSet = new Set(demoLeadIds);
   const { t } = usePipelineAuditT();
+  const { agentById } = useWorkspaceData();
+  const router = useRouter();
+  const onAction = useToast();
+  const { leads } = useWorkspaceState();
+
+  const onOpenAudit = (id: string) => router.push('/audits?lead=' + id);
+  const onOpenDemo  = (id: string) => router.push('/demos?lead=' + id);
 
   /* Stage placement — persisted to localStorage. Initialised from lead.stage,
      then overridden by any saved user moves. */
@@ -157,12 +171,12 @@ export function LeadPipeline({ onAction, onOpenAudit, onOpenDemo, leads = AV.lea
   const move = (id: string, stage: string) => setPlace(p => ({ ...p, [id]: stage }));
 
   const industries = [ALL_INDUSTRIES_EN, ...Array.from(new Set(leads.map(l => l.industry)))];
-  const agentNames = [ALL_AGENTS_EN, ...Array.from(new Set(leads.map(l => AV.agentById(l.agent)?.name).filter(Boolean) as string[]))];
+  const agentNames = [ALL_AGENTS_EN, ...Array.from(new Set(leads.map(l => agentById(l.agent)?.name).filter(Boolean) as string[]))];
 
   const visible = leads.filter(l =>
     (l.company + l.url).toLowerCase().includes(q.toLowerCase()) &&
     (ind === ALL_INDUSTRIES_EN || l.industry === ind) &&
-    (agentF === ALL_AGENTS_EN || AV.agentById(l.agent)?.name === agentF)
+    (agentF === ALL_AGENTS_EN || agentById(l.agent)?.name === agentF)
   );
 
   const colLeads = (stage: string) => visible.filter(l => (place[l.id] || l.stage) === stage);
@@ -178,7 +192,7 @@ export function LeadPipeline({ onAction, onOpenAudit, onOpenDemo, leads = AV.lea
         <div className="row" style={{ gap:18 }}>
           <div>
             <div style={{ fontSize:11.5, color:'var(--ink-3)' }}>{t('leads.openPipeline')}</div>
-            <div style={{ fontSize:22, fontWeight:600, letterSpacing:'-0.02em' }} className="tabular">{AV.fmt.money(totalValue)}</div>
+            <div style={{ fontSize:22, fontWeight:600, letterSpacing:'-0.02em' }} className="tabular">{fmt.money(totalValue)}</div>
           </div>
           <div style={{ width:1, background:'var(--border)' }} />
           <div>
@@ -230,7 +244,7 @@ export function LeadPipeline({ onAction, onOpenAudit, onOpenDemo, leads = AV.lea
                   <span style={{ fontSize:13, fontWeight:600 }}>{t(sm.labelKey)}</span>
                   <span className="mono" style={{ fontSize:11.5, color:'var(--ink-3)' }}>{stageleads.length}</span>
                 </span>
-                {sum > 0 && <span className="mono" style={{ fontSize:11, color:'var(--ink-3)' }}>{AV.fmt.k(sum)}</span>}
+                {sum > 0 && <span className="mono" style={{ fontSize:11, color:'var(--ink-3)' }}>{fmt.k(sum)}</span>}
               </div>
               <div style={{ padding:'0 10px 10px', display:'flex', flexDirection:'column', gap:10, flex:1, overflowY:'auto', minHeight:90 }}>
                 {stageleads.length === 0 && (
@@ -242,6 +256,7 @@ export function LeadPipeline({ onAction, onOpenAudit, onOpenDemo, leads = AV.lea
                   <LeadCard key={l.id} lead={l} stage={stage} onMove={move} onAction={onAction}
                     onOpenAudit={onOpenAudit} onOpenDemo={onOpenDemo}
                     dragging={dragging === l.id}
+                    demoLeadSet={demoLeadSet}
                     dragProps={{
                       draggable: true,
                       onDragStart: (e) => { dragId.current = l.id; setDragging(l.id); e.dataTransfer.effectAllowed = 'move'; },
