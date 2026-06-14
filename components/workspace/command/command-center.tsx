@@ -16,7 +16,7 @@ import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { fmt } from '@/lib/data/format';
-import { resolveEscalation } from '@/lib/actions/escalations';
+import { resolveEscalation, approveDealEscalation, rejectDealEscalation } from '@/lib/actions/escalations';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { Escalation } from '@/lib/data/types';
 
@@ -83,7 +83,14 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
       return;
     }
     startTransition(async () => {
-      const result = await resolveEscalation(e.id, resolution);
+      // Deal escalations resolve through the deal-aware actions so the linked deal advances
+      // (won/lost), not just the escalation status. Other kinds use the generic resolve.
+      const isDeal = e.kind === 'deal' && !!e.dealId;
+      const result = isDeal
+        ? resolution === 'resolved'
+          ? await approveDealEscalation(e.id)
+          : await rejectDealEscalation(e.id)
+        : await resolveEscalation(e.id, resolution);
       if (result.ok) {
         router.refresh();
         const msg = resolution === 'resolved' ? 'Approved · ' + e.who : 'Dismissed · ' + e.who;
@@ -129,7 +136,8 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
           <div className="row wrap" style={{ gap: 8 }}>
             <button className="btn btn-primary btn-sm" disabled={isPending} onClick={() => handleResolve('resolved')}><Icon name="check" size={15} /> {t('dash.approve')}</button>
             {e.kind === 'human' && <button className="btn btn-ghost btn-sm" onClick={() => onAction('Founder call scheduled with ' + e.who, 'success')} style={{ borderColor: 'var(--border)' }}><Icon name="clock" size={15} /> {t('dash.scheduleCall')}</button>}
-            {e.kind === 'deal' && <button className="btn btn-ghost btn-sm" onClick={() => onAction('Marked won · ' + e.who, 'success')} style={{ borderColor: 'var(--border)' }}>{t('dash.markWon')}</button>}
+            {/* For deal escalations, the primary Approve button advances the deal to won (no separate
+                cosmetic "Mark won" button — it would not actually close the deal). */}
             {e.kind === 'cost' && <button className="btn btn-ghost btn-sm" onClick={() => onAction("Today's budget raised by $20", 'success')} style={{ borderColor: 'var(--border)' }}>{t('dash.raiseBudget')}</button>}
             <button className="btn btn-ghost btn-sm" onClick={() => onAction('You took over · ' + e.who)} style={{ borderColor: 'var(--border)' }}>{t('dash.takeOver')}</button>
             <button className="btn btn-ghost btn-sm" onClick={() => onAction('Summary requested')} style={{ borderColor: 'var(--border)' }}>{t('dash.askAiSummary')}</button>
