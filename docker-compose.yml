@@ -1,0 +1,26 @@
+# Agents Verse — single-service compose for VPS.
+# Postgres is Supabase managed (external — not a service here). Put a reverse proxy
+# (Caddy/Nginx) in front of `web` to terminate TLS; omitted so you can use your existing edge.
+# Secrets (DATABASE_URL, DIRECT_URL, BETTER_AUTH_SECRET, FOUNDER_*, GOOGLE_MAPS_API_KEY) come
+# from .env.local via env_file. NEXT_PUBLIC_* build args interpolate from the shell / compose .env.
+services:
+  web:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    env_file:
+      - .env.local
+    environment:
+      USE_DB: "true"
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
