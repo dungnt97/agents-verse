@@ -1,6 +1,6 @@
 # Agents Verse — container image for VPS deploy.
-# Postgres is Supabase managed (external to this image). The runner keeps the full toolchain
-# (drizzle-kit + tsx) so the entrypoint can run migrate -> seed -> start self-contained.
+# Postgres runs as the `db` service in docker-compose (no external managed DB). The runner keeps
+# the full toolchain (drizzle-kit + tsx) so the entrypoint can run migrate -> seed -> start.
 
 # --- build stage: install all deps + produce the production build ---
 FROM node:22-bookworm-slim AS build
@@ -8,12 +8,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-# NEXT_PUBLIC_* are inlined into the client bundle at build time, so they must be present here
-# (not just at runtime). Pass via --build-arg / compose build.args.
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 RUN npm run build
 
 # --- runner stage: app + migrate/seed toolchain ---

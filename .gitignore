@@ -96,3 +96,6 @@ external/
 
 # Git worktrees (local development only)
 worktrees/
+
+# Local DB backups (scripts/backup.sh)
+backups/

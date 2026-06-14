@@ -1,18 +1,21 @@
 import { config } from 'dotenv';
 import { defineConfig } from 'drizzle-kit';
 
-// Load real values from .env.local (git-ignored). drizzle-kit only auto-loads `.env`.
+// Source of DATABASE_URL: locally from .env.local (git-ignored); in the container from the
+// compose env_file (.env.* is git/dockerignored, so .env.local won't exist in-image — dotenv
+// then no-ops and the already-injected process.env value is used, since dotenv never overwrites).
 config({ path: '.env.local' });
+config();
 
-// Migrations connect via DIRECT_URL (port 5432, direct/session) — NOT the Transaction
-// pooler the app uses. drizzle-kit needs prepared statements + session features that
-// the transaction pooler (port 6543) does not provide.
+// Migrations connect to the same self-hosted Postgres the app uses (db:5432, direct) — one
+// DATABASE_URL for app + migrations + seed. No pooler/DIRECT_URL split (that existed only for
+// Supabase's transaction pooler).
 export default defineConfig({
   schema: './lib/db/schema/index.ts',
   out: './drizzle/migrations',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DIRECT_URL ?? '',
+    url: process.env.DATABASE_URL ?? '',
   },
   // Generate readable snake_case column names from camelCase TS fields.
   casing: 'snake_case',
