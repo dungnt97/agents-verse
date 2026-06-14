@@ -4,12 +4,13 @@
    Converted from window.AV globals to a typed named export — no window writes.
    ========================================================================= */
 import type {
-  AVData, Room, Agent, Lead, Metrics, Escalation, ActivityItem, Stage,
-  StatusMap, Fmt,
+  AVData, Room, Agent, Lead, Metrics, Escalation, ActivityItem,
   AgentDetail, RoomProject, TimelineItem,
-  Redesign, ScoreProfile, ScoreLabelEntry, Demo, DemoStatusMap, AuditResult,
-  ReqStatusMap, Deal, DemoRequest,
+  Redesign, ScoreProfile, Demo, AuditResult,
+  Deal, DemoRequest,
 } from './types';
+// Pure presentation helpers live in one place (client-safe); the mock AV re-uses them.
+import { fmt, statusMap, stages, SCORE_LABELS, DEMO_STATUS, DEAL_STAGE, REQ_STATUS, hueFor } from './format';
 
 /* =========================================================================
    BASE (data.js)
@@ -85,32 +86,6 @@ const activity: ActivityItem[] = [
   { t:'4h',  agent:'ledger', room:'finance',  type:'cost',     text:'Logged $6.40 demo-generation cost for Lumi Spa Studio', status:'info' },
   { t:'5h',  agent:'mira',   room:'support',  type:'production',text:'UrbanFit Gym moved to content-collection phase', status:'info' },
 ];
-
-const stages: Stage[] = [
-  { id:'found',     label:'Found' },
-  { id:'audited',   label:'Audited' },
-  { id:'demo',      label:'Demo Generated' },
-  { id:'contacted', label:'Contacted' },
-  { id:'replied',   label:'Replied' },
-  { id:'won',       label:'Deal Won' },
-];
-
-const statusMap: StatusMap = {
-  active:   { label:'Active',       cls:'badge-success', dot:'var(--success)' },
-  working:  { label:'Working',      cls:'badge-success', dot:'var(--success)' },
-  idle:     { label:'Idle',         cls:'badge-neutral', dot:'var(--ink-3)' },
-  waiting:  { label:'Waiting',      cls:'badge-info',    dot:'var(--info)' },
-  warning:  { label:'Warning',      cls:'badge-warning', dot:'var(--warning)' },
-  review:   { label:'Needs review', cls:'badge-warning', dot:'var(--warning)' },
-  escalate: { label:'Escalating',   cls:'badge-danger',  dot:'var(--danger)' },
-  paused:   { label:'Paused',       cls:'badge-neutral', dot:'var(--ink-3)' },
-};
-
-const fmt: Fmt = {
-  money: (n) => '$' + n.toLocaleString('en-US'),
-  money2:(n) => '$' + n.toFixed(2),
-  k:     (n) => n >= 1000 ? '$' + (n/1000).toFixed(1) + 'k' : '$' + n,
-};
 
 const agentById = (id: string) => agents.find(a => a.id === id);
 const roomById  = (id: string) => rooms.find(r => r.id === id);
@@ -211,15 +186,16 @@ function agentDetail(id: string): AgentDetail | null {
   };
 }
 
-// Room projects — derived from leads, consistent across the app
-const ROOM_PROJECTS: Record<string, string[]> = {
+// Room projects — derived from leads, consistent across the app.
+// Exported so the server repository can apply the same overlay over DB-sourced leads.
+export const ROOM_PROJECTS: Record<string, string[]> = {
   design: ['atlas-d','lumi','green','nova-r'],
   code:   ['urbanfit','lumi'],
   audit:  ['mekong','cedar','atlas-d'],
   sales:  ['nova-r','green','mekong'],
   support:['urbanfit'],
 };
-const PROJ_STATUS: Record<string, { label: string; cls: string; progress: number; next: string }> = {
+export const PROJ_STATUS: Record<string, { label: string; cls: string; progress: number; next: string }> = {
   'atlas-d':{ label:'In review',    cls:'badge-warning', progress:82, next:'Visual QA → approve' },
   'lumi':   { label:'Approved',     cls:'badge-success', progress:100,next:'Hand to Code Lab' },
   'green':  { label:'Sent',         cls:'badge-info',    progress:100,next:'Awaiting client reply' },
@@ -237,7 +213,7 @@ function roomProjects(roomId: string): RoomProject[] {
   });
 }
 
-const TIMELINE: Record<string, TimelineItem[]> = {
+export const TIMELINE: Record<string, TimelineItem[]> = {
   design: [
     { t:'2m',  agent:'nova',  event:'Generated homepage demo for Lumi Spa Studio', status:'success' },
     { t:'18m', agent:'iris',  event:'Flagged mobile spacing on GreenBite hero', status:'review' },
@@ -246,7 +222,7 @@ const TIMELINE: Record<string, TimelineItem[]> = {
     { t:'2h',  agent:'nova',  event:'Started Atlas Dental homepage demo', status:'info' },
   ],
 };
-const DEFAULT_TIMELINE: TimelineItem[] = [
+export const DEFAULT_TIMELINE: TimelineItem[] = [
   { t:'6m',  agent:null, event:'Task completed and passed quality check', status:'success' },
   { t:'30m', agent:null, event:'New task pulled from the workflow', status:'info' },
   { t:'1h',  agent:null, event:'Room health recalculated', status:'info' },
@@ -261,8 +237,8 @@ function roomTimeline(roomId: string): TimelineItem[] {
   }));
 }
 
-function roomMetrics(roomId: string): [string, string | number][] {
-  const r = roomById(roomId)!;
+// Exported so the server repository can build the same metric tuples from a DB room row.
+export function buildRoomMetrics(r: Room): [string, string | number][] {
   const M: Record<string, [string, string | number][]> = {
     design:  [['Demos today', r.done], ['Awaiting review','2'], ['Avg design score','91'], ['Pipeline value','$14.8k']],
     audit:   [['Audits today', r.done], ['High-potential','4'], ['Avg site score','39'], ['Redesign value','$13k']],
@@ -273,20 +249,16 @@ function roomMetrics(roomId: string): [string, string | number][] {
     finance: [['Revenue today','$2.1k'], ['AI cost','$42.80'], ['Margin','81%'], ['Budget used','86%']],
     ceo:     [['Escalations','3'], ['Approved today','9'], ['Autonomy','Guarded'], ['Net profit','$6.9k']],
   };
-  return M[roomId] || [['Tasks today', r.done], ['Running', r.running], ['Health', r.health+'%'], ['Agents', r.agents.length]];
+  return M[r.id] || [['Tasks today', r.done], ['Running', r.running], ['Health', r.health+'%'], ['Agents', r.agents.length]];
+}
+
+function roomMetrics(roomId: string): [string, string | number][] {
+  return buildRoomMetrics(roomById(roomId)!);
 }
 
 /* =========================================================================
    DATA3 — Audits + demos
    ========================================================================= */
-
-const INDUSTRY_HUE: Record<string, number> = {
-  Healthcare:200, Wellness:300, Hospitality:140, 'Real Estate':40, Logistics:230, Fitness:20,
-};
-
-function hueFor(ind: string): number {
-  return INDUSTRY_HUE[ind] || 220;
-}
 
 const REDESIGN: Record<string, Redesign> = {
   Healthcare:  { style:'Clean clinical-modern with warm trust cues', sections:['Booking-first hero','Services with outcomes','Doctors & credentials','Patient reviews','Insurance & FAQ','One-tap contact'], cta:'Book an appointment — sticky on mobile', content:'Reassuring, outcome-led, local', template:'Clinic demo template' },
@@ -306,11 +278,6 @@ const SCORE_PROFILES: Record<string, ScoreProfile> = {
   'cedar':   { visual:42, mobile:38, cta:40, trust:46, seo:50, speed:54, content:44, conversion:36 },
 };
 
-const SCORE_LABELS: ScoreLabelEntry[] = [
-  ['visual','Visual design'],['mobile','Mobile UX'],['cta','CTA clarity'],['trust','Trust signals'],
-  ['seo','SEO basics'],['speed','Speed impression'],['content','Content quality'],['conversion','Conversion potential'],
-];
-
 const PROBLEMS: string[] = [
   'Outdated visual design — template feels years behind competitors',
   'Weak mobile layout — content overflows and taps are cramped',
@@ -320,8 +287,10 @@ const PROBLEMS: string[] = [
   'Contact / booking flow takes too many steps',
 ];
 
-function audit(leadId: string): AuditResult {
-  const l = leads.find(x => x.id === leadId) || leads[0];
+// Derive a full audit from a Lead (real or mock). Exported so the server repository can
+// synthesize an audit for a discovery-sourced lead that has no stored audit row, using the
+// ACTUAL lead's company/scores rather than falling back to a mock placeholder.
+export function buildAuditFor(l: Lead): AuditResult {
   const scores = SCORE_PROFILES[l.id] || { visual:l.site-6, mobile:l.site-10, cta:l.site-4, trust:l.site, seo:l.site+8, speed:l.site+14, content:l.site, conversion:l.site-12 };
   const red = REDESIGN[l.industry] || REDESIGN.Healthcare;
   return {
@@ -332,18 +301,13 @@ function audit(leadId: string): AuditResult {
   };
 }
 
+function audit(leadId: string): AuditResult {
+  return buildAuditFor(leads.find(x => x.id === leadId) || leads[0]);
+}
+
 function auditedLeads(): Lead[] {
   return leads.filter(l => ['audited','demo','contacted','replied','won'].includes(l.stage));
 }
-
-const DEMO_STATUS: DemoStatusMap = {
-  review:  { label:'Needs review', cls:'badge-warning' },
-  approved:{ label:'Approved',     cls:'badge-success' },
-  sent:    { label:'Sent',         cls:'badge-info' },
-  replied: { label:'Client replied',cls:'badge-violet' },
-  won:     { label:'Won',          cls:'badge-success' },
-  draft:   { label:'Generated',    cls:'badge-neutral' },
-};
 
 const CHANGES: Record<string, string[]> = {
   Healthcare:['Booking-first hero with sticky mobile CTA','Trust row: reviews, credentials, insurance','Services rewritten around patient outcomes','One-tap call & directions'],
@@ -391,16 +355,6 @@ function demoByLead(leadId: string): Demo | undefined {
 /* =========================================================================
    DATA4 — Deals + inbound demo requests
    ========================================================================= */
-
-const DEAL_STAGE = {
-  pricing:  { label:'Pricing question',   cls:'badge-info' },
-  created:  { label:'Deal created',       cls:'badge-primary' },
-  quoted:   { label:'Quote prepared',     cls:'badge-primary' },
-  approval: { label:'Approval required',  cls:'badge-warning' },
-  call:     { label:'Human call requested',cls:'badge-danger' },
-  won:      { label:'Won',                cls:'badge-success' },
-  lost:     { label:'Lost',               cls:'badge-neutral' },
-};
 
 const deals: Deal[] = [
   { id:'d-nova', leadId:'nova-r', client:'Nova Realty Group', industry:'Real Estate', city:'Miami',
@@ -453,14 +407,6 @@ const deals: Deal[] = [
 function dealByLead(id: string): Deal | undefined {
   return deals.find(d => d.leadId === id);
 }
-
-const REQ_STATUS: ReqStatusMap = {
-  new:       { label:'New',        cls:'badge-warning' },
-  reviewing: { label:'Reviewing',  cls:'badge-info' },
-  contacted: { label:'Contacted',  cls:'badge-primary' },
-  converted: { label:'Converted',  cls:'badge-success' },
-  declined:  { label:'Declined',   cls:'badge-neutral' },
-};
 
 const demoRequests: DemoRequest[] = [
   { id:'rq1', business:'Bella Nails & Spa', url:'bellanails.example.com', industry:'Wellness', city:'Austin', name:'Bella Tran', email:'bella@bellanails.com', message:'Our site is from 2014 and looks awful on phones. Can you show us something better?', t:'12m ago', status:'new' },
