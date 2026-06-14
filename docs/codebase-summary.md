@@ -57,7 +57,7 @@ docker compose up
 - **Dev:** `npm run dev` (Turbopack on :3000)
 - **Lint:** `npm run lint` (ESLint 9)
 
-All 13 workspace + 4 public routes are **dynamic** (no static export) because `app/layout.tsx` reads cookies on the server.
+All 13 workspace + 4 public routes are **dynamic** (`ƒ` server-rendered on demand; no static pages emitted) because `app/layout.tsx` reads cookies on the server — even the marketing `[slug]` route (which declares `generateStaticParams`) renders on demand for that reason.
 
 ## Architecture & Conventions (Next.js + Dual-Mode)
 
@@ -76,54 +76,62 @@ All 13 workspace + 4 public routes are **dynamic** (no static export) because `a
 ### App Router & Routing
 - `app/layout.tsx` — Root layout: server-side cookie read (theme, lang, auth), provider composition, dynamic rendering.
 - `app/page.tsx` — Landing page (public).
-- `app/(marketing)/[slug]/page.tsx` — 9 info pages (about, careers, contact, cases, guarantees, privacy, terms, security, status).
+- `app/(marketing)/[slug]/page.tsx` (+ `info-page-client-wrapper.tsx`) — 9 info pages via one dynamic route (about, careers, contact, cases, guarantees, status, privacy, terms, security).
 - `app/login/page.tsx` — Auth gate (email/password form).
-- `app/(workspace)/layout.tsx` — Workspace shell: RSC, calls `getCurrentUser()` for auth gate, fetches directory, wraps with providers.
-- `app/(workspace)/overview/page.tsx`, `command/`, `rooms/`, `agents/`, `leads/`, `audits/[id]/`, `demos/[id]/`, `deals/[id]/`, `settings/`, `activity/`, `requests/` — 14 authenticated workspace screens (client components).
+- `app/(workspace)/layout.tsx` — Workspace shell: RSC, calls `getCurrentUser()` for the auth gate, fetches directory, wraps with providers.
+- `app/(workspace)/{overview,command,rooms,agents,leads,audits,demos,deals,settings,activity,requests}/page.tsx` + `rooms/[id]/` + `agents/[id]/` — 13 authenticated workspace routes (client screens). Only `rooms/[id]` and `agents/[id]` have detail subroutes (`room-detail-client.tsx`, `agent-detail-client.tsx`).
 - `app/api/auth/[...all]/route.ts` — Better Auth dynamic route handler (login, signup, session, callback).
-- `middleware.ts` — Edge middleware: cheap auth cookie check, redirects workspace routes to `/login` if missing.
+- `app/providers.tsx` — Client provider composition (Theme/i18n/Toast/Auth/WorkspaceData/WorkspaceState).
+- `middleware.ts` — Edge middleware: cheap auth-cookie check, redirects workspace routes to `/login` if missing.
 
 ### Components & Primitives
-- `components/brand/` — Mark, Logo, Icon (45+ SVG icons).
-- `components/ui/` — Button, Card, Badge, Breadcrumb, etc. (shared UI primitives).
-- `components/landing/` — LandingNav, Hero, HeroVisual, sections, Pricing, Footer, etc.
-- `components/marketing/` — MarketingFrame, DemoRequestModal, ContactForm, ChatWidget.
-- `components/workspace/` — Sidebar, TopBar, CommandPalette, AutonomyControl, ReviewCenter, FloorMap, Workspace shell components.
+- `components/brand/` — `mark.tsx`, `logo.tsx`, `icon.tsx` (SVG icon set + brand marks).
+- `components/ui/` — `agent-avatar`, `confidence-ring`, `count-up`, `reveal`, `sparkline`, `status-badge`, `theme-toggle`.
+- `components/landing/` — `landing.tsx`, `sections-1.tsx`, `sections-2.tsx`, `layout-constants.ts` (nav, hero, how-it-works, showcase, pricing, footer).
+- `components/info/` — `info-page.tsx` (slug dispatcher + nav), `info-sections.tsx` (about/careers/contact/… screens + ContactForm).
+- `components/marketing/` — `marketing-frame.tsx`, `demo-request-modal.tsx`, `chat-widget.tsx`.
+- `components/workspace/` — shell (`workspace-shell.tsx`, `sidebar.tsx`, `top-bar.tsx`, `command-palette.tsx`, `autonomy-control.tsx`, `review-center.tsx`, `coming-soon.tsx`, `route-meta.ts`) + per-domain screen folders (`overview`, `command`, `rooms`, `agents`, `pipeline` incl. `discovery-trigger.tsx`, `audit`, `demos`, `deals`, `requests`, `activity`, `settings`).
+- `components/floor-map.tsx`, `components/site-mock.tsx` — shared floor schematic + before/after device mockups.
 
 ### Data & Repositories
 - `lib/data/` — Types + mock singleton:
   - `types.ts` — Room, Agent, Lead, Audit, Demo, Deal, Request interfaces.
   - `index.ts` — `AV` singleton (rooms, agents, leads, metrics, escalations, activity, demos, deals, requests, helpers).
-  - `format.ts` — Formatting helpers (`money`, `k`, `truncate`, etc.).
+  - `format.ts` — Client-safe presentation helpers (`fmt.money`, `fmt.k`, `statusMap`, enums, `hueFor`).
 - `lib/repositories/` — Server-only data access (dual-mode via `USE_DB`):
-  - `leads.ts`, `rooms.ts`, `agents.ts`, `audits.ts`, `demos.ts`, `deals.ts`, `requests.ts` — CRUD functions returning same types as `AV`.
-  - When `USE_DB=false`: return mock data from `AV`.
-  - When `USE_DB=true`: fetch from Postgres via Drizzle.
+  - `leads.ts`, `rooms.ts`, `agents.ts`, `pipeline.ts`, `ops.ts`, `audit-jobs.ts` — domain data access; return the same types as `AV`.
+  - `config.ts` — exposes the `USE_DB` flag; `index.ts` — barrel.
+  - When `USE_DB=false`: return mock data from `AV`. When `USE_DB=true`: query Postgres via Drizzle.
 - `lib/db/` — Database layer:
-  - `client.ts` — Drizzle client over a single direct connection (postgres-js client-side pool); no pooler.
-  - `schema/` — Table definitions (rooms, agents, leads, audits, demos, deals, escalations, activity, requests, demoRequests, users, sessions, etc.).
-  - `seed.ts` — Idempotent seed with founder creation via Better Auth.
+  - `client.ts` — Drizzle client over a single direct postgres-js connection; no pooler.
+  - `schema/` — 16 tables across `agents.ts`, `leads.ts`, `pipeline.ts`, `ops.ts`, `audit.ts`, `auth.ts` (Better Auth), `enums.ts`, + `index.ts` barrel.
+  - `seed.ts` — Idempotent seed (ports `AV` into Postgres) with founder creation via Better Auth.
 - `lib/discovery/` — Lead discovery (Google Places API):
-  - `places-fetcher.ts` — HTTP fetch with field masks.
+  - `places-client.ts` — Places API HTTP client with field masks.
+  - `map-place-to-lead.ts` — Maps a Places result to a `Lead`.
+  - `bad-website-heuristic.ts` — Flags outdated/weak sites (discovery filter).
   - `dedup.ts` — Deduplication by composite key.
-  - `cheerio-scraper.ts` — Email extraction from websites.
+  - `email-scraper.ts` — Email extraction from websites (cheerio).
+- `lib/info-slugs.ts` — canonical info-page slug list (drives `/(marketing)/[slug]`); `lib/cookies.ts` — theme/lang/auth cookie helpers.
 
 ### Providers & Auth
-- `lib/providers/theme.tsx` — ThemeProvider + useTheme.
-- `lib/providers/toast.tsx` — ToastProvider + useToast.
-- `lib/providers/auth.tsx` — AuthProvider + useAuth (reads cookies in demo mode, Better Auth session in DB mode).
-- `lib/providers/workspace-data.tsx` — WorkspaceDataProvider (room/agent directory cache).
-- `lib/providers/workspace-state.tsx` — WorkspaceStateProvider (mode, requests, leads; persisted to localStorage).
-- `lib/auth/server.ts` — `getCurrentUser()` (RSC-safe), `getSession()` (Better Auth when USE_DB=true).
-- `lib/auth/client.ts` — Client-side `useSession()` hook.
+- `lib/providers/theme-provider.tsx` — ThemeProvider + useTheme.
+- `lib/providers/toast-provider.tsx` — ToastProvider + useToast.
+- `lib/providers/auth-provider.tsx` — AuthProvider + useAuth (reads cookie in demo mode, Better Auth session in DB mode).
+- `lib/providers/workspace-data-provider.tsx` — WorkspaceDataProvider (room/agent directory cache).
+- `lib/providers/workspace-state-provider.tsx` — WorkspaceStateProvider (mode, requests, leads; optimistic update + server action in DB mode, localStorage in demo).
+- `lib/auth/session.ts` — `getCurrentUser()` (RSC-safe server session helper).
+- `lib/auth/server.ts` — Better Auth server instance; `lib/auth/client.ts` — client-side auth (`useSession()`).
 - `app/providers.tsx` — Provider composition.
 
 ### Actions & Mutations
-- `lib/actions/leads.ts` — `createLead()`, `updateLead()` (drag/drop, stage change).
+- `lib/actions/leads.ts` — `createLead()`, `updateLead()` (stage change).
 - `lib/actions/requests.ts` — `createDemoRequest()` (public), `updateDemoRequest()`, `convertToLead()`.
-- `lib/actions/settings.ts` — `setAutonomyMode()`.
-- `lib/actions/run-discovery.ts` — `runDiscovery()` (trigger Google Places + enrichment).
-- `lib/actions/run-audit.ts` — `requestAudit()` (auth-guarded, queues real audit via Inngest).
+- `lib/actions/deals.ts`, `demos.ts`, `escalations.ts` — deal/demo stage+status mutations, escalation resolve.
+- `lib/actions/settings.ts` — `setAutonomyMode()` + settings writes.
+- `lib/actions/run-discovery.ts` — `runDiscovery()` (Google Places + enrichment).
+- `lib/actions/run-audit.ts` — `requestAudit()` (auth-guarded; queues real audit via Inngest).
+- `lib/actions/guard.ts` — auth-guard wrapper for server actions.
 
 ### Audit Engine (Inngest Subsystem 2)
 - `lib/audit/` — Scoring modules:
@@ -135,11 +143,11 @@ All 13 workspace + 4 public routes are **dynamic** (no static export) because `a
 - `lib/inngest/` — Durable job orchestration:
   - `client.ts` — Inngest client (web sends events).
   - `functions/run-audit.ts` — Job function (4 steps: mark-running → pagespeed → screenshot-and-score → save).
-  - `worker-entrypoint.ts` — Worker main entry (registers function, polls for events, graceful shutdown).
+  - `worker-entrypoint.ts` — Worker entry (registers function, polls for events, graceful shutdown). Worker chain runs under `tsx` → relative imports, no `server-only`.
 - `lib/repositories/audit-jobs.ts` — Tracks job state (queued → running → done/failed); repo pattern matching leads/demos/deals.
 
 ### i18n & Styling
-- `lib/i18n/` — `I18nProvider`, `useI18n()`, keys in `keys/*.ts` (en + vi).
+- `lib/i18n/` — `i18n-provider.tsx` (`I18nProvider`/`useI18n`), `dictionary.ts`, `index.ts`, `lang-toggle.tsx`, and 7 `keys/*.ts` modules (each en + vi).
 - `app/globals.css` — CSS custom-property design system (tokens, utilities, animations, responsive breakpoints).
 
 ## Domain Model (from lib/data/types.ts + lib/db/schema/)
@@ -169,24 +177,24 @@ Core entities are defined in `lib/data/types.ts` and mirrored in `lib/db/schema/
 
 | Hook / Component | Source | Purpose |
 |-----------------|--------|---------|
-| `useTheme` | `lib/providers/theme.tsx` | Light/dark toggle; writes `data-theme` on `<html>`, persists to `av-theme` cookie |
+| `useTheme` | `lib/providers/theme-provider.tsx` | Light/dark toggle; writes `data-theme` on `<html>`, persists to `av-theme` cookie |
 | `useI18n` / `t()` | `lib/i18n/` | en/vi translation lookup; reads `av-lang` cookie; call `t('ns.key')` |
-| `useToast` / `pushToast` | `lib/providers/toast.tsx` | Auto-dismissing (3.4s) toast queue |
-| `useAuth` | `lib/providers/auth.tsx` | Auth state; reads `av-auth` cookie (demo) or Better Auth session (DB) |
-| `useWorkspaceState` | `lib/providers/workspace-state.tsx` | Workspace state: mode, requests, leads (persisted to localStorage) |
-| `useWorkspaceData` | `lib/providers/workspace-data.tsx` | Room/agent directory cache (seeded by workspace layout RSC) |
-| `StatusBadge` | `components/ui/` | Status pill with color coding |
-| `AgentAvatar` / `AvatarStack` | `components/ui/` | oklch-gradient avatars; overlapped stacks |
-| `ConfidenceRing` | `components/ui/` | Circular 0–100% SVG gauge |
-| `Sparkline` | `components/ui/` | 7-point mini trend chart |
+| `useToast` / `pushToast` | `lib/providers/toast-provider.tsx` | Auto-dismissing (3.4s) toast queue |
+| `useAuth` | `lib/providers/auth-provider.tsx` | Auth state; reads `av-auth` cookie (demo) or Better Auth session (DB) |
+| `useWorkspaceState` | `lib/providers/workspace-state-provider.tsx` | Workspace state: mode, requests, leads (persisted to localStorage) |
+| `useWorkspaceData` | `lib/providers/workspace-data-provider.tsx` | Room/agent directory cache (seeded by workspace layout RSC) |
+| `StatusBadge` | `components/ui/status-badge.tsx` | Status pill with color coding |
+| `AgentAvatar` / `AvatarStack` | `components/ui/agent-avatar.tsx` | oklch-gradient avatars; overlapped stacks |
+| `ConfidenceRing` | `components/ui/confidence-ring.tsx` | Circular 0–100% SVG gauge |
+| `Sparkline` | `components/ui/sparkline.tsx` | 7-point mini trend chart |
 | `Icon` / `Logo` / `Mark` | `components/brand/` | 45+ line SVG icons and brand marks |
-| `SiteMock` | `components/ui/` | Before/after device wireframes |
-| `FloorMap` | `components/workspace/` | Animated spatial room schematic |
+| `SiteMock` | `components/site-mock.tsx` | Before/after device wireframes |
+| `FloorMap` | `components/floor-map.tsx` | Animated spatial room schematic |
 
 ## Next Steps & Known Limitations
 
 **Code-complete features (require credentials to run):**
-- **Database:** Drizzle ORM + 15 tables (design complete, migrations generated; apply with `npm run db:migrate` against `DATABASE_URL`)
+- **Database:** Drizzle ORM + 16 tables — 12 domain + 4 Better Auth (migrations generated; apply with `npm run db:migrate` against `DATABASE_URL`)
 - **Auth:** Better Auth (setup complete, requires `BETTER_AUTH_SECRET` + Postgres to authenticate)
 - **Lead Discovery:** Google Places API 2-phase (code complete, requires `GOOGLE_MAPS_API_KEY` to execute)
 - **Subsystem 2 (Audit):** Real website scoring via PageSpeed Insights + Playwright + Gemini vision (8-dimension: visual, mobile, cta, trust, seo, speed, content, conversion). Durable execution via self-hosted Inngest + Redis. Requires `GEMINI_API_KEY`, `GOOGLE_PAGESPEED_API_KEY`, `INNGEST_*` keys, and a separate `worker` container (see docker-compose). Demo mode shows mock audit results.
@@ -205,8 +213,8 @@ Core entities are defined in `lib/data/types.ts` and mirrored in `lib/db/schema/
 ### Next.js App (Sets 1 + 2 — LIVE)
 **Next.js 16.2.9 + React 19.2.7 + TypeScript** handles all 17 routes (marketing + workspace):
 
-- **Set 1 (Marketing, live):** 11 routes: `/` (landing), `/(marketing)/[slug]` (9 info pages), `/login`.
-- **Set 2 (Workspace, live):** 14 routes: `/overview`, `/command`, `/rooms`, `/rooms/[id]`, `/agents`, `/agents/[id]`, `/leads`, `/audits`, `/demos`, `/deals`, `/settings`, `/activity`, `/requests` (detail/initial-lead via `?lead=` query).
+- **Set 1 (Marketing/public):** `/` (landing), `/(marketing)/[slug]` (one dynamic route serving 9 info pages), `/login`, `/api/auth/[...all]`.
+- **Set 2 (Workspace):** 13 routes: `/overview`, `/command`, `/rooms`, `/rooms/[id]`, `/agents`, `/agents/[id]`, `/leads`, `/audits`, `/demos`, `/deals`, `/settings`, `/activity`, `/requests` (detail/initial-lead via `?lead=` query).
 - **Render model:** Cookie-SSR (root layout reads `av-theme`, `av-lang`, `av-auth` cookies on server → no flash). All routes are dynamic (`ƒ`).
 - **Auth gate:** `middleware.ts` protects workspace routes; unauthenticated users redirect to `/login`.
 - **Data layer:** `lib/data/` includes base `AV` (rooms, agents, leads, metrics, escalations, activity) + extended helpers (`agentDetail`, `roomProjects`, `roomTimeline`, `roomMetrics`, demos, audits, deals, demoRequests).
@@ -217,8 +225,8 @@ Core entities are defined in `lib/data/types.ts` and mirrored in `lib/db/schema/
 The original buildless prototype (root `*.jsx` / `data*.js` / `index.html` / `styles.css`) was removed in the June 2026 cleanup. It is preserved only in git history. The codebase is Next.js-first.
 
 ### Build-out Status
-**Set 1 (marketing) — Complete.** 11 routes live; `tsc` + lint + `next build` pass.
-**Set 2 (workspace) — Complete.** 14 routes live; all workspace screens operational (overview, command, rooms detail, agents detail, leads pipeline, audits detail, demos, deals, settings, activity, requests, + 2 layout routes).
+**Set 1 (marketing) — Complete.** Landing + 9 info pages + `/login` live; `tsc` + lint + `next build` pass.
+**Set 2 (workspace) — Complete.** 13 routes live; all workspace screens operational (overview, command, rooms + room detail, agents + agent detail, leads pipeline, audits, demos, deals, settings, activity, requests).
 **Subsystems:**
 - **Subsystem 1 (Lead Discovery)** — Complete. Google Places API 2-phase (Pro + optional Enterprise) with email scraping.
 - **Subsystem 2 (Audit)** — Complete. Real website scoring via PageSpeed Insights + Playwright + Gemini 2.5 Flash. Durable execution via self-hosted Inngest + Redis. Worker runs Chromium + vision analysis in isolation.
