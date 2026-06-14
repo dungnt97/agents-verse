@@ -1,8 +1,12 @@
 'use server';
 
+import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db/client';
-import { demoRequests } from '@/lib/db/schema';
+import { demoRequests, leads, reqStatusEnum } from '@/lib/db/schema';
+import { guardMutation, type MutationResult } from './guard';
+
+type ReqStatus = (typeof reqStatusEnum.enumValues)[number];
 
 export interface CreateDemoRequestInput {
   business: string;
@@ -40,4 +44,48 @@ export async function createDemoRequest(input: CreateDemoRequestInput): Promise<
 
   revalidatePath('/requests');
   revalidatePath('/overview');
+}
+
+// Triage an inbound request (reviewing / contacted / declined / converted).
+export async function updateRequestStatus(id: string, status: string): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+  if (!reqStatusEnum.enumValues.includes(status as ReqStatus)) {
+    return { ok: false, message: `invalid request status: ${status}` };
+  }
+  await db.update(demoRequests).set({ status: status as ReqStatus }).where(eq(demoRequests.id, id));
+  revalidatePath('/requests');
+  return { ok: true };
+}
+
+// Convert an inbound request into a pipeline lead (dedupe by company) and mark it converted.
+export async function convertRequestToLead(id: string): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+  const [req] = await db.select().from(demoRequests).where(eq(demoRequests.id, id)).limit(1);
+  if (!req) return { ok: false, message: 'Request not found.' };
+
+  const existing = await db.select({ id: leads.id }).from(leads).where(eq(leads.company, req.business)).limit(1);
+  if (existing.length === 0) {
+    await db
+      .insert(leads)
+      .values({
+        id: 'lead-' + Date.now(),
+        company: req.business,
+        industry: req.industry,
+        city: req.city,
+        url: req.url || '(no site yet)',
+        site: 38,
+        score: 84,
+        value: 2400,
+        agent: 'vega',
+        stage: 'found',
+        demo: 'none',
+      })
+      .onConflictDoNothing();
+  }
+  await db.update(demoRequests).set({ status: 'converted' }).where(eq(demoRequests.id, id));
+  revalidatePath('/requests');
+  revalidatePath('/leads');
+  return { ok: true };
 }

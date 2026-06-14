@@ -7,13 +7,16 @@
    ========================================================================= */
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { Mark } from '@/components/brand/mark';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { useI18n } from '@/lib/i18n/i18n-provider';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { AUTONOMY } from '@/components/workspace/autonomy-control';
+import { updateGuardrails, updatePricing } from '@/lib/actions/settings';
+import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { ToastKind } from '@/lib/providers/toast-provider';
 
 /* -------------------------------------------------------------------------
@@ -150,6 +153,9 @@ interface AgentCfg {
 
 export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps) {
   const { t } = useI18n();
+  const router = useRouter();
+  const { useDb } = useWorkspaceState();
+  const [isSaving, startSave] = useTransition();
   const { agents } = useWorkspaceData();
 
   const SECTIONS = [
@@ -215,7 +221,36 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
           <h1 style={{ fontSize: 28, letterSpacing: '-0.03em', marginBottom: 6 }}>{t('set.title')}</h1>
           <p style={{ fontSize: 15, color: 'var(--ink-2)' }}>{t('set.sub')}</p>
         </div>
-        <button className="btn btn-primary" onClick={() => onAction('Settings saved', 'success')}>
+        <button
+          className="btn btn-primary"
+          disabled={isSaving}
+          onClick={() => {
+            // Demo mode (no DB) → cosmetic success, skip the server actions.
+            if (!useDb) { onAction('Settings saved', 'success'); return; }
+            startSave(async () => {
+              /* Persist guardrails (auto-approve limit, daily/confidence/discount thresholds) */
+              const grResult = await updateGuardrails({
+                autoApproveLimit: approveAbove,
+                dailyCostLimit: daily,
+                confidenceThreshold: confThresh,
+                maxDiscountPct: discount,
+              });
+              /* Persist pricing (package prices) */
+              const prResult = await updatePricing({
+                landingPage: prices.landing,
+                businessWebsite: prices.business,
+                monthlyGrowthCare: prices.monthly,
+              });
+              if (grResult.ok && prResult.ok) {
+                router.refresh();
+                onAction('Settings saved', 'success');
+              } else {
+                const msg = grResult.message ?? prResult.message ?? 'Save failed';
+                onAction(msg, 'danger');
+              }
+            });
+          }}
+        >
           {t('set.save')}
         </button>
       </div>

@@ -14,8 +14,8 @@ import {
   createContext, useContext, useState, useEffect, useCallback,
   type ReactNode,
 } from 'react';
-import { createLead } from '@/lib/actions/leads';
-import { createDemoRequest } from '@/lib/actions/requests';
+import { createLead, updateLeadStage } from '@/lib/actions/leads';
+import { createDemoRequest, updateRequestStatus, convertRequestToLead } from '@/lib/actions/requests';
 import { setAutonomyMode } from '@/lib/actions/settings';
 import type { DemoRequest, Lead } from '@/lib/data/types';
 
@@ -30,9 +30,15 @@ interface WorkspaceStateContextValue {
   requests: DemoRequest[];
   setRequests: React.Dispatch<React.SetStateAction<DemoRequest[]>>;
   addRequest: (data: Partial<DemoRequest> & { business: string; industry: string; city?: string }) => void;
+  setRequestStatus: (id: string, status: string) => void;
+  convertRequest: (id: string) => void;
   leads: Lead[];
   setLeads: React.Dispatch<React.SetStateAction<Lead[]>>;
   addLead: (r: { business: string; industry: string; city?: string; url?: string }) => void;
+  moveLead: (leadId: string, stage: string) => void;
+  // Exposed so directly-wired screens can fall back to a cosmetic toast in demo mode (no DB)
+  // instead of calling a server action that would degrade to a "needs DB" warning.
+  useDb: boolean;
   badges: Badges;
 }
 
@@ -147,6 +153,54 @@ export function WorkspaceStateProvider({
     [useDb],
   );
 
+  const moveLead = useCallback(
+    (leadId: string, stage: string) => {
+      setLeads((x) => x.map((l) => (l.id === leadId ? { ...l, stage } : l)));
+      if (useDb) void updateLeadStage(leadId, stage).catch(() => { /* optimistic */ });
+    },
+    [useDb],
+  );
+
+  const setRequestStatus = useCallback(
+    (id: string, status: string) => {
+      setRequests((x) => x.map((r) => (r.id === id ? { ...r, status } : r)));
+      if (useDb) void updateRequestStatus(id, status).catch(() => { /* optimistic */ });
+    },
+    [useDb],
+  );
+
+  const convertRequest = useCallback(
+    (id: string) => {
+      setRequests((x) => x.map((r) => (r.id === id ? { ...r, status: 'converted' } : r)));
+      // Optimistic local lead from the request (display only; the DB write is the action below).
+      const req = requests.find((r) => r.id === id);
+      if (req) {
+        setLeads((ls) =>
+          ls.find((l) => l.company === req.business)
+            ? ls
+            : [
+                {
+                  id: 'lead-' + Date.now(),
+                  company: req.business,
+                  industry: req.industry,
+                  city: req.city || '—',
+                  url: req.url || '(no site yet)',
+                  site: 38,
+                  score: 84,
+                  value: 2400,
+                  agent: 'vega',
+                  stage: 'found',
+                  demo: 'none',
+                } satisfies Lead,
+                ...ls,
+              ],
+        );
+      }
+      if (useDb) void convertRequestToLead(id).catch(() => { /* optimistic */ });
+    },
+    [useDb, requests],
+  );
+
   const newReqCount = requests.filter((r) => r.status === 'new').length;
   const badges: Badges = {
     command: 3,
@@ -155,7 +209,7 @@ export function WorkspaceStateProvider({
 
   return (
     <WorkspaceStateContext.Provider
-      value={{ mode, setMode, requests, setRequests, addRequest, leads, setLeads, addLead, badges }}
+      value={{ mode, setMode, requests, setRequests, addRequest, setRequestStatus, convertRequest, leads, setLeads, addLead, moveLead, useDb, badges }}
     >
       {children}
     </WorkspaceStateContext.Provider>

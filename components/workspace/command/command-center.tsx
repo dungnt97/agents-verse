@@ -5,7 +5,8 @@
    ========================================================================= */
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { useToast } from '@/lib/providers/toast-provider';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
@@ -15,6 +16,8 @@ import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { fmt } from '@/lib/data/format';
+import { resolveEscalation } from '@/lib/actions/escalations';
+import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { Escalation } from '@/lib/data/types';
 
 /* ---- Revenue vs cost chart ---- */
@@ -64,10 +67,33 @@ interface EscalationCardProps {
 
 export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCardProps) {
   const { t } = useI18n();
+  const router = useRouter();
+  const { useDb } = useWorkspaceState();
+  const [isPending, startTransition] = useTransition();
   const sevCls = e.sev === 'high' ? 'badge-danger' : e.sev === 'medium' ? 'badge-warning' : 'badge-neutral';
   const kindIcon = ({ human: 'user', deal: 'deals', cost: 'dollar' } as Record<string, string>)[e.kind] || 'alert';
   /* kindLabel resolved via i18n keys */
   const kindLabelKey = ({ human: 'dash.kindHuman', deal: 'dash.kindDeal', cost: 'dash.kindCost' } as Record<string, string>)[e.kind] || 'dash.kindEscalation';
+
+  /* Resolve or dismiss the escalation via the server action, then refresh + toast. */
+  function handleResolve(resolution: 'resolved' | 'dismissed') {
+    if (!useDb) {
+      const msg = resolution === 'resolved' ? 'Approved · ' + e.who : 'Dismissed · ' + e.who;
+      onAction(msg, resolution === 'resolved' ? 'success' : 'warning');
+      return;
+    }
+    startTransition(async () => {
+      const result = await resolveEscalation(e.id, resolution);
+      if (result.ok) {
+        router.refresh();
+        const msg = resolution === 'resolved' ? 'Approved · ' + e.who : 'Dismissed · ' + e.who;
+        onAction(msg, resolution === 'resolved' ? 'success' : 'warning');
+      } else {
+        onAction(result.message ?? 'Action failed', 'danger');
+      }
+    });
+  }
+
   return (
     <div style={{ borderRadius: 15, border: `1px solid ${expanded ? 'var(--primary)' : 'var(--border)'}`, background: 'var(--surface-elev)', overflow: 'hidden',
       boxShadow: expanded ? '0 0 0 3px var(--primary-soft), var(--sh-md)' : 'var(--sh-sm)', transition: 'box-shadow .2s, border-color .2s' }}>
@@ -101,13 +127,13 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
             </div>
           </div>
           <div className="row wrap" style={{ gap: 8 }}>
-            <button className="btn btn-primary btn-sm" onClick={() => onAction('Approved · ' + e.who, 'success')}><Icon name="check" size={15} /> {t('dash.approve')}</button>
+            <button className="btn btn-primary btn-sm" disabled={isPending} onClick={() => handleResolve('resolved')}><Icon name="check" size={15} /> {t('dash.approve')}</button>
             {e.kind === 'human' && <button className="btn btn-ghost btn-sm" onClick={() => onAction('Founder call scheduled with ' + e.who, 'success')} style={{ borderColor: 'var(--border)' }}><Icon name="clock" size={15} /> {t('dash.scheduleCall')}</button>}
             {e.kind === 'deal' && <button className="btn btn-ghost btn-sm" onClick={() => onAction('Marked won · ' + e.who, 'success')} style={{ borderColor: 'var(--border)' }}>{t('dash.markWon')}</button>}
             {e.kind === 'cost' && <button className="btn btn-ghost btn-sm" onClick={() => onAction("Today's budget raised by $20", 'success')} style={{ borderColor: 'var(--border)' }}>{t('dash.raiseBudget')}</button>}
             <button className="btn btn-ghost btn-sm" onClick={() => onAction('You took over · ' + e.who)} style={{ borderColor: 'var(--border)' }}>{t('dash.takeOver')}</button>
             <button className="btn btn-ghost btn-sm" onClick={() => onAction('Summary requested')} style={{ borderColor: 'var(--border)' }}>{t('dash.askAiSummary')}</button>
-            <button className="btn btn-soft btn-sm" onClick={() => onAction('Dismissed · ' + e.who, 'warning')} style={{ marginLeft: 'auto' }}>{t('dash.reject')}</button>
+            <button className="btn btn-soft btn-sm" disabled={isPending} onClick={() => handleResolve('dismissed')} style={{ marginLeft: 'auto' }}>{t('dash.reject')}</button>
           </div>
         </div>
       )}

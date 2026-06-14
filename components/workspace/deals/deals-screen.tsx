@@ -5,12 +5,15 @@
    ========================================================================= */
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n/i18n-provider';
 import { fmt, hueFor, DEAL_STAGE } from '@/lib/data/format';
 import { useToast } from '@/lib/providers/toast-provider';
+import { updateDealStage } from '@/lib/actions/deals';
+import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { Deal, Production } from '@/lib/data/types';
 
 /* ---- OverviewBand (local) — value via CountUp (rounds, ignores prefix), like the shared original ---- */
@@ -190,9 +193,23 @@ function ProductionTimeline({ p }: { p: Production }) {
 
 function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => void; onAction: (msg: string, kind?: string) => void }) {
   const { t } = useI18n();
+  const router = useRouter();
+  const { useDb } = useWorkspaceState();
+  const [pending, startTransition] = useTransition();
   const d = deal;
   const st = DEAL_STAGE[d.stage];
   const escalated = d.stage === 'call' || d.stage === 'approval';
+
+  // Persist a stage change then refresh. In demo mode (no DB) fall back to a cosmetic toast so
+  // the action doesn't degrade to a "needs DB" warning.
+  const changeStage = (stage: Parameters<typeof updateDealStage>[1], successMsg: string) => {
+    if (!useDb) { onAction(successMsg, 'success'); return; }
+    startTransition(async () => {
+      const r = await updateDealStage(d.id, stage);
+      onAction(r.message ?? successMsg, r.ok ? 'success' : 'warning');
+      router.refresh();
+    });
+  };
 
   return (
     <>
@@ -280,46 +297,56 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
         {/* Footer actions */}
         <div className="row wrap" style={{ gap:8, padding:'14px 20px', borderTop:'1px solid var(--border)', flex:'none' }}>
           {d.stage==='call' && <>
-            <button className="btn btn-primary grow" onClick={() => onAction('Founder call scheduled · '+d.client,'success')}>
+            {/* Schedule call: cosmetic only — no stage transition defined for this action */}
+            <button disabled={pending} className="btn btn-primary grow" onClick={() => onAction('Founder call scheduled · '+d.client,'success')}>
               <Icon name="clock" size={15}/> {t('deals.btnScheduleCall')}
             </button>
-            <button className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('You took over · '+d.client)}>
+            {/* Take over: cosmetic only — owner reassignment not modeled as a stage */}
+            <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('You took over · '+d.client)}>
               {t('deals.btnTakeOver')}
             </button>
           </>}
           {d.stage==='approval' && <>
-            <button className="btn btn-primary grow" onClick={() => onAction('Quote approved · '+d.client,'success')}>
+            {/* Approve quote → quoted: human confirms the AI-drafted quote, moves to quoted state */}
+            <button disabled={pending} className="btn btn-primary grow" onClick={() => changeStage('quoted', 'Quote approved · '+d.client)}>
               <Icon name="check" size={15}/> {t('deals.btnApproveQuote')}
             </button>
-            <button className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Quote rejected · '+d.client,'warning')}>
+            {/* Reject → lost: human rejects the deal at approval stage */}
+            <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => changeStage('lost', 'Quote rejected · '+d.client)}>
               {t('deals.btnReject')}
             </button>
           </>}
           {d.stage==='pricing' && <>
-            <button className="btn btn-primary grow" onClick={() => onAction('Quote approved & sent · '+d.client,'success')}>
+            {/* Approve reply → quoted: human approves the AI reply so quote is sent */}
+            <button disabled={pending} className="btn btn-primary grow" onClick={() => changeStage('quoted', 'Quote approved & sent · '+d.client)}>
               {t('deals.btnApproveReply')}
             </button>
-            <button className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Editing reply · '+d.client)}>
+            {/* Edit reply: cosmetic only — opens editing flow, no stage change yet */}
+            <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Editing reply · '+d.client)}>
               {t('deals.btnEditReply')}
             </button>
           </>}
           {d.stage==='created' && <>
-            <button className="btn btn-primary grow" onClick={() => onAction('Reply sent · '+d.client,'success')}>
+            {/* Send reply: cosmetic only — reply is sent but no defined enum transition from 'created' */}
+            <button disabled={pending} className="btn btn-primary grow" onClick={() => onAction('Reply sent · '+d.client,'success')}>
               {t('deals.btnSendReply')}
             </button>
-            <button className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Follow-up scheduled · '+d.client)}>
+            {/* Follow up: cosmetic only — scheduling action, not a stage change */}
+            <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Follow-up scheduled · '+d.client)}>
               {t('deals.btnFollowUp')}
             </button>
           </>}
           {d.stage==='won' && <>
-            <button className="btn btn-primary grow" onClick={() => onAction('Content reminder sent · '+d.client,'success')}>
+            {/* Request assets: cosmetic only — reminder sent, deal remains 'won' */}
+            <button disabled={pending} className="btn btn-primary grow" onClick={() => onAction('Content reminder sent · '+d.client,'success')}>
               {t('deals.btnRequestAssets')}
             </button>
-            <button className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Marked delivered · '+d.client,'success')}>
+            {/* Mark delivered: cosmetic only — delivery status not modeled as a separate stage enum value */}
+            <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Marked delivered · '+d.client,'success')}>
               {t('deals.btnMarkDelivered')}
             </button>
           </>}
-          <button className="btn btn-soft" onClick={() => onAction('Summary requested · '+d.client)}>{t('deals.btnAskSummary')}</button>
+          <button disabled={pending} className="btn btn-soft" onClick={() => onAction('Summary requested · '+d.client)}>{t('deals.btnAskSummary')}</button>
         </div>
       </div>
     </>

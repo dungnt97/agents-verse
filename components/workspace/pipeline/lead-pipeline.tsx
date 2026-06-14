@@ -130,7 +130,7 @@ export function LeadPipeline({ demoLeadIds = [] }: LeadPipelineProps) {
   const { agentById } = useWorkspaceData();
   const router = useRouter();
   const onAction = useToast();
-  const { leads } = useWorkspaceState();
+  const { leads, moveLead } = useWorkspaceState();
 
   const onOpenAudit = (id: string) => router.push('/audits?lead=' + id);
   const onOpenDemo  = (id: string) => router.push('/demos?lead=' + id);
@@ -168,7 +168,10 @@ export function LeadPipeline({ demoLeadIds = [] }: LeadPipelineProps) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
 
-  const move = (id: string, stage: string) => setPlace(p => ({ ...p, [id]: stage }));
+  const move = (id: string, stage: string) => {
+    setPlace(p => ({ ...p, [id]: stage }));
+    moveLead(id, stage);
+  };
 
   const industries = [ALL_INDUSTRIES_EN, ...Array.from(new Set(leads.map(l => l.industry)))];
   const agentNames = [ALL_AGENTS_EN, ...Array.from(new Set(leads.map(l => agentById(l.agent)?.name).filter(Boolean) as string[]))];

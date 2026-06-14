@@ -3,8 +3,11 @@
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db/client';
-import { leads } from '@/lib/db/schema';
+import { leads, leadStageEnum } from '@/lib/db/schema';
 import { getCurrentUser } from '@/lib/auth/session';
+import { guardMutation, type MutationResult } from './guard';
+
+type LeadStage = (typeof leadStageEnum.enumValues)[number];
 
 export interface CreateLeadInput {
   business: string;
@@ -46,4 +49,17 @@ export async function createLead(input: CreateLeadInput): Promise<void> {
 
   revalidatePath('/leads');
   revalidatePath('/overview');
+}
+
+// Move a lead to a new pipeline stage (kanban drag / next-action button).
+export async function updateLeadStage(leadId: string, stage: string): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+  if (!leadStageEnum.enumValues.includes(stage as LeadStage)) {
+    return { ok: false, message: `invalid lead stage: ${stage}` };
+  }
+  await db.update(leads).set({ stage: stage as LeadStage }).where(eq(leads.id, leadId));
+  revalidatePath('/leads');
+  revalidatePath('/overview');
+  return { ok: true };
 }
