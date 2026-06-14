@@ -105,6 +105,7 @@ export const en: Record<string, string> = {
   // --- ProductionTimeline: asset status labels ---
   'deals.assetReceived': 'Received',
   'deals.assetPending':  'Pending',
+  'deals.markStageDone': 'Mark stage complete',
 
   // --- DealDrawer: footer action buttons ---
   'deals.btnScheduleCall':    'Schedule call',
@@ -225,6 +226,7 @@ export const vi: Record<string, string> = {
   // --- ProductionTimeline: asset status labels ---
   'deals.assetReceived': 'Đã nhận',
   'deals.assetPending':  'Chờ nhận',
+  'deals.markStageDone': 'Đánh dấu hoàn thành bước',
 
   // --- DealDrawer: footer action buttons ---
   'deals.btnScheduleCall':    'Đặt lịch gọi',

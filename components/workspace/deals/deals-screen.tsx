@@ -12,7 +12,7 @@ import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n/i18n-provider';
 import { fmt, hueFor, DEAL_STAGE } from '@/lib/data/format';
 import { useToast } from '@/lib/providers/toast-provider';
-import { updateDealStage } from '@/lib/actions/deals';
+import { updateDealStage, setProductionStage, toggleProductionAsset } from '@/lib/actions/deals';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { Deal, Production } from '@/lib/data/types';
 
@@ -125,8 +125,22 @@ function DealCard({ d, onOpen }: { d: Deal; onOpen: (id: string) => void }) {
 
 /* ---- ProductionTimeline ---- */
 
-function ProductionTimeline({ p }: { p: Production }) {
+function ProductionTimeline({ p, dealId, onAction }: { p: Production; dealId: string; onAction: (msg: string, kind?: string) => void }) {
   const { t } = useI18n();
+  const router = useRouter();
+  const { useDb } = useWorkspaceState();
+  const [pending, startTransition] = useTransition();
+
+  // Persist a production change then refresh. Demo mode (no DB) → cosmetic toast.
+  const mutate = (action: () => Promise<{ ok: boolean; message?: string }>, successMsg: string) => {
+    if (!useDb) { onAction(successMsg, 'success'); return; }
+    startTransition(async () => {
+      const r = await action();
+      onAction(r.ok ? successMsg : (r.message ?? 'Action failed'), r.ok ? 'success' : 'warning');
+      router.refresh();
+    });
+  };
+
   return (
     <div>
       <div className="row between" style={{ marginBottom:14 }}>
@@ -139,7 +153,11 @@ function ProductionTimeline({ p }: { p: Production }) {
       <div className="scroll-x" style={{ display:'flex', gap:0, marginBottom:16 }}>
         {p.stages.map((s, i) => (
           <div key={i} className="row" style={{ gap:0, flex:'none' }}>
-            <div className="col center" style={{ gap:6, width:78 }}>
+            {/* Click a stage to mark the timeline complete through it (that stage + earlier = done). */}
+            <button className="col center focusable" disabled={pending}
+              onClick={() => mutate(() => setProductionStage(dealId, i), 'Production · ' + s.name)}
+              title={t('deals.markStageDone')}
+              style={{ gap:6, width:78, background:'none', border:'none', padding:0, cursor:'pointer' }}>
               <span style={{ width:24, height:24, borderRadius:99, display:'grid', placeItems:'center', flex:'none',
                 background: s.done ? 'var(--success)' : s.current ? 'var(--primary)' : 'var(--surface-muted)',
                 color: (s.done||s.current) ? '#fff' : 'var(--ink-3)',
@@ -153,7 +171,7 @@ function ProductionTimeline({ p }: { p: Production }) {
               <span style={{ fontSize:10, textAlign:'center', lineHeight:1.2,
                 color: s.current ? 'var(--ink)' : 'var(--ink-3)',
                 fontWeight: s.current ? 600 : 400 }}>{s.name}</span>
-            </div>
+            </button>
             {i < p.stages.length-1 && (
               <span style={{ width:14, height:2, background: s.done ? 'var(--success)' : 'var(--border)', marginTop:11, flex:'none' }} />
             )}
@@ -169,7 +187,10 @@ function ProductionTimeline({ p }: { p: Production }) {
       <div className="eyebrow" style={{ marginBottom:10 }}>{t('deals.assetsEyebrow')}</div>
       <div className="col" style={{ gap:8 }}>
         {p.assets.map((a, i) => (
-          <div key={i} className="row between">
+          /* Click an asset row to toggle received/pending. */
+          <button key={i} className="row between focusable" disabled={pending}
+            onClick={() => mutate(() => toggleProductionAsset(dealId, i), a.name + (a.got ? ' · pending' : ' · received'))}
+            style={{ width:'100%', background:'none', border:'none', padding:0, cursor:'pointer', textAlign:'left' }}>
             <span className="row" style={{ gap:10 }}>
               <span style={{ width:18, height:18, borderRadius:6, display:'grid', placeItems:'center', flex:'none',
                 background: a.got ? 'var(--success)' : 'var(--surface-muted)',
@@ -182,7 +203,7 @@ function ProductionTimeline({ p }: { p: Production }) {
             <span style={{ fontSize:11.5, color: a.got ? 'var(--success)' : 'var(--warning)', fontWeight:600 }}>
               {a.got ? t('deals.assetReceived') : t('deals.assetPending')}
             </span>
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -289,7 +310,7 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
           {d.production && (
             <div style={{ marginTop:6, paddingTop:18, borderTop:'1px solid var(--border)' }}>
               <h3 style={{ fontSize:14, marginBottom:14 }}>{t('deals.sectionProduction')}</h3>
-              <ProductionTimeline p={d.production} />
+              <ProductionTimeline p={d.production} dealId={d.id} onAction={onAction} />
             </div>
           )}
         </div>

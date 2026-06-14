@@ -18,7 +18,7 @@ Agents Verse is **feature-complete for Subsystems 1 and 2**. All 17 routes are l
 | **Docker & Deploy** | Self-hosted on single VPS (web + db + redis + inngest + worker) | ✅ Done | Compose file: entrypoint runs migrate → seed → start. Reverse proxy (Caddy/Nginx) for TLS. Backup script (`scripts/backup.sh`) provided but off-site upload is user's responsibility. |
 | **Subsystem 3** | Demo Generation (template + Claude + Imagen → rendered site) | ⬜ Not built | Depends on: Claude API (design), Imagen/Nano Banana (images), and a render service (e.g., Remotion or Puppeteer). Placeholder URLs in DB. Estimated effort: 2–3 sprints. **Key-gated** (requires external compute budget). |
 | **Subsystem 4** | Outreach & Email (Resend API, CAN-SPAM, approval gates) | ⬜ Not built | Depends on: Resend API key, templates, SMTP or event integration. Toast-only today. Estimated effort: 1–2 sprints. **Key-gated** (Resend subscription). |
-| **Subsystem 5** | Deal Automation (stage machine + approval gate + escalation) | 🟡 Core done | Enforced deal stage machine (`lib/data/deal-stage-machine.ts`) + autonomy/value approval gate: `quoted→won` auto-closes below the founder threshold, else routes to founder review (creates a deal-linked escalation; ReviewCenter approve/reject resolves it + advances the deal). ReviewCenter + Command Center both show open escalations only and resolve deal escalations through the deal-aware actions (advancing the deal). Remaining: production-timeline mutability. |
+| **Subsystem 5** | Deal Automation (stage machine + approval gate + escalation) | ✅ Done | Enforced deal stage machine (`lib/data/deal-stage-machine.ts`) + autonomy/value approval gate: `quoted→won` auto-closes below the founder threshold, else routes to founder review (creates a deal-linked escalation; ReviewCenter approve/reject resolves it + advances the deal). ReviewCenter + Command Center both show open escalations only and resolve deal escalations through the deal-aware actions (advancing the deal). Production timeline is interactive (advance stages + toggle received assets, persisted via `setProductionStage`/`toggleProductionAsset`). |
 
 ---
 
@@ -53,7 +53,7 @@ Agents Verse is **feature-complete for Subsystems 1 and 2**. All 17 routes are l
 - **Escalation gates:** Exact thresholds (deal value, cost budget, confidence floor for auto-approval) are in `settings.ts` as defaults; confirm these match business logic with product/growth.
 
 ### Testing & Coverage
-- Vitest suite covers pure/logic critical paths (i18n en/vi key parity, `lib/data/format`, discovery dedup + place→lead mapping, audit scoring-rubric + result mapping, `USE_DB` flag) — 119 tests, run via `npm run test`. Plus a DB-mode repository integration suite (`npm run test:db`, 14 tests) asserting the `USE_DB=true` path returns the same entities as the mock `AV` against a real seeded Postgres. Next testing phase: server-action / auth-gate paths and the audit job state machine.
+- Vitest suite (`npm run test`, **150 tests**) covers pure/logic critical paths (i18n parity, `format`, discovery dedup + mapping, audit scoring/result mapping, deal stage-machine + approval gate, `USE_DB` flag). Plus a DB-mode integration suite (`npm run test:db`, **44 tests / 4 files**): repository dual-mode, deal automation, mutation server actions (leads/requests/settings/demos), production actions, and audit-job reads — all against a real seeded Postgres. Next: the audit worker chain (Playwright/Gemini — key-gated) + auth-gate/middleware path tests.
 - CI (`.github/workflows/ci.yml`, Node 22 / npm 10): `verify` job runs typecheck → lint → test → build (no secrets, mock mode); `test-db` job spins up `postgres:17` + db:migrate → db:seed → test:db.
 - Lint (`npm run lint`), typecheck (`npm run typecheck`), test (`npm run test`), and build all pass; dev server works in both modes.
 
@@ -89,7 +89,7 @@ Agents Verse is **feature-complete for Subsystems 1 and 2**. All 17 routes are l
 5. **Test:** Move a deal through its lifecycle; verify stage transitions and escalations.
 
 ### Long-term Improvements (Not Required for Initial Ship)
-- **Automated tests:** Vitest foundation (119 pure/logic tests) + DB-mode repository integration (14 tests vs real Postgres) + CI gate. Remaining: server-action/auth-gate paths and the audit job state machine.
+- **Automated tests:** Vitest (150 pure/logic) + DB-mode integration (44 tests vs real Postgres: repos, deal automation, server actions, production, audit-job reads) + CI gate. Remaining: audit worker chain (key-gated) + auth-gate/middleware paths.
 - **Chat widget:** Replace rule-based `setTimeout` with streaming Claude API integration.
 - **Per-agent real-time spend tracking:** Wire actual usage meters (cost per agent per day) instead of UI-only config.
 - **Demo cleanup:** Mark completed or old demos for archival; avoid demo URL explosion.

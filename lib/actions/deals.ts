@@ -13,6 +13,7 @@ import {
   type AutonomyMode,
 } from '@/lib/data/deal-stage-machine';
 import { guardMutation, type MutationResult } from './guard';
+import type { Production } from '@/lib/data/types';
 
 type DealMutationResult = MutationResult & { escalated?: boolean };
 
@@ -82,5 +83,40 @@ export async function updateDealStage(dealId: string, stage: string): Promise<De
 
   await db.update(deals).set({ stage: target }).where(eq(deals.id, dealId));
   dealsTouched();
+  return { ok: true };
+}
+
+// Advance the production timeline by clicking a completed stage: stages 0..stageIndex become
+// done, stageIndex+1 becomes current (clicking the last stage completes the timeline).
+export async function setProductionStage(dealId: string, stageIndex: number): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+  const [deal] = await db.select().from(deals).where(eq(deals.id, dealId)).limit(1);
+  if (!deal) return { ok: false, message: `deal not found: ${dealId}` };
+  const prod: Production | null = deal.production;
+  if (!prod) return { ok: false, message: 'deal has no production timeline' };
+  if (stageIndex < 0 || stageIndex >= prod.stages.length) {
+    return { ok: false, message: `invalid stage index: ${stageIndex}` };
+  }
+  const stages = prod.stages.map((s, i) => ({ ...s, done: i <= stageIndex, current: i === stageIndex + 1 }));
+  await db.update(deals).set({ production: { ...prod, stages } }).where(eq(deals.id, dealId));
+  revalidatePath('/deals');
+  return { ok: true };
+}
+
+// Toggle whether a production asset has been received.
+export async function toggleProductionAsset(dealId: string, assetIndex: number): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+  const [deal] = await db.select().from(deals).where(eq(deals.id, dealId)).limit(1);
+  if (!deal) return { ok: false, message: `deal not found: ${dealId}` };
+  const prod: Production | null = deal.production;
+  if (!prod) return { ok: false, message: 'deal has no production timeline' };
+  if (assetIndex < 0 || assetIndex >= prod.assets.length) {
+    return { ok: false, message: `invalid asset index: ${assetIndex}` };
+  }
+  const assets = prod.assets.map((a, i) => (i === assetIndex ? { ...a, got: !a.got } : a));
+  await db.update(deals).set({ production: { ...prod, assets } }).where(eq(deals.id, dealId));
+  revalidatePath('/deals');
   return { ok: true };
 }
