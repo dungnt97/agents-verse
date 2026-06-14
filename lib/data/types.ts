@@ -79,6 +79,9 @@ export interface Escalation {
   rec: string;
   conf: number;
   time: string;
+  // Resolution lifecycle + optional deal link (DB mode); absent on legacy mock rows.
+  status?: 'open' | 'resolved' | 'dismissed';
+  dealId?: string | null;
 }
 
 export interface ActivityItem {
