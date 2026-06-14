@@ -5,7 +5,7 @@
    ========================================================================= */
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { ConfidenceRing } from '@/components/ui/confidence-ring';
@@ -13,7 +13,15 @@ import { SiteMock } from '@/components/site-mock';
 import { hueFor, SCORE_LABELS } from '@/lib/data/format';
 import { useToast } from '@/lib/providers/toast-provider';
 import { usePipelineAuditT } from '@/lib/i18n/keys/pipeline-audit';
+import { requestAudit } from '@/lib/actions/run-audit';
 import type { Lead, AuditResult } from '@/lib/data/types';
+
+// Client-safe view of an audit job (the audit-jobs repo is server-only; the page passes this
+// minimal shape so this 'use client' component never imports server-only code).
+export interface AuditJobView {
+  status: string;
+  error: string | null;
+}
 
 /* ---- Score colour helper (mirrors audit.jsx:5) ---- */
 function scoreColor(v: number): string {
@@ -50,16 +58,28 @@ export interface AuditScreenProps {
   auditMap: Record<string, AuditResult>;
   // Serializable array from Server Component; converted to Set inside this component
   demoLeadIds: string[];
+  // leadId → audit job lifecycle state (queued/running/done/failed)
+  jobMap: Record<string, AuditJobView>;
   initialLead?: string | null;
 }
 
-export function AuditScreen({ audited, auditMap, demoLeadIds, initialLead }: AuditScreenProps) {
+export function AuditScreen({ audited, auditMap, demoLeadIds, jobMap, initialLead }: AuditScreenProps) {
   // Build Set once for O(1) has() — demoLeadIds is a stable server-prefetched array
   const demoLeadSet = new Set(demoLeadIds);
   const { t } = usePipelineAuditT();
   const router = useRouter();
   const onAction = useToast();
+  const [pending, startTransition] = useTransition();
   const goDemos = (id: string) => router.push('/demos?lead=' + id);
+
+  // Queue a real audit for the selected lead (Inngest worker runs it); refresh to pick up state.
+  const onRunAudit = (leadId: string) => {
+    startTransition(async () => {
+      const res = await requestAudit(leadId);
+      onAction(res.message, res.ok ? 'success' : 'warning');
+      router.refresh();
+    });
+  };
 
   // Select initial lead: use initialLead if it exists in audited list, else first audited lead
   const [sel, setSel] = useState<string>(
@@ -77,6 +97,13 @@ export function AuditScreen({ audited, auditMap, demoLeadIds, initialLead }: Aud
   if (!a) return null;
   const hue = hueFor(a.industry);
   const hasDemo = demoLeadSet.has(sel);
+  const job = jobMap[sel];
+  const jobActive = pending || job?.status === 'queued' || job?.status === 'running';
+  const jobStatusLabel =
+    job?.status === 'running' ? t('audits.statusRunning')
+    : job?.status === 'queued' ? t('audits.statusQueued')
+    : job?.status === 'failed' ? t('audits.statusFailed')
+    : null;
 
   return (
     <div style={{ display:'flex', minHeight:'calc(100vh - var(--shell-top))' }}>
@@ -136,6 +163,19 @@ export function AuditScreen({ audited, auditMap, demoLeadIds, initialLead }: Aud
               </div>
             </div>
             <div className="row" style={{ gap:8, flexWrap:'wrap' }}>
+              {jobStatusLabel && (
+                <span
+                  className={'badge ' + (job?.status === 'failed' ? 'badge-danger' : job?.status === 'running' ? 'badge-info' : 'badge-warning')}
+                  title={job?.status === 'failed' && job.error ? job.error : undefined}
+                >
+                  {job?.status === 'running' && <span className="pulse" style={{ background: 'var(--info)' }} />}
+                  {jobStatusLabel}
+                </span>
+              )}
+              <button className="btn btn-ghost btn-sm" style={{borderColor:'var(--border)'}}
+                onClick={() => onRunAudit(sel)} disabled={jobActive}>
+                <Icon name="search" size={14} /> {jobActive ? t('audits.auditing') : t('audits.runAudit')}
+              </button>
               <button className="btn btn-ghost btn-sm" style={{borderColor:'var(--border)'}}
                 onClick={() => onAction('Assigned to Design Studio · '+a.company, 'success')}>
                 {t('audits.assignToDesign')}

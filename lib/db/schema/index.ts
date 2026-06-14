@@ -6,3 +6,4 @@ export * from './agents';
 export * from './leads';
 export * from './pipeline';
 export * from './ops';
+export * from './audit';
