@@ -199,10 +199,10 @@ export async function getLeads() {
 All repositories return the same TypeScript types as mock `AV`, ensuring UI components work unchanged whether data flows from Postgres or localStorage.
 
 **Database layer: `lib/db/`**
-- `client.ts` — Drizzle client configured for **Supabase Postgres**
-  - Transaction pooler (`:6543`, `prepare:false`) for app queries (fast, stateless)
-  - Direct URL (`:5432`) in `DIRECT_URL` env var for migrations only
-  - Auth: `DATABASE_URL` (pooler, public) + `DIRECT_URL` (session, private)
+- `client.ts` — Drizzle client over **self-hosted PostgreSQL 17** (docker-compose `db` service)
+  - A single direct connection (`db:5432`); postgres-js manages a client-side pool
+  - One `DATABASE_URL` shared by app queries, migrations, and seed — no pooler / no `DIRECT_URL` split
+  - Prepared statements ON (postgres-js default); the `prepare:false` workaround is only needed behind a transaction pooler, which is not used here
 - `schema/` — 15 tables + 5 pgEnums via Drizzle TypeSchema (`*.ts` in `schema/`)
   - `rooms`, `agents`, `leads`, `audits`, `demos`, `deals`, `escalations`, `activity`, `requests`, `demoRequests`, `users`, `sessions`, `verifications`, `accounts`, `authenticators`
 - `seed.ts` — Idempotent seed (Better Auth hashes password; seed does not override)
@@ -393,28 +393,29 @@ Lead then flows through audit → demo → outreach pipeline.
 ### 9.10 Deployment
 
 **Self-hosted Docker + VPS (`Dockerfile`, `docker-compose.yml`):**
-- Standalone Next.js image (14.x, `output: 'standalone'`)
+- Next.js 16 image (`output: 'standalone'` set; entrypoint uses `next start` with the full toolchain)
 - Entrypoint: `scripts/docker-entrypoint.sh` runs `migrate → seed → start`
 - Port 3000 (app), requires reverse proxy + SSL (nginx/Caddy)
-- **Environment setup:**
-  - `DATABASE_URL` (Supabase Transaction pooler `:6543`)
-  - `DIRECT_URL` (Supabase Direct `:5432`, used by migrations only)
+- **Environment setup (`.env.local`, loaded by compose `env_file`):**
+  - `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` (consumed by the `db` service on first boot)
+  - `DATABASE_URL=postgresql://<user>:<pw>@db:5432/<db>` (single URL: app + migrations + seed)
   - `BETTER_AUTH_SECRET` (32-byte hex, for session signing)
   - `GOOGLE_MAPS_API_KEY` (for lead discovery)
-  - Optional: `DISCOVERY_ENABLE_ENTERPRISE_ENRICHMENT`, `DISCOVERY_DAILY_CAP`, `USE_DB=true`
+  - Optional: `DISCOVERY_DEFAULT_INDUSTRY`, `DISCOVERY_DEFAULT_CITY`, `DISCOVERY_DAILY_CAP`, `USE_DB=true`
 
 **Postgres requirements:**
-- Supabase managed or self-hosted PostgreSQL 14+
-- Pooler must support prepared statements off (`prepare:false` in app connection)
-- Migrations apply via `DIRECT_URL` (session pooler) only
-- Seed is idempotent (can rerun safely)
+- Self-hosted PostgreSQL 17 (docker-compose `db` service, `postgres:17-alpine`)
+- Not published to the host (no `ports:` on `db`); reached internally as `db:5432`
+- Single direct connection (prepared statements ON); no pooler / no `DIRECT_URL`
+- Seed is idempotent (can rerun safely); migrate is fail-fast, seed is non-fatal in the entrypoint
 
-**Development setup (no Docker required):**
-1. `cp .env.example .env.local`
-2. Create/link Supabase project, copy credentials to `.env.local`
-3. `npm run db:migrate` (uses `DIRECT_URL`)
-4. `npm run db:seed` (uses `DATABASE_URL`)
-5. `npm run dev` (local server, auto-reloads)
+**Deploy (Docker Compose, single VPS):**
+1. `cp .env.example .env.local`; set `POSTGRES_*` + a matching `DATABASE_URL`, `BETTER_AUTH_SECRET`, `USE_DB=true`
+2. `docker compose up -d --build` — starts `db` then `web`; the entrypoint waits for Postgres → migrate → seed → start
+3. Front `web` with a reverse proxy (Caddy/Nginx) for TLS
+4. Backups are now your responsibility — see `scripts/backup.sh` (pg_dump + off-site upload)
+
+**Local host dev (no Docker):** point `DATABASE_URL` at `localhost:5432`, then `npm run db:migrate && npm run db:seed && npm run dev`.
 
 **Build verification:**
 - All 13 workspace + 4 public routes are **dynamic SSR** (no static export) because layout reads cookies server-side

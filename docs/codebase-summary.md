@@ -8,12 +8,12 @@ Agents Verse is a **full-stack SaaS** for autonomous, demo-first web agency oper
 
 **Architecture:**
 - **Frontend:** Next.js 16 + React 19 + TypeScript (Sets 1 & 2 live)
-- **Backend:** Postgres (Supabase) + Drizzle ORM + Better Auth
+- **Backend:** Self-hosted PostgreSQL 17 (docker-compose `db` service) + Drizzle ORM + Better Auth
 - **Dual-mode runtime:** `USE_DB=false` (demo, mock data in localStorage) or `USE_DB=true` (production, Postgres)
 - **Lead discovery:** Google Places API (2-phase: Pro search → optional Enterprise enrichment)
-- **Deployment:** Docker standalone on VPS + reverse proxy
+- **Deployment:** Docker Compose on a single VPS (app `web` + Postgres `db`) + reverse proxy
 
-App builds and runs with zero credentials (demo mode on by default). Production requires Supabase, Better Auth secret, and (optionally) Google Maps API key.
+App builds and runs with zero credentials (demo mode on by default). Production requires the `db` Postgres service (POSTGRES_* + DATABASE_URL), a Better Auth secret, and (optionally) a Google Maps API key.
 
 ## Run Model (Next.js + React Server Components)
 
@@ -29,12 +29,14 @@ npm run dev   # http://localhost:3000
 **Production mode (requires credentials):**
 ```bash
 # .env.local must include:
-DATABASE_URL=postgresql://...
-DIRECT_URL=postgresql://...   # For migrations only
+POSTGRES_USER=agentsverse
+POSTGRES_PASSWORD=<strong>     # openssl rand -base64 32
+POSTGRES_DB=agentsverse
+DATABASE_URL=postgresql://agentsverse:<strong>@db:5432/agentsverse  # single direct URL (app+migrations+seed)
 BETTER_AUTH_SECRET=<32-byte hex>
 GOOGLE_MAPS_API_KEY=<key>     # Optional, for lead discovery
 USE_DB=true                   # Enable Postgres
-npm run build && npm start
+docker compose up -d --build  # web + db; or host dev with localhost:5432
 ```
 
 **Docker deployment:**
@@ -94,7 +96,7 @@ All 13 workspace + 4 public routes are **dynamic** (no static export) because `a
   - When `USE_DB=false`: return mock data from `AV`.
   - When `USE_DB=true`: fetch from Postgres via Drizzle.
 - `lib/db/` — Database layer:
-  - `client.ts` — Drizzle client configured for Supabase (transaction pooler + direct URL).
+  - `client.ts` — Drizzle client over a single direct connection (postgres-js client-side pool); no pooler.
   - `schema/` — Table definitions (rooms, agents, leads, audits, demos, deals, escalations, activity, requests, demoRequests, users, sessions, etc.).
   - `seed.ts` — Idempotent seed with founder creation via Better Auth.
 - `lib/discovery/` — Lead discovery (Google Places API):
@@ -166,7 +168,7 @@ Core entities are defined in `lib/data/types.ts` and mirrored in `lib/db/schema/
 ## Next Steps & Known Limitations
 
 **Code-complete features (require credentials to run):**
-- **Database:** Drizzle ORM + 15 tables (design complete, migrations generated but not applied without DIRECT_URL)
+- **Database:** Drizzle ORM + 15 tables (design complete, migrations generated; apply with `npm run db:migrate` against `DATABASE_URL`)
 - **Auth:** Better Auth (setup complete, requires `BETTER_AUTH_SECRET` + Postgres to authenticate)
 - **Lead Discovery:** Google Places API 2-phase (code complete, requires `GOOGLE_MAPS_API_KEY` to execute)
 - **Docker deploy:** Standalone setup with entrypoint (design complete, requires VPS + env vars)
