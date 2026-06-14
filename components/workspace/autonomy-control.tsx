@@ -1,5 +1,5 @@
 /* =========================================================================
-   AGENTS VERSE — AutonomyControl (port of AutonomyControl from app-shell.jsx)
+   AGENTS VERSE — AutonomyControl
    Dropdown selector for the autonomy mode — reads/writes via WorkspaceStateProvider.
    Closed by clicking outside (backdrop div); opens upward (bottom: calc(100% + 8px)).
    ========================================================================= */

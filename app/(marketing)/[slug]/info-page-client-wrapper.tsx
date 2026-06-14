@@ -2,8 +2,7 @@
    AGENTS VERSE — Client wrapper for the /[slug] info route
    Needs 'use client' because it uses useRouter and useRequestDemo (context).
    Wrapped in MarketingFrame so ChatWidget + DemoRequestModal are present —
-   matching the INFO branch in app.jsx which renders both widgets alongside
-   InfoPage.
+   the info page renders both widgets alongside InfoPage.
    ========================================================================= */
 'use client';
 

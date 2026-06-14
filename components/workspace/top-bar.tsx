@@ -1,5 +1,5 @@
 /* =========================================================================
-   AGENTS VERSE — TopBar (port of TopBar from app-shell.jsx)
+   AGENTS VERSE — TopBar
    Breadcrumbs from pathname + ROUTE_META, ⌘K search button, review bell,
    LangToggle, ThemeToggle, mobile menu button.
    Breadcrumb logic: split pathname into segments, map each to ROUTE_META
@@ -71,7 +71,7 @@ export function TopBar({ onSearch, onReview, onMenu }: TopBarProps) {
   const { roomById, agentById } = useWorkspaceData();
   const pathname = usePathname();
   const crumbs = buildCrumbs(pathname, t, { roomById, agentById });
-  /* cur kept for parity with app-shell.jsx — available for future use */
+  /* cur — available for future use */
   const _cur = AUTONOMY.find(a => a.id === mode);
 
   return (

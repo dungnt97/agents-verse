@@ -3,7 +3,7 @@
    AGENTS VERSE — AgentDetail + FounderChat
    Agent detail view: current task, skills/tools, outputs, history,
    performance panel, and the canned-reply FounderChat widget.
-   Ported verbatim from agents.jsx (AgentDetail + FounderChat).
+   AgentDetail + FounderChat.
    ========================================================================= */
 
 import { useState, useEffect, useRef } from 'react';
@@ -39,7 +39,7 @@ interface FounderChatProps {
   onAction: OnAction;
 }
 
-// Canned responses keyed by intent — exact copy from agents.jsx
+// Canned responses keyed by intent.
 const CANNED: Record<string, string> = {
   style:   'I chose a calm, premium direction because the client is in a trust-driven category — clean type, generous spacing, and one clear booking CTA convert better there.',
   premium: 'Understood. I’ll deepen the visual hierarchy, refine the type scale and add a more editorial hero. New version in ~2 minutes.',
@@ -69,7 +69,7 @@ function FounderChat({ agent, detail: d, onAction }: FounderChatProps) {
 
   const [msgs, setMsgs] = useState<ChatMessage[]>([{
     role: 'agent',
-    // Typographic apostrophe + curly dash preserved from agents.jsx initial message
+    // Typographic apostrophe + curly dash are intentional — preserve them exactly.
     text: `I'm on it — ${agent.task[0].toLowerCase() + agent.task.slice(1)}. Confidence ${agent.conf}%. Ask me anything or steer the work.`,
   }]);
   const [val, setVal] = useState('');

@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — Lead Pipeline (kanban, drag & drop)
-   Ported verbatim from pipeline.jsx. Reads from WorkspaceStateProvider's
+   Reads from WorkspaceStateProvider's
    mutable leads; stage placement persisted to localStorage.
    ========================================================================= */
 'use client';

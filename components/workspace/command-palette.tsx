@@ -1,5 +1,5 @@
 /* =========================================================================
-   AGENTS VERSE — CommandPalette (port of CommandPalette from app-shell.jsx)
+   AGENTS VERSE — CommandPalette
    ⌘K search over NAV pages, workspace agents (from directory), and leads (from the
    workspace state provider — DB-backed or demo, same source the pipeline uses).
    Opens with focus; ESC and backdrop-click close via onClose prop.

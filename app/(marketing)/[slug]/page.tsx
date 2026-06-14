@@ -3,7 +3,7 @@
    Server component: validates slug, generates static params + metadata.
    Delegates rendering to a client wrapper that wires router + demo modal.
    Wrapped in MarketingFrame so ChatWidget + DemoRequestModal are present
-   (matches the INFO branch in app.jsx which includes both widgets).
+   (the info page renders both widgets).
    ========================================================================= */
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';

@@ -1,9 +1,7 @@
 /* =========================================================================
    AGENTS VERSE — Landing sections 1–6
-   Ports: SectionHead, DifferenceSection, HowItWorks, Showcase,
-          InsideCompany, WhyWins from landing-sections.jsx.
-   All markup, inline styles, class names, and numeric constants are
-   preserved byte-for-byte from the source prototype.
+   SectionHead, DifferenceSection, HowItWorks, Showcase,
+   InsideCompany, WhyWins.
    ========================================================================= */
 'use client';
 

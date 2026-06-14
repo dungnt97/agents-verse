@@ -1,5 +1,5 @@
 /* =========================================================================
-   AGENTS VERSE — ReviewCenter (port of ReviewCenter from app.jsx)
+   AGENTS VERSE — ReviewCenter
    Slide-in panel from the right. Approve/Open actions emit a toast via
    the onAction callback (wired to useToasts in the layout).
    ========================================================================= */

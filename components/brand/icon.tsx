@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — Icon set (geometric line icons)
-   All SVG path data preserved verbatim from brand.jsx.
+   All SVG path data is the canonical brand mark.
    Pure presentational — no hooks, no client directive needed.
    ========================================================================= */
 import type { CSSProperties } from 'react';

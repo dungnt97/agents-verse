@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — Info page section components
-   Ports pages.jsx: AboutPage, CareersPage, ContactPage, ContactForm,
+   AboutPage, CareersPage, ContactPage, ContactForm,
    CasesPage, GuaranteesPage, StatusPage, and the three legal bodies
    (privacy / terms / security via LegalDoc + LEGAL constant).
    All JSX markup, inline styles, class names, and numeric constants are

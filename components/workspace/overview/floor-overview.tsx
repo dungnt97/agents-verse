@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — Floor Overview (signature spatial screen)
-   Ported 1:1 from floor-overview.jsx. Wires to Next.js router/toast instead
+   Wires to Next.js router/toast instead
    of window-global callbacks. No Tailwind — inline styles preserved verbatim.
    ========================================================================= */
 'use client';

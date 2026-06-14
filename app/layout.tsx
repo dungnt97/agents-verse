@@ -1,4 +1,4 @@
-import '../styles/globals.css';
+import './globals.css';
 import { cookies } from 'next/headers';
 import { type ReactNode } from 'react';
 import type { Metadata } from 'next';
@@ -38,10 +38,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang={lang} data-theme={theme} suppressHydrationWarning>
       <head>
-        {/* Load the design-system webfonts (Hanken Grotesk + JetBrains Mono) exactly as the
-            original index.html does. Next/Turbopack does NOT honor the remote @import in
-            globals.css, so without this explicit link the app silently falls back to system-ui
-            and the typography no longer matches the original. */}
+        {/* Load the design-system webfonts (Hanken Grotesk + JetBrains Mono) via an explicit
+            <link>. Next/Turbopack does NOT honor the remote @import in globals.css, so without
+            this the app silently falls back to system-ui and the typography breaks. */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

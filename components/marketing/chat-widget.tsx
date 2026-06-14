@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — ChatWidget + chatReply
-   Ports chat.jsx verbatim. Rule-based reply logic is pure and static;
+   Rule-based reply logic is pure and static;
    UI state is fully client-side. No server data needed.
    ========================================================================= */
 'use client';

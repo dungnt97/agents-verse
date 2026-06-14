@@ -2,7 +2,7 @@
 /* =========================================================================
    AGENTS VERSE — AgentsIndex
    Grid of all agents with filter/sort bar and overview metrics band.
-   Ported verbatim from agents.jsx (AgentsIndex + AgentCard + helpers).
+   AgentsIndex + AgentCard + helpers.
    ========================================================================= */
 
 import { useState } from 'react';

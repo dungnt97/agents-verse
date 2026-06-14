@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — SettingsScreen
-   Port of settings.jsx → TypeScript / Next.js 'use client'.
+   Settings screen ('use client').
    Sub-components (Toggle, Slider, SettingRow, Panel, SEG) are local to this
    file only — they are not exported because nothing outside this module uses
    them directly.

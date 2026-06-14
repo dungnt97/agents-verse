@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — ActivityScreen
-   Port of activity.jsx → TypeScript / Next.js 'use client'.
+   Activity screen ('use client').
    Receives activity[] as a prop (server-fetched by page.tsx). Filter chips
    + search box narrow the timeline list. Router navigation and toast are
    wired internally via useRouter / useToast.
@@ -67,7 +67,7 @@ export function ActivityScreen({ activity }: ActivityScreenProps) {
     { key: 'Production',  label: t('act.filterProduction')  },
   ];
 
-  // Maps filter key → activity type key — verbatim from activity.jsx:21
+  // Maps filter key → activity type key.
   const FMAP: Record<string, string> = {
     Leads: 'lead', Demos: 'demo', Outreach: 'outreach',
     Replies: 'reply', Deals: 'deal', Escalations: 'escalate',

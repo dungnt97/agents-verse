@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — DemoRequestModal
-   Extracted from requests.jsx. Submits the public demo request through the
+   Submits the public demo request through the
    workspace state provider's addRequest, which persists it dual-mode: a DB
    server action (createDemoRequest) when the database is on, or localStorage
    ('av-requests') in demo mode. On submit: flips to the success screen — no

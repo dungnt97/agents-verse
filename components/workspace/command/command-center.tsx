@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — Founder Command Center (CEO decision screen)
-   Ported 1:1 from command.jsx. Inline styles, SVG chart math, and button
+   Inline styles, SVG chart math, and button
    text preserved verbatim. No Tailwind — inline styles throughout.
    ========================================================================= */
 'use client';

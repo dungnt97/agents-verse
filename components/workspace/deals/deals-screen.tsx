@@ -1,6 +1,6 @@
 /* =========================================================================
    AGENTS VERSE — Deals (approval flow · reply handling · production)
-   Ported verbatim from deals.jsx. Receives deals via props (server-fetched from the
+   Receives deals via props (server-fetched from the
    repository layer); looks up the selected deal by leadId.
    ========================================================================= */
 'use client';
@@ -46,7 +46,7 @@ function OverviewBand({ items }: { items: BandItem[] }) {
   );
 }
 
-/* ---- EmptyState (local — matches rooms.jsx:127 verbatim) ---- */
+/* ---- EmptyState (local) ---- */
 
 function EmptyState({ icon, title, sub }: { icon: string; title: string; sub: string }) {
   return (
