@@ -33,7 +33,7 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # package manager
-package-lock.json
+# package-lock.json is committed for reproducible `npm ci` builds (Dockerfile / VPS deploy).
 yarn.lock
 pnpm-lock.yaml
 
