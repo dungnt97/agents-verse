@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { inngest, type DemoRequestedData } from '../client';
 import { db } from '../../db/client';
 import { leads, audits, generatedDemos } from '../../db/schema';
-import { generateDemoHtml } from '../../demo-gen/generate';
+import { generateDemoHtml } from '../../agents/pipelines/demo';
 
 // Durable demo-generation pipeline (runs in the WORKER only — it shells out to the `claude` CLI).
 // Relative imports + no `server-only` since this executes under tsx. Serialized per-lead so two
