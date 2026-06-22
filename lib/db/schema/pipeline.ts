@@ -1,4 +1,4 @@
-import { pgTable, text, integer, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, jsonb, timestamp } from 'drizzle-orm/pg-core';
 import { demoStatusEnum, dealStageEnum } from './enums';
 import { leads } from './leads';
 import type {
@@ -46,6 +46,19 @@ export const demos = pgTable('demos', {
   notes: text('notes').notNull(),
   checklist: jsonb('checklist').$type<DemoChecklist>().notNull(),
   outreach: jsonb('outreach').$type<DemoOutreach>().notNull(),
+});
+
+// AI-generated redesign demo for an audited lead. Kept separate from the rich `demos` table (which
+// models the mock review/outreach workflow) so generation only owns the HTML + its job status.
+// Keyed by leadId: one current generated demo per lead, re-running overwrites it.
+export const generatedDemos = pgTable('generated_demos', {
+  leadId: text('lead_id')
+    .primaryKey()
+    .references(() => leads.id, { onDelete: 'cascade' }),
+  html: text('html'), // null until the first successful generation
+  status: text('status').notNull(), // 'generating' | 'ready' | 'failed'
+  error: text('error'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const deals = pgTable('deals', {

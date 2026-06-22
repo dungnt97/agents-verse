@@ -36,6 +36,13 @@
       "when": 1781456660103,
       "tag": "0004_absent_hellfire_club",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782037100479,
+      "tag": "0005_massive_scarlet_witch",
+      "breakpoints": true
     }
   ]
 }

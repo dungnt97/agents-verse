@@ -14,6 +14,7 @@ import { hueFor, SCORE_LABELS } from '@/lib/data/format';
 import { useToast } from '@/lib/providers/toast-provider';
 import { usePipelineAuditT } from '@/lib/i18n/keys/pipeline-audit';
 import { requestAudit } from '@/lib/actions/run-audit';
+import { requestDemoGeneration } from '@/lib/actions/run-demo-gen';
 import type { Lead, AuditResult } from '@/lib/data/types';
 
 // Client-safe view of an audit job (the audit-jobs repo is server-only; the page passes this
@@ -58,12 +59,14 @@ export interface AuditScreenProps {
   auditMap: Record<string, AuditResult>;
   // Serializable array from Server Component; converted to Set inside this component
   demoLeadIds: string[];
+  // leadIds whose AI-generated redesign demo is ready to view (served at /demo/[leadId])
+  generatedDemoLeadIds: string[];
   // leadId → audit job lifecycle state (queued/running/done/failed)
   jobMap: Record<string, AuditJobView>;
   initialLead?: string | null;
 }
 
-export function AuditScreen({ audited, auditMap, demoLeadIds, jobMap, initialLead }: AuditScreenProps) {
+export function AuditScreen({ audited, auditMap, demoLeadIds, generatedDemoLeadIds, jobMap, initialLead }: AuditScreenProps) {
   // Build Set once for O(1) has() — demoLeadIds is a stable server-prefetched array
   const demoLeadSet = new Set(demoLeadIds);
   const { t } = usePipelineAuditT();
@@ -71,6 +74,16 @@ export function AuditScreen({ audited, auditMap, demoLeadIds, jobMap, initialLea
   const onAction = useToast();
   const [pending, startTransition] = useTransition();
   const goDemos = (id: string) => router.push('/demos?lead=' + id);
+  // Generated redesign demos (built by the worker via the claude CLI) are served standalone.
+  const generatedDemoSet = new Set(generatedDemoLeadIds);
+  const openDemo = (id: string) => window.open('/demo/' + id, '_blank', 'noopener');
+  const onGenerateDemo = (leadId: string) => {
+    startTransition(async () => {
+      const res = await requestDemoGeneration(leadId);
+      onAction(res.message, res.ok ? 'success' : 'warning');
+      router.refresh();
+    });
+  };
 
   // Queue a real audit for the selected lead (Inngest worker runs it); refresh to pick up state.
   const onRunAudit = (leadId: string) => {
@@ -97,6 +110,7 @@ export function AuditScreen({ audited, auditMap, demoLeadIds, jobMap, initialLea
   if (!a) return null;
   const hue = hueFor(a.industry);
   const hasDemo = demoLeadSet.has(sel);
+  const hasGen = generatedDemoSet.has(sel);
   const job = jobMap[sel];
   const jobActive = pending || job?.status === 'queued' || job?.status === 'running';
   const jobStatusLabel =
@@ -185,8 +199,8 @@ export function AuditScreen({ audited, auditMap, demoLeadIds, jobMap, initialLea
                 {t('audits.escalate')}
               </button>
               <button className="btn btn-primary btn-sm"
-                onClick={() => hasDemo ? goDemos(sel) : onAction('Generating demo · '+a.company, 'success')}>
-                {hasDemo ? t('audits.viewDemo') : t('audits.generateDemo')} <Icon name="arrowR" size={15}/>
+                onClick={() => hasGen ? openDemo(sel) : hasDemo ? goDemos(sel) : onGenerateDemo(sel)}>
+                {hasGen || hasDemo ? t('audits.viewDemo') : t('audits.generateDemo')} <Icon name="arrowR" size={15}/>
               </button>
             </div>
           </div>
@@ -288,8 +302,8 @@ export function AuditScreen({ audited, auditMap, demoLeadIds, jobMap, initialLea
                   <Icon name="layers" size={15} style={{color:'var(--ink-3)'}}/> {a.redesign.template}
                 </span>
                 <button className="btn btn-soft btn-sm"
-                  onClick={() => hasDemo ? goDemos(sel) : onAction('Generating demo · '+a.company, 'success')}>
-                  {hasDemo ? t('audits.viewDemo') : t('audits.generate')}
+                  onClick={() => hasGen ? openDemo(sel) : hasDemo ? goDemos(sel) : onGenerateDemo(sel)}>
+                  {hasGen || hasDemo ? t('audits.viewDemo') : t('audits.generate')}
                 </button>
               </div>
             </div>

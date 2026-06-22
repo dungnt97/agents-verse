@@ -10,6 +10,9 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 COPY package.json package-lock.json ./
 RUN npm ci
+# Claude Code CLI for demo generation (Subsystem 3): the worker shells to `claude`, which runs on
+# the user's subscription via CLAUDE_CODE_OAUTH_TOKEN (set in .env.local) — no metered API key.
+RUN npm i -g @anthropic-ai/claude-code
 COPY . .
 
 # Outbound connect() worker — no inbound port needed. tsx runs the TS entrypoint (devDep present).
