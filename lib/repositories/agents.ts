@@ -5,6 +5,7 @@ import { agents as agentsTable } from '@/lib/db/schema';
 import { AV } from '@/lib/data';
 import type { Agent, AgentDetail } from '@/lib/data/types';
 import { USE_DB } from './config';
+import { getAgentActivity } from './agent-activity';
 
 // agents row carries the role-derived detail in a jsonb column; the base Agent fields
 // are everything except that column.
@@ -15,8 +16,9 @@ function toAgent(row: typeof agentsTable.$inferSelect): Agent {
 
 export async function getAgents(): Promise<Agent[]> {
   if (!USE_DB) return AV.agents;
-  const rows = await db.select().from(agentsTable);
-  return rows.map(toAgent);
+  // Overlay live status/task/today-count from real subsystem jobs onto the seeded roster.
+  const [rows, activity] = await Promise.all([db.select().from(agentsTable), getAgentActivity()]);
+  return rows.map((r) => ({ ...toAgent(r), ...(activity[r.id] ?? {}) }));
 }
 
 export async function getAgent(id: string): Promise<Agent | undefined> {
