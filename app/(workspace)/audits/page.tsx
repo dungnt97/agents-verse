@@ -7,6 +7,7 @@
 import { auditedLeads, getAudit } from '@/lib/repositories/leads';
 import { getDemos } from '@/lib/repositories/pipeline';
 import { getAuditJobs } from '@/lib/repositories/audit-jobs';
+import { getReadyGeneratedDemoLeadIds } from '@/lib/repositories/generated-demos';
 import { AuditScreen, type AuditJobView } from '@/components/workspace/audit/audit-screen';
 import type { AuditResult } from '@/lib/data/types';
 
@@ -15,10 +16,11 @@ interface Props {
 }
 
 export default async function AuditsPage({ searchParams }: Props) {
-  const [audited, demos, jobs, { lead: initialLead }] = await Promise.all([
+  const [audited, demos, jobs, generatedDemoLeadIds, { lead: initialLead }] = await Promise.all([
     auditedLeads(),
     getDemos(),
     getAuditJobs(),
+    getReadyGeneratedDemoLeadIds(),
     searchParams,
   ]);
 
@@ -41,6 +43,7 @@ export default async function AuditsPage({ searchParams }: Props) {
       audited={audited}
       auditMap={auditMap}
       demoLeadIds={demoLeadIds}
+      generatedDemoLeadIds={generatedDemoLeadIds}
       jobMap={jobMap}
       initialLead={initialLead ?? null}
     />

@@ -5,6 +5,7 @@
 import { connect } from 'inngest/connect';
 import { inngest } from './client';
 import { runAudit } from './functions/run-audit';
+import { runDemoGen } from './functions/run-demo-gen';
 import { closeBrowser } from '../audit/screenshot';
 // NOTE: the Postgres pool is drained by lib/db/client.ts's own SIGTERM handler (imported
 // transitively via run-audit). This entrypoint only owns the Inngest connection + the browser,
@@ -12,7 +13,7 @@ import { closeBrowser } from '../audit/screenshot';
 
 async function main(): Promise<void> {
   const connection = await connect({
-    apps: [{ client: inngest, functions: [runAudit] }],
+    apps: [{ client: inngest, functions: [runAudit, runDemoGen] }],
   });
   console.log('[worker] connected to Inngest; audit function registered');
 

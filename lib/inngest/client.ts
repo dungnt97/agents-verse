@@ -16,3 +16,8 @@ export const inngest = new Inngest({
 export interface AuditRequestedData {
   leadId: string;
 }
+
+// Event payload contract for `demo/requested` — generate a redesign demo page for an audited lead.
+export interface DemoRequestedData {
+  leadId: string;
+}

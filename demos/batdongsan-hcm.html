@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BĐS HCM — Chỉ số giá thật cho bất động sản TP.HCM</title>
+<meta name="description" content="Định giá nhà của bạn ở TP.HCM trong 30 giây trên giá CHỐT thật của các căn quanh bạn — không phải giá rao. Tìm kiếm, định giá và bán đúng giá.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* ---- palette: ink navy / bone / brass + verdigris price-index signal ---- */
+  --ink:#0E1B2A; --ink-2:#15293D; --bone:#F4EFE7; --brass:#A87826; --brass-bright:#C2944E;
+  --ink70:#41505F; --line:#D8D0C2; --paper:#FBF8F2;
+  --index:#2C7A6B;            /* "giá thật" signal — the one unexpected accent, price-index green */
+  --index-bright:#3E9C88;
+  --asking:#9E4B3C;           /* asking / over-priced reference */
+  --zalo:#0068FF;
+
+  /* ---- single modular spacing scale — 4px base ---- */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px;
+  --s7:32px; --s8:40px; --s9:48px; --s10:64px; --s11:80px; --s12:96px;
+  --s13:128px; --s14:160px;
+
+  /* ---- container + uniform section padding token ---- */
+  --maxw:1320px;
+  --gutter:clamp(20px, 5.5vw, 72px);
+  --band:clamp(72px, 8.5vw, 120px);        /* 120 desktop / 72 mobile — one section-padding token */
+  --edge:max(var(--gutter), calc((100% - var(--maxw)) / 2 + var(--gutter)));
+
+  --shadow:0 1px 1px rgba(14,27,42,.05), 0 4px 8px -4px rgba(14,27,42,.12), 0 18px 32px -16px rgba(14,27,42,.20), 0 44px 64px -36px rgba(14,27,42,.24);
+  --shadow-soft:0 2px 6px -2px rgba(14,27,42,.10), 0 16px 30px -18px rgba(14,27,42,.20);
+  --hairline:rgba(168,120,38,.4);
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bone); color:var(--ink);
+  font-family:"Inter Tight",system-ui,sans-serif;
+  font-size:clamp(1rem,1.05vw,1.18rem); line-height:1.6;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+img{display:block;max-width:100%;height:auto}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--brass-bright);color:var(--ink)}
+
+/* ---- type ---- */
+.display{font-family:"Fraunces",serif;font-optical-sizing:auto;font-weight:340;
+  font-size:clamp(2.7rem,6.2vw,6.6rem);line-height:.94;letter-spacing:-.035em}
+h2{font-family:"Fraunces",serif;font-weight:500;
+  font-size:clamp(1.9rem,3.8vw,3.4rem);line-height:1.04;letter-spacing:-.022em}
+h3{font-family:"Fraunces",serif;font-weight:500;
+  font-size:clamp(1.3rem,2vw,1.75rem);line-height:1.1;letter-spacing:-.012em}
+.serif{font-family:"Fraunces",serif}
+.eyebrow{font-size:.8rem;letter-spacing:.24em;text-transform:uppercase;color:var(--brass);
+  font-weight:600;font-family:"Inter Tight",sans-serif}
+/* proprietary numeral treatment — tabular lining figures, tuned tracking, used for every price/percent */
+.figure{font-family:"Fraunces",serif;font-weight:500;letter-spacing:-.015em;
+  font-variant-numeric:tabular-nums lining-nums;font-feature-settings:"tnum" 1,"lnum" 1}
+.num{font-variant-numeric:tabular-nums lining-nums;font-feature-settings:"tnum" 1,"lnum" 1}
+
+/* ---- layout helpers ---- */
+.wrap{max-width:var(--maxw);margin:0 auto;padding-left:var(--gutter);padding-right:var(--gutter)}
+.band{padding:var(--band) 0}
+/* deliberate section watermark — identical number→kicker→heading offset on every section */
+.index-num{font-family:"Fraunces",serif;font-weight:340;font-style:italic;
+  font-size:clamp(3.4rem,9vw,7.6rem);line-height:.8;color:var(--brass);opacity:.22;
+  display:block;letter-spacing:-.04em}
+.sec-head{position:relative;margin-bottom:clamp(40px,5vw,64px);max-width:820px}
+.sec-head .index-num{margin-bottom:var(--s3)}
+.sec-head h2{margin-bottom:var(--s4);max-width:20ch}
+.sec-head .lede{color:var(--ink70);max-width:52ch}
+
+/* ---- the price-index brand device ---- */
+.idx-compare{display:flex;flex-direction:column;gap:var(--s3)}
+.idx-row{display:grid;grid-template-columns:auto 1fr auto;gap:var(--s3);align-items:center}
+.idx-row .k{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink70);font-weight:600;white-space:nowrap}
+.idx-track{height:8px;border-radius:4px;background:rgba(14,27,42,.08);position:relative;overflow:hidden}
+.idx-track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+.idx-track .fill.ask{background:var(--asking);opacity:.55;width:100%}
+.idx-track .fill.real{background:var(--index);width:88%}
+.idx-row .v{font-size:.92rem;font-weight:600;white-space:nowrap}
+.delta-chip{display:inline-flex;align-items:center;gap:6px;font-size:.74rem;font-weight:700;
+  color:var(--index);background:rgba(44,122,107,.12);padding:4px 10px;border-radius:999px;letter-spacing:.01em}
+.delta-chip.down{color:var(--asking);background:rgba(158,75,60,.12)}
+.delta-chip .arr{font-size:.85em;line-height:1}
+
+/* ---- buttons ---- */
+.btn{display:inline-flex;align-items:center;gap:var(--s2);justify-content:center;
+  font-family:"Inter Tight",sans-serif;font-weight:600;font-size:1.02rem;
+  min-height:48px;padding:var(--s4) var(--s7);border:none;border-radius:2px;cursor:pointer;
+  background:var(--brass);color:var(--bone);position:relative;overflow:hidden;
+  box-shadow:0 1px 2px rgba(14,27,42,.10);
+  transition:transform .4s var(--ease),box-shadow .4s var(--ease)}
+.btn span{position:relative;z-index:2;display:inline-flex;align-items:center;gap:var(--s2)}
+.btn::after{content:"";position:absolute;inset:0;background:var(--ink);
+  transform:translateX(-101%);transition:transform .45s var(--ease);z-index:1}
+.btn:hover{box-shadow:var(--shadow);transform:translateY(-2px)}
+.btn:hover::after{transform:translateX(0)}
+.btn:hover span{color:var(--bone);transition:color .25s .12s}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+.btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--hairline);box-shadow:none}
+.btn-ghost span{color:var(--ink)}
+.btn-ghost::after{background:var(--brass)}
+.btn-ghost:hover span{color:var(--bone)}
+.btn .arr{transition:transform .4s var(--ease)}
+.btn:hover .arr{transform:translateX(4px)}
+.btn-ghost.on-dark{color:var(--bone);border-color:rgba(216,208,194,.5)}
+.btn-ghost.on-dark span{color:var(--bone)}
+.btn-ghost.on-dark::after{background:var(--brass-bright)}
+.btn-ghost.on-dark:hover span{color:var(--ink)}
+.btn-index{background:var(--index)}
+.btn-index::after{background:var(--ink)}
+.btn-sm{min-height:40px;padding:var(--s2) var(--s5);font-size:.92rem;border-radius:2px}
+.btn-zalo{background:var(--zalo);color:#fff}
+.btn-zalo::after{background:#0050c8}
+.btn-zalo span{color:#fff}
+
+/* ---- header ---- */
+header{position:fixed;top:0;left:0;right:0;z-index:100;
+  background:rgba(244,239,231,.78);backdrop-filter:blur(10px) saturate(1.15);
+  transition:background .4s var(--ease),box-shadow .4s var(--ease)}
+header .bar{display:flex;align-items:center;justify-content:space-between;gap:var(--s4);
+  min-height:64px;padding:var(--s5) var(--gutter);transition:padding .35s var(--ease)}
+header.solid{background:rgba(244,239,231,.92);backdrop-filter:blur(14px) saturate(1.2);
+  box-shadow:0 1px 0 var(--hairline)}
+header.solid .bar{padding-top:var(--s3);padding-bottom:var(--s3)}
+/* distinct wordmark — distanced from the incumbent portal; data-mark device, not a generic logo */
+.brand{font-family:"Fraunces",serif;font-weight:600;font-size:1.28rem;line-height:1;
+  letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.brand .mark{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+  background:var(--ink);color:var(--brass-bright);border-radius:4px;flex:0 0 auto;position:relative}
+.brand .mark::before{content:"";position:absolute;left:6px;right:6px;bottom:8px;height:3px;
+  background:var(--brass-bright);border-radius:2px;
+  box-shadow:0 -5px 0 -1px var(--index-bright), 0 -10px 0 -2px rgba(216,208,194,.55)}
+.brand .bt{display:flex;flex-direction:column;line-height:.95}
+.brand .bt b{font-weight:600}
+.brand .bt small{font-family:"Inter Tight",sans-serif;font-size:.56rem;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--brass);font-weight:600;margin-top:2px}
+nav.main{display:flex;gap:var(--s7);align-items:center}
+nav.main a{font-size:.95rem;font-weight:500;color:var(--ink70);position:relative;padding:var(--s1) 0}
+nav.main a.link::after{content:"";position:absolute;left:0;bottom:-2px;height:1px;width:0;background:var(--brass);transition:width .35s var(--ease)}
+nav.main a.link:hover{color:var(--ink)}
+nav.main a.link:hover::after{width:100%}
+.nav-cta{min-height:40px;padding:var(--s2) var(--s5)}
+.menu-toggle{display:none;background:none;border:none;cursor:pointer;flex-direction:column;
+  gap:5px;width:44px;height:44px;align-items:center;justify-content:center}
+.menu-toggle span{width:24px;height:2px;background:var(--ink);display:block;transition:.3s}
+
+/* ---- hero ---- */
+.hero{position:relative;min-height:auto;display:flex;align-items:center;overflow:hidden}
+.hero-img{position:absolute;top:0;right:0;width:50%;height:100%;overflow:hidden}
+.hero-img img{width:100%;height:100%;object-fit:cover;transform:scale(1.05);
+  animation:heroZoom 1.6s var(--ease) forwards;filter:saturate(1.04) contrast(1.02)}
+@keyframes heroZoom{to{transform:scale(1)}}
+.hero-img::before{content:"";position:absolute;inset:0;z-index:2;
+  background:linear-gradient(100deg, var(--bone) 0%, var(--bone) 26%, rgba(244,239,231,.6) 46%, rgba(244,239,231,0) 66%)}
+/* divider aligned exactly to the content/image seam — a deliberate hairline, not a stray rule */
+.hero-rule{position:absolute;top:0;right:50%;width:1px;height:100%;background:var(--hairline);z-index:3;opacity:.6}
+.hero-content{position:relative;z-index:5;max-width:760px;padding-top:clamp(120px,14vw,180px);padding-bottom:var(--s11);padding-right:clamp(24px,5vw,72px)}
+.hero .eyebrow{margin-bottom:var(--s5);display:inline-flex;align-items:center;gap:var(--s3)}
+.hero .eyebrow::before{content:"";width:32px;height:1px;background:var(--brass);display:inline-block}
+.hero h1{margin-bottom:var(--s5);max-width:15ch}
+.hero h1 em{font-style:italic;color:var(--brass);font-weight:500}
+.hero-sub{font-size:clamp(1.05rem,1.3vw,1.25rem);max-width:46ch;color:var(--ink70);margin-bottom:var(--s7)}
+.hero-sub b{color:var(--ink);font-weight:600}
+
+/* ---- engine (search + valuation) ---- */
+.engine{background:var(--paper);border:1px solid var(--hairline);border-radius:4px;
+  box-shadow:var(--shadow);max-width:680px;overflow:hidden}
+.seg{display:flex;background:var(--ink);padding:0}
+.seg button{flex:1;min-height:52px;border:none;background:transparent;cursor:pointer;
+  font-family:"Inter Tight",sans-serif;font-weight:600;font-size:.92rem;color:rgba(244,239,231,.62);
+  letter-spacing:.02em;position:relative;transition:color .3s var(--ease)}
+.seg button .t{position:relative;z-index:2}
+.seg button[aria-selected="true"]{color:var(--ink);background:var(--paper)}
+.seg button[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--brass)}
+.seg button:not([aria-selected="true"]):hover{color:var(--bone)}
+.seg button:focus-visible{outline:2px solid var(--brass-bright);outline-offset:-3px}
+.eng-top{padding:var(--s6) var(--s6) var(--s5)}
+.eng-tag{display:flex;align-items:center;gap:var(--s2);font-size:.74rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--brass);font-weight:600;margin-bottom:var(--s4)}
+.eng-tag .dot{width:7px;height:7px;border-radius:50%;background:var(--index);
+  box-shadow:0 0 0 0 rgba(44,122,107,.5);animation:pulse 2.4s infinite;flex:0 0 auto}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(44,122,107,.45)}70%{box-shadow:0 0 0 8px rgba(44,122,107,0)}100%{box-shadow:0 0 0 0 rgba(44,122,107,0)}}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4)}
+.field{min-width:0}
+.field.wide{grid-column:1 / -1}
+.field label{display:block;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink70);margin-bottom:var(--s2);font-weight:600}
+.field input,.field select{width:100%;min-height:50px;padding:var(--s3) var(--s4);border:1px solid var(--line);
+  border-radius:2px;background:#fff;font-family:"Inter Tight",sans-serif;font-size:1rem;color:var(--ink);
+  font-weight:500;transition:border-color .25s var(--ease),box-shadow .25s var(--ease)}
+/* differentiated field states: placeholder muted, entered value full-contrast 600, 2px gold focus ring */
+.field input::placeholder{color:var(--ink70);opacity:.5;font-weight:500}
+.field input:not(:placeholder-shown){font-weight:600;color:var(--ink)}
+.field select{font-weight:600;color:var(--ink)}
+.field input:focus,.field select:focus{outline:none;border-color:var(--brass);
+  box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--brass)}
+.field .hint{font-size:.72rem;color:var(--ink70);margin-top:var(--s1)}
+.autocomp{position:relative}
+.ac-list{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--line);
+  border-radius:2px;box-shadow:var(--shadow-soft);z-index:30;max-height:230px;overflow:auto;display:none}
+.ac-list.open{display:block}
+.ac-list button{display:flex;justify-content:space-between;gap:var(--s3);width:100%;text-align:left;
+  border:none;background:none;cursor:pointer;padding:var(--s3) var(--s4);font-size:.95rem;font-family:inherit;color:var(--ink);
+  border-bottom:1px solid var(--line)}
+.ac-list button:last-child{border-bottom:none}
+.ac-list button:hover,.ac-list button.act{background:var(--bone)}
+.ac-list button .pd{color:var(--index);font-weight:700;font-size:.82rem}
+.eng-actions{padding:0 var(--s6) var(--s6);display:flex;gap:var(--s4);align-items:center;flex-wrap:wrap}
+.eng-actions .btn{flex:1;min-width:180px}
+.eng-actions .mini-note{font-size:.78rem;color:var(--ink70);flex:1;min-width:160px}
+
+/* valuation result */
+.val-result{background:var(--ink);color:var(--bone);padding:var(--s6);position:relative;overflow:hidden;display:none}
+.val-result.show{display:block}
+.val-result::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--index-bright),var(--brass-bright) 70%,transparent)}
+.vr-head{display:flex;justify-content:space-between;align-items:flex-end;gap:var(--s4);flex-wrap:wrap;margin-bottom:var(--s5)}
+.vr-label{font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--brass-bright);font-weight:600;margin-bottom:var(--s2)}
+.vr-amount{font-family:"Fraunces",serif;font-weight:500;font-size:clamp(2.4rem,5vw,3.4rem);
+  line-height:.92;letter-spacing:-.025em;font-variant-numeric:tabular-nums lining-nums;display:inline-flex;align-items:baseline}
+.vr-amount .unit{font-size:.36em;color:var(--bone);opacity:.78;margin-left:var(--s2);letter-spacing:0;font-weight:400}
+.vr-range{font-size:.9rem;color:rgba(244,239,231,.78);margin-top:var(--s2)}
+.vr-scope{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:rgba(244,239,231,.6);text-align:right}
+#valNum{display:inline-block;transition:opacity .18s,transform .35s var(--ease)}
+/* index compare on dark */
+.val-result .idx-track{background:rgba(244,239,231,.14)}
+.val-result .idx-row .k{color:rgba(244,239,231,.7)}
+.val-result .idx-row .v{color:var(--bone)}
+.val-result .idx-track .fill.ask{background:var(--asking);opacity:.7}
+.val-result .idx-track .fill.real{background:var(--index-bright)}
+.capture{margin-top:var(--s5);padding-top:var(--s5);border-top:1px solid rgba(216,208,194,.2)}
+.capture .cap-h{font-size:.9rem;color:rgba(244,239,231,.84);margin-bottom:var(--s3)}
+.cap-fields{display:flex;gap:var(--s3);flex-wrap:wrap}
+.cap-fields input{flex:1;min-width:150px;min-height:48px;padding:var(--s3) var(--s4);border:1px solid rgba(216,208,194,.3);
+  border-radius:2px;background:rgba(244,239,231,.06);color:var(--bone);font-family:inherit;font-size:1rem;font-weight:600}
+.cap-fields input::placeholder{color:rgba(244,239,231,.5);font-weight:500}
+.cap-fields input:focus{outline:none;border-color:var(--brass-bright);box-shadow:0 0 0 2px var(--ink),0 0 0 4px var(--brass-bright)}
+.cap-fields .btn{flex:1;min-width:170px}
+/* search result strip */
+.search-result{padding:var(--s5) var(--s6);background:var(--ink);color:var(--bone);display:none;align-items:center;justify-content:space-between;gap:var(--s4);flex-wrap:wrap}
+.search-result.show{display:flex}
+.search-result .sr-n{font-family:"Fraunces",serif;font-weight:500;font-size:1.5rem}
+.search-result .sr-n b{color:var(--brass-bright)}
+.search-result .map-link{font-size:.85rem;color:var(--brass-bright);font-weight:600;display:inline-flex;gap:6px;align-items:center}
+
+.trust-strip{display:flex;gap:var(--s7);flex-wrap:wrap;margin-top:var(--s7)}
+.trust-strip .ti{display:flex;flex-direction:column}
+.trust-strip .ti .n{font-family:"Fraunces",serif;font-weight:500;font-size:1.7rem;line-height:1;letter-spacing:-.01em}
+.trust-strip .ti .t{font-size:.78rem;color:var(--ink70);margin-top:4px;max-width:18ch}
+.verified-badge{display:inline-flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;letter-spacing:.02em;
+  color:var(--index);background:rgba(44,122,107,.1);border:1px solid rgba(44,122,107,.3);padding:3px 9px;border-radius:999px}
+.verified-badge svg{width:13px;height:13px;flex:0 0 auto}
+
+/* ---- featured listings — broken editorial wall ---- */
+.masonry{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--s5);align-items:start}
+.card{position:relative;border-radius:3px;overflow:hidden;background:var(--paper);border:1px solid transparent}
+.card .ph{overflow:hidden;position:relative;background:linear-gradient(135deg,var(--ink),#1d3450);aspect-ratio:16/11}
+.card .ph img{width:100%;height:100%;object-fit:cover;transition:transform .7s var(--ease);
+  /* single warm color grade so all photography feels owned, not scraped */
+  filter:saturate(1.06) contrast(1.03) brightness(1.01) sepia(.05)}
+.card:hover .ph img{transform:scale(1.04)}
+/* branded placeholder so a failed image never renders an empty box */
+.card .ph::after{content:attr(data-ph);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  padding:var(--s5);text-align:center;color:rgba(244,239,231,.5);font-family:"Fraunces",serif;font-size:.95rem;
+  letter-spacing:.02em;z-index:0}
+.card .badges{position:absolute;top:var(--s3);left:var(--s3);right:var(--s3);z-index:3;display:flex;gap:var(--s2);align-items:flex-start;flex-wrap:wrap}
+.card .v-badge{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;font-weight:700;letter-spacing:.02em;
+  color:var(--ink);background:rgba(244,239,231,.94);padding:4px 9px;border-radius:999px;box-shadow:0 1px 4px rgba(14,27,42,.18)}
+.card .v-badge svg{width:12px;height:12px;color:var(--index);flex:0 0 auto}
+.card .pdelta{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:.68rem;font-weight:700;
+  color:#fff;background:rgba(14,27,42,.82);padding:4px 9px;border-radius:999px;backdrop-filter:blur(2px)}
+.card .pdelta.up{color:#BfeFe0}
+.card .meta{padding:var(--s5)}
+.card .loc{display:flex;align-items:center;gap:var(--s2);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--brass);font-weight:600;margin-bottom:var(--s2)}
+.card h3{margin-bottom:var(--s2)}
+.card .proj{font-size:.82rem;color:var(--ink70);margin-bottom:var(--s3)}
+.card .proj b{color:var(--ink);font-weight:600}
+.card .specs{display:flex;gap:var(--s4);font-size:.85rem;color:var(--ink70);margin-bottom:var(--s3);flex-wrap:wrap}
+.card .specs span{display:flex;align-items:center;gap:6px}
+/* legal/sổ status — the #1 trust gate, on every card */
+.card .legal{display:flex;align-items:center;gap:var(--s2);font-size:.8rem;color:var(--index);font-weight:600;margin-bottom:var(--s4);
+  padding:var(--s2) 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.card .legal svg{width:15px;height:15px;flex:0 0 auto}
+.card .legal .sep{color:var(--line)}
+.card .legal .sub{color:var(--ink70);font-weight:500}
+.price-row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s4)}
+.price{font-family:"Fraunces",serif;font-weight:500;font-size:1.55rem;letter-spacing:-.01em;font-variant-numeric:tabular-nums lining-nums;line-height:1}
+.price .unit{font-size:.6em;color:var(--ink70);margin-left:4px}
+/* lift per-m² to ≥4.5:1, lock to price baseline, tabular */
+.ppm{font-size:.84rem;color:#5a6875;font-weight:600;font-variant-numeric:tabular-nums lining-nums;align-self:flex-end}
+.card .foot{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);flex-wrap:wrap}
+.card .posted{font-size:.74rem;color:var(--ink70)}
+.card .map-aff{display:inline-flex;align-items:center;gap:5px;font-size:.8rem;font-weight:600;color:var(--brass)}
+.card .map-aff svg{width:14px;height:14px}
+.card.hero-unit{grid-column:span 6;grid-row:span 2}
+.card.hero-unit .ph{aspect-ratio:4/5}
+.card.hero-unit h3{font-size:clamp(1.5rem,2.2vw,2rem)}
+.card.hero-unit .price{font-size:2rem}
+.card.u-a{grid-column:span 6}
+.card.u-b{grid-column:span 6}
+.card.u-c{grid-column:span 4}
+.card.u-d{grid-column:span 4}
+.card.u-e{grid-column:span 8}.card.u-e .ph{aspect-ratio:16/9}
+/* breathing brand cell — no image, price-index pull-quote */
+.idx-cell{grid-column:span 4;background:var(--ink);color:var(--bone);border-radius:3px;padding:var(--s7);
+  display:flex;flex-direction:column;justify-content:space-between;min-height:240px;position:relative;overflow:hidden}
+.idx-cell::before{content:"";position:absolute;top:-30px;right:-30px;width:160px;height:160px;border:1px solid rgba(194,148,78,.25);border-radius:50%}
+.idx-cell .ic-k{font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--brass-bright);font-weight:600}
+.idx-cell .ic-big{font-family:"Fraunces",serif;font-weight:500;font-size:clamp(2.4rem,4vw,3.2rem);line-height:1;letter-spacing:-.02em;margin:var(--s4) 0 var(--s2);font-variant-numeric:tabular-nums lining-nums}
+.idx-cell .ic-big .pct{color:var(--index-bright)}
+.idx-cell .ic-q{font-family:"Fraunces",serif;font-style:italic;font-weight:340;font-size:1.12rem;line-height:1.3;color:rgba(244,239,231,.9);position:relative;z-index:2}
+/* trust cell */
+.trust-cell{grid-column:span 4;background:var(--paper);border:1px solid var(--hairline);border-radius:3px;padding:var(--s7);
+  display:flex;flex-direction:column;justify-content:center;gap:var(--s4)}
+.trust-cell .tc-n{font-family:"Fraunces",serif;font-weight:500;font-size:2.6rem;line-height:1;letter-spacing:-.02em}
+.trust-cell .tc-t{color:var(--ink70);font-size:.92rem}
+.more-row{margin-top:var(--s9);display:flex;gap:var(--s4);align-items:center;justify-content:center;flex-wrap:wrap;text-align:center}
+.more-row .mr-note{color:var(--ink70);font-size:.92rem}
+
+/* ---- agents — two-column, no void ---- */
+.agents{background:var(--ink);color:var(--bone)}
+.agents .index-num{color:var(--brass-bright);opacity:.38}
+.agents h2{color:var(--bone)}
+.agents .lede{color:rgba(244,239,231,.76)}
+.agents-grid{display:grid;grid-template-columns:5fr 7fr;gap:clamp(32px,4.5vw,72px);align-items:start}
+.agents-intro{position:sticky;top:96px}
+.agents-intro .index-num{color:var(--brass-bright);opacity:.4;margin-bottom:var(--s3)}
+.agents-intro .eyebrow{margin-bottom:var(--s4);display:block}
+.agents-intro h2{margin-bottom:var(--s4);max-width:14ch}
+.agents-intro .lede{color:rgba(244,239,231,.76);margin-bottom:var(--s7)}
+/* supporting visual fills residual space: district coverage map block */
+.cov{border:1px solid rgba(216,208,194,.2);border-radius:3px;padding:var(--s6);background:rgba(244,239,231,.03)}
+.cov .cov-h{font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;color:var(--brass-bright);font-weight:600;margin-bottom:var(--s4)}
+.cov-chips{display:flex;flex-wrap:wrap;gap:var(--s2)}
+.cov-chips .cc{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;font-weight:600;
+  border:1px solid rgba(216,208,194,.25);border-radius:999px;padding:6px 12px;color:rgba(244,239,231,.9)}
+.cov-chips .cc .d{font-size:.72rem;color:var(--index-bright);font-weight:700}
+.agent-list{display:flex;flex-direction:column;gap:var(--s4)}
+.agent-card{display:grid;grid-template-columns:96px 1fr;gap:var(--s5);align-items:start;
+  border:1px solid rgba(216,208,194,.18);border-radius:3px;padding:var(--s5);background:rgba(244,239,231,.025);
+  transition:border-color .35s var(--ease),background .35s var(--ease)}
+.agent-card:hover{border-color:rgba(194,148,78,.5);background:rgba(244,239,231,.05)}
+.agent-card .por{width:96px;height:120px;border-radius:3px;overflow:hidden;background:linear-gradient(160deg,#1d3450,#0E1B2A);position:relative;flex:0 0 auto}
+.agent-card .por img{width:100%;height:100%;object-fit:cover;filter:grayscale(.1) saturate(1.05)}
+.agent-card .por .ic-badge{position:absolute;left:0;right:0;bottom:0;background:rgba(14,27,42,.78);color:var(--index-bright);
+  font-size:.6rem;font-weight:700;letter-spacing:.04em;text-align:center;padding:3px 2px;backdrop-filter:blur(2px)}
+.ac-body{min-width:0}
+.ac-top{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s3);flex-wrap:wrap}
+.ac-name{font-family:"Fraunces",serif;font-weight:500;font-size:1.3rem;line-height:1.05}
+.ac-area{font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;color:var(--brass-bright);font-weight:600;margin-top:3px}
+.ac-closed{text-align:right;flex:0 0 auto}
+.ac-closed .n{font-family:"Fraunces",serif;font-weight:500;font-size:1.6rem;line-height:1;display:block;font-variant-numeric:tabular-nums lining-nums}
+.ac-closed .t{font-size:.68rem;color:rgba(244,239,231,.6);letter-spacing:.03em}
+.ac-proof{display:flex;align-items:center;gap:var(--s2);font-size:.82rem;color:rgba(244,239,231,.82);margin:var(--s3) 0 var(--s4)}
+.ac-proof .pi{color:var(--index-bright);font-weight:700}
+.ac-meta{display:flex;gap:var(--s4);font-size:.74rem;color:rgba(244,239,231,.66);margin-bottom:var(--s4);flex-wrap:wrap}
+.ac-meta span{display:flex;align-items:center;gap:5px}
+.ac-meta .rt{color:var(--index-bright);font-weight:600}
+.ac-cta{display:flex;gap:var(--s2);flex-wrap:wrap}
+.ac-cta a{flex:1;min-width:120px}
+.ac-cta .btn-sm{width:100%}
+
+/* ---- sold ribbon — carousel ---- */
+.sold-band{background:var(--paper);border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline)}
+.sold-inner{padding:var(--band) 0}
+.sold-head{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s6);margin-bottom:var(--s7);flex-wrap:wrap}
+.sold-head .index-num{margin-bottom:var(--s2)}
+.sold-head .lede{color:var(--ink70);max-width:38ch;font-size:.98rem}
+.carousel-ctl{display:flex;align-items:center;gap:var(--s3)}
+.carousel-ctl button{width:44px;height:44px;border-radius:50%;border:1px solid var(--hairline);background:var(--paper);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink);transition:.3s var(--ease)}
+.carousel-ctl button svg{width:18px;height:18px}
+.carousel-ctl button:hover:not(:disabled){background:var(--ink);color:var(--bone);border-color:var(--ink)}
+.carousel-ctl button:disabled{opacity:.32;cursor:not-allowed}
+.carousel-ctl button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.ribbon-wrap{position:relative}
+/* soft fade/peek at the right edge so a clipped card reads as "more →" */
+.ribbon-wrap::after{content:"";position:absolute;top:0;bottom:14px;right:0;width:64px;pointer-events:none;z-index:2;
+  background:linear-gradient(90deg,rgba(251,248,242,0),var(--paper));opacity:1;transition:opacity .3s}
+.ribbon-wrap.at-end::after{opacity:0}
+.ribbon{display:flex;gap:var(--s5);overflow-x:auto;padding:var(--s2) var(--edge) var(--s5);
+  scroll-snap-type:x mandatory;scrollbar-width:none}
+.ribbon::-webkit-scrollbar{display:none}
+.sold-card{flex:0 0 340px;scroll-snap-align:start;background:var(--paper);
+  border:1px solid var(--line);border-radius:3px;padding:var(--s6);display:flex;flex-direction:column;
+  transition:border-color .35s var(--ease),box-shadow .35s var(--ease),transform .35s var(--ease)}
+.sold-card:hover{border-color:var(--hairline);box-shadow:var(--shadow-soft);transform:translateY(-3px)}
+.sold-card.feat{background:var(--ink);color:var(--bone);border-color:transparent}
+.sold-card .tick{display:inline-flex;align-items:center;gap:var(--s2);font-size:.72rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--index);font-weight:700;margin-bottom:var(--s4)}
+.sold-card.feat .tick{color:var(--brass-bright)}
+.sold-card .tick svg{width:14px;height:14px;flex:0 0 auto}
+.sold-card .addr{font-family:"Fraunces",serif;font-weight:500;font-size:1.25rem;margin-bottom:2px}
+.sold-card .dist{font-size:.82rem;color:var(--ink70);margin-bottom:var(--s5)}
+.sold-card.feat .dist{color:rgba(244,239,231,.66)}
+.sold-card .seller-win{font-size:.8rem;color:var(--index);font-weight:600;margin-bottom:var(--s4);display:flex;align-items:center;gap:6px}
+.sold-card.feat .seller-win{color:var(--index-bright)}
+.sold-card .ladder{margin-top:auto;display:flex;flex-direction:column;gap:var(--s2)}
+.sold-card .lrow{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s3);font-size:.86rem}
+.sold-card .lrow .lk{color:var(--ink70)}
+.sold-card.feat .lrow .lk{color:rgba(244,239,231,.62)}
+.sold-card .lrow .lv{font-weight:600;font-variant-numeric:tabular-nums lining-nums}
+.sold-card .lrow.ask .lv{text-decoration:line-through;text-decoration-color:var(--asking);color:var(--ink70)}
+.sold-card.feat .lrow.ask .lv{color:rgba(244,239,231,.55)}
+.sold-card .lrow.est .lv{color:var(--brass)}
+.sold-card.feat .lrow.est .lv{color:var(--brass-bright)}
+.sold-card .final{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s3);margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--line)}
+.sold-card.feat .final{border-top-color:rgba(216,208,194,.22)}
+.sold-card .final .fv{font-family:"Fraunces",serif;font-weight:500;font-size:1.7rem;font-variant-numeric:tabular-nums lining-nums}
+.sold-card .final .fk{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink70)}
+.sold-card.feat .final .fk{color:rgba(244,239,231,.6)}
+.sold-card .final .unit{font-size:.55em;color:var(--ink70)}
+.sold-card.feat .final .unit{color:rgba(244,239,231,.6)}
+.sold-bot{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);margin-top:var(--s5);flex-wrap:wrap}
+.sold-card .days{font-size:.8rem;color:var(--brass);font-weight:600}
+.sold-card.feat .days{color:var(--brass-bright)}
+/* one badge style — accuracy delta on every card */
+.acc-badge{display:inline-flex;align-items:center;gap:5px;font-size:.74rem;font-weight:700;color:var(--index);
+  background:rgba(44,122,107,.12);padding:4px 10px;border-radius:999px}
+.sold-card.feat .acc-badge{color:#A9E0D2;background:rgba(62,156,136,.18)}
+.dots{display:flex;gap:var(--s2);justify-content:center;margin-top:var(--s6)}
+.dots button{width:8px;height:8px;border-radius:50%;border:none;background:var(--line);cursor:pointer;padding:0;transition:.3s}
+.dots button.act{background:var(--brass);width:22px;border-radius:4px}
+
+/* ---- testimonials ---- */
+.testi .index-num{margin-bottom:var(--s3)}
+.testi-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:clamp(40px,5vw,80px);align-items:start}
+.testi-main{padding-top:var(--s2)}
+.pull{font-family:"Fraunces",serif;font-weight:340;font-size:clamp(1.6rem,3vw,2.7rem);
+  line-height:1.18;letter-spacing:-.02em;margin-bottom:var(--s6)}
+.pull em{font-style:italic;color:var(--brass)}
+.pull .mark-q{color:var(--brass);font-style:italic}
+.client{display:flex;align-items:center;gap:var(--s4)}
+.client .ava{width:52px;height:52px;border-radius:50%;overflow:hidden;flex:0 0 auto;background:var(--line)}
+.client .ava img{width:100%;height:100%;object-fit:cover}
+.client .cname{font-weight:600}
+.client .cdist{color:var(--ink70);font-size:.9rem}
+.client .cprop{color:var(--index);font-size:.82rem;font-weight:600}
+.testi-side{display:flex;flex-direction:column;gap:var(--s6);padding-top:var(--s2)}
+.mini-q{border-left:2px solid var(--hairline);padding-left:var(--s5)}
+.mini-q .verified-badge{margin-bottom:var(--s3)}
+.mini-q p{font-family:"Fraunces",serif;font-weight:340;font-size:1.08rem;line-height:1.35;margin-bottom:var(--s3);font-style:italic}
+.mini-q .who{font-size:.85rem;color:var(--ink70)}
+.mini-q .who b{color:var(--ink);font-weight:600}
+
+/* ---- valuation CTA ---- */
+.vcta{position:relative;display:flex;align-items:center;overflow:hidden;background:var(--ink)}
+.vcta-img{position:absolute;inset:0}
+.vcta-img img{width:100%;height:100%;object-fit:cover;opacity:.5;transform:scale(1.04);filter:saturate(1.04)}
+.vcta-img::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(90deg, rgba(14,27,42,.96) 0%, rgba(14,27,42,.78) 42%, rgba(14,27,42,.45) 100%)}
+.vcta .wrap{position:relative;z-index:3;width:100%;padding-top:var(--band);padding-bottom:var(--band)}
+.vcta-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(40px,5vw,72px);align-items:center}
+.vcta .eyebrow{margin-bottom:var(--s4);display:inline-flex;align-items:center;gap:var(--s3);color:var(--brass-bright)}
+.vcta .eyebrow::before{content:"";width:32px;height:1px;background:var(--brass-bright);display:inline-block}
+.vcta h2{color:var(--bone);margin-bottom:var(--s4);max-width:15ch}
+.vcta h2 em{font-style:italic;color:var(--brass-bright)}
+.vcta .urgency{color:rgba(244,239,231,.86);font-size:clamp(1.05rem,1.3vw,1.18rem);max-width:44ch;margin-bottom:var(--s6)}
+.vcta-assure{display:flex;gap:var(--s5);flex-wrap:wrap}
+.vcta-assure .a{display:flex;align-items:center;gap:var(--s2);font-size:.88rem;color:rgba(244,239,231,.82)}
+.vcta-assure svg{width:16px;height:16px;color:var(--index-bright);flex:0 0 auto}
+.mini-val{background:var(--paper);border-radius:4px;box-shadow:var(--shadow);padding:var(--s7);border:1px solid var(--hairline)}
+.mini-val .mv-label{font-size:.76rem;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);font-weight:600;margin-bottom:var(--s5)}
+.mini-val .field{margin-bottom:var(--s4)}
+.mini-val .mv-out{background:var(--ink);color:var(--bone);border-radius:3px;padding:var(--s4) var(--s5);margin-bottom:var(--s4)}
+.mini-val .mv-out .l{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--brass-bright);font-weight:600}
+.mini-val .mv-out .v{font-family:"Fraunces",serif;font-weight:500;font-size:1.7rem;font-variant-numeric:tabular-nums lining-nums;margin-top:2px}
+.mini-val .btn{width:100%;margin-top:var(--s1)}
+.mini-val .mv-foot{margin-top:var(--s4);font-size:.8rem;color:var(--ink70);display:flex;gap:var(--s2);align-items:center}
+.mini-val .mv-foot svg{width:16px;height:16px;color:var(--index);flex:0 0 auto}
+
+/* ---- footer ---- */
+footer{background:var(--ink);color:rgba(244,239,231,.74);padding:var(--band) 0 var(--s9);border-top:1px solid rgba(216,208,194,.14)}
+.foot-grid{display:grid;grid-template-columns:1.7fr 1fr 1fr 1.1fr;gap:var(--s8);margin-bottom:var(--s9)}
+footer .brand{color:var(--bone);margin-bottom:var(--s5)}
+footer .brand .mark{background:rgba(244,239,231,.08)}
+footer .brand .bt small{color:var(--brass-bright)}
+footer .fdesc{max-width:34ch;font-size:.92rem;line-height:1.6;margin-bottom:var(--s5)}
+.foot-verified{display:inline-flex;align-items:center;gap:8px;font-size:.8rem;color:rgba(244,239,231,.82);
+  border:1px solid rgba(62,156,136,.4);background:rgba(44,122,107,.12);border-radius:999px;padding:6px 12px}
+.foot-verified svg{width:15px;height:15px;color:var(--index-bright);flex:0 0 auto}
+.fcol h4{font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;color:var(--brass-bright);margin-bottom:var(--s5);font-weight:600;font-family:"Inter Tight",sans-serif}
+.fcol a{display:block;font-size:.92rem;margin-bottom:var(--s3);color:rgba(244,239,231,.74);transition:color .3s var(--ease)}
+.fcol a:hover{color:var(--bone)}
+.fcol .lic{font-size:.82rem;line-height:1.6;color:rgba(244,239,231,.6)}
+.fcol .lic b{color:rgba(244,239,231,.82);font-weight:600}
+.foot-bot{display:flex;justify-content:space-between;gap:var(--s4);flex-wrap:wrap;
+  padding-top:var(--s6);border-top:1px solid rgba(216,208,194,.14);font-size:.84rem}
+
+/* ---- sticky mobile call bar ---- */
+.mobile-bar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:90;gap:1px;
+  background:rgba(216,208,194,.3);box-shadow:0 -4px 24px -8px rgba(14,27,42,.4)}
+.mobile-bar a{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;min-height:56px;
+  font-weight:700;font-size:.98rem}
+.mobile-bar .call{background:var(--ink);color:var(--bone)}
+.mobile-bar .zalo{background:var(--zalo);color:#fff}
+.mobile-bar svg{width:18px;height:18px;flex:0 0 auto}
+
+/* ---- reveal — text/cards fade in; media NEVER hidden (always painted on load) ---- */
+.js .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+.js .reveal.in{opacity:1;transform:none}
+/* media masks must stay fully visible — no clip-path / opacity gating on images */
+.js .mask,.js .mask.in{clip-path:none;opacity:1}
+
+/* ---- responsive ---- */
+@media(max-width:1080px){
+  .agents-grid{grid-template-columns:1fr;gap:var(--s8)}
+  .agents-intro{position:static}
+  .testi-grid,.vcta-grid{grid-template-columns:1fr}
+  .vcta-grid .mini-val{max-width:540px}
+  .card.hero-unit{grid-column:span 12;grid-row:auto}
+  .card.hero-unit .ph{aspect-ratio:16/10}
+  .card.u-a,.card.u-b{grid-column:span 6}
+  .card.u-c,.card.u-d,.idx-cell{grid-column:span 4}
+  .card.u-e{grid-column:span 8}
+  .trust-cell{grid-column:span 4}
+}
+@media(max-width:760px){
+  nav.main{display:none}
+  .menu-toggle{display:flex}
+  .mobile-bar{display:flex}
+  body{padding-bottom:56px}
+  .hero-img{width:100%;opacity:.26}
+  .hero-img::before{background:linear-gradient(to bottom, rgba(244,239,231,.5), rgba(244,239,231,.9))}
+  .hero-rule{display:none}
+  .hero-content{padding-top:120px;padding-bottom:var(--s9);padding-right:0}
+  .hero .eyebrow{display:block;letter-spacing:.1em;font-size:.72rem;max-width:26ch}
+  .hero .eyebrow::before{display:none}
+  .fields{grid-template-columns:1fr}
+  .seg button{font-size:.82rem;min-height:48px}
+  .masonry{grid-template-columns:repeat(6,1fr);gap:var(--s5)}
+  .card.u-a,.card.u-b,.card.u-e{grid-column:span 6}
+  .card.u-c,.card.u-d{grid-column:span 3}
+  .idx-cell,.trust-cell{grid-column:span 6}
+  .agent-card{grid-template-columns:80px 1fr;gap:var(--s4)}
+  .agent-card .por{width:80px;height:100px}
+  .foot-grid{grid-template-columns:1fr 1fr;gap:var(--s7)}
+  .sold-card,.sold-card.feat{flex-basis:80vw}
+}
+@media(max-width:440px){
+  .masonry{gap:var(--s4)}
+  .card.u-c,.card.u-d{grid-column:span 6}
+  .foot-grid{grid-template-columns:1fr}
+  .client{flex-wrap:wrap}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+  .js .reveal,.js .mask{opacity:1!important;transform:none!important;clip-path:none!important}
+  .hero-img img,.vcta-img img{transform:none!important}
+}
+
+/* === scoped overrides === */
+/* BUG 1 — header CTA: tidy auto-width inline pill, not flex-stretched, no clipping */
+header .nav-cta.btn{
+  flex:0 0 auto;
+  width:auto;
+  min-width:0;
+  white-space:nowrap;
+  justify-content:center;
+  padding-left:var(--s5);
+  padding-right:var(--s5);
+  overflow:hidden;
+}
+header .nav-cta.btn span{
+  white-space:nowrap;
+}
+
+/* BUG 2 — hero: drop the stray hairline and keep the content + form in one clean, contained column that stops before the image seam */
+.hero-rule{
+  display:none;
+}
+.hero-content{
+  max-width:min(620px,46vw);
+  padding-right:clamp(40px,6vw,96px);
+  box-sizing:border-box;
+}
+.hero-content .mini-val,
+.hero-content .cap-fields,
+.hero-content form{
+  max-width:520px;
+  width:100%;
+}
+
+@media(max-width:760px){
+  .hero-content{
+    max-width:none;
+    padding-right:0;
+  }
+  .hero-content .mini-val,
+  .hero-content .cap-fields,
+  .hero-content form{
+    max-width:none;
+  }
+}
+header .nav-cta.btn::before,header .nav-cta.btn::after{left:auto;right:auto;}
+header .nav-cta.btn:not(:hover)::before{transform:translateX(-101%)}
+
+/* === hero: full-bleed image backdrop + horizontal bone scrim so the centred content reads balanced (desktop) === */
+@media (min-width:700px){
+  .hero-rule{display:none!important}
+  .hero-img{left:0!important;right:0!important;width:100%!important;opacity:1!important}
+  .hero-img::before{background:linear-gradient(90deg,rgba(244,239,231,.97) 0%,rgba(244,239,231,.92) 40%,rgba(244,239,231,.55) 72%,rgba(244,239,231,.2) 100%)!important}
+}
+
+</style>
+</head>
+<body>
+
+<header id="header">
+  <div class="bar">
+    <a href="#top" class="brand" aria-label="BĐS HCM — Chỉ số giá thật">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="bt"><b>BĐS HCM</b><small>Chỉ số giá thật</small></span>
+    </a>
+    <nav class="main">
+      <a class="link" href="#featured">Bất động sản</a>
+      <a class="link" href="#agents">Chuyên viên</a>
+      <a class="link" href="#sold">Đã bán</a>
+      <a class="link" href="#testi">Khách hàng</a>
+      <a href="#valuation" class="btn nav-cta"><span>Định giá miễn phí</span></a>
+    </nav>
+    <button class="menu-toggle" aria-label="Tới mục định giá miễn phí" id="menuBtn"><span></span><span></span><span></span></button>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- HERO — search + valuation engine -->
+<section class="hero" id="search">
+  <div class="hero-img">
+    <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1400&q=80"
+      alt="Phòng khách căn hộ cao cấp ngập nắng vàng giờ hoàng hôn tại TP.HCM, nội thất gỗ ấm và cửa kính lớn" width="1400" height="1600" loading="eager">
+  </div>
+  <div class="hero-rule" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="hero-content">
+      <span class="eyebrow reveal">Chỉ số giá thật · Dữ liệu giao dịch CHỐT tại TP.HCM</span>
+      <h1 class="display reveal" style="transition-delay:.08s">Căn của bạn ở Thảo Điền <em>đáng giá</em> bao nhiêu?</h1>
+      <p class="hero-sub reveal" style="transition-delay:.16s">Biết trong <b>30 giây</b>. Định giá trên giá <b>CHỐT</b> của các căn quanh bạn — không phải giá rao trên mạng.</p>
+
+      <div class="engine reveal" style="transition-delay:.24s" id="engine">
+        <div class="seg" role="tablist" aria-label="Chọn nhu cầu">
+          <button role="tab" id="tab-mua" aria-selected="false" data-mode="search" data-verb="mua"><span class="t">Mua</span></button>
+          <button role="tab" id="tab-thue" aria-selected="false" data-mode="search" data-verb="thuê"><span class="t">Thuê</span></button>
+          <button role="tab" id="tab-ban" aria-selected="false" data-mode="search" data-verb="bán"><span class="t">Bán</span></button>
+          <button role="tab" id="tab-dinhgia" aria-selected="true" data-mode="value"><span class="t">Định giá</span></button>
+        </div>
+
+        <!-- VALUATION PANEL -->
+        <div id="panel-value">
+          <div class="eng-top">
+            <div class="eng-tag"><span class="dot"></span>Định giá trực tiếp · so với 24 giao dịch chốt quanh bạn</div>
+            <div class="fields">
+              <div class="field autocomp wide">
+                <label for="vDist">Quận / Khu vực</label>
+                <input id="vDist" type="text" value="Thảo Điền, TP. Thủ Đức" autocomplete="off" aria-label="Nhập quận hoặc khu vực" aria-expanded="false">
+                <div class="ac-list" id="vDistList" role="listbox" aria-label="Gợi ý khu vực"></div>
+              </div>
+              <div class="field">
+                <label for="vProj">Dự án (nếu có)</label>
+                <select id="vProj" aria-label="Chọn dự án">
+                  <option value="1">Nhà phố / đất thổ cư</option>
+                  <option value="1.06">Masteri Thảo Điền</option>
+                  <option value="1.04">The Estella</option>
+                  <option value="1.08">Gateway Thảo Điền</option>
+                  <option value="0.98">Khu dân cư hiện hữu</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="vArea">Diện tích (m²)</label>
+                <input id="vArea" type="number" value="110" min="20" max="2000" inputmode="numeric" aria-label="Diện tích mét vuông">
+              </div>
+              <div class="field">
+                <label for="vRoom">Số phòng ngủ</label>
+                <select id="vRoom" aria-label="Số phòng ngủ">
+                  <option value="0.96">1 phòng ngủ</option>
+                  <option value="1" selected>2 phòng ngủ</option>
+                  <option value="1.05">3 phòng ngủ</option>
+                  <option value="1.1">4+ phòng ngủ</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="val-result show" id="valResult" aria-live="polite">
+            <div class="vr-head">
+              <div>
+                <div class="vr-label">Chỉ số giá thật ước tính</div>
+                <div class="vr-amount"><span id="valNum" class="figure">14,9</span><span class="unit">tỷ đồng</span></div>
+                <div class="vr-range" id="valRange">Khoảng tin cậy 13,8 – 16,0 tỷ · ~135 triệu/m²</div>
+              </div>
+              <div class="vr-scope">24 giao dịch chốt<br>trong 12 tháng<br>bán kính 1 km</div>
+            </div>
+            <div class="idx-compare">
+              <div class="idx-row">
+                <span class="k">Giá rao TB quanh đây</span>
+                <span class="idx-track"><span class="fill ask"></span></span>
+                <span class="v" id="askVal">16,1 tỷ</span>
+              </div>
+              <div class="idx-row">
+                <span class="k">Giá chốt thật (giá của bạn)</span>
+                <span class="idx-track"><span class="fill real" id="realBar"></span></span>
+                <span class="v" id="realVal">14,9 tỷ</span>
+              </div>
+            </div>
+            <div class="capture">
+              <div class="cap-h">Nhận báo cáo định giá chi tiết + 6 giao dịch so sánh qua điện thoại / Zalo:</div>
+              <form class="cap-fields" id="capForm" onsubmit="return false;">
+                <input type="tel" id="capPhone" placeholder="Số điện thoại / Zalo" aria-label="Số điện thoại hoặc Zalo" inputmode="tel">
+                <button class="btn btn-index" type="submit"><span id="capBtn">Xem giá căn của tôi <span class="arr" aria-hidden="true">→</span></span></button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEARCH PANEL -->
+        <div id="panel-search" hidden>
+          <div class="eng-top">
+            <div class="eng-tag"><span class="dot"></span><span id="searchTag">Mua bất động sản · 2.480 tin xác thực</span></div>
+            <div class="fields">
+              <div class="field autocomp wide">
+                <label for="sDist">Khu vực</label>
+                <input id="sDist" type="text" placeholder="Nhập quận, phường hoặc dự án…" autocomplete="off" aria-label="Khu vực tìm kiếm" aria-expanded="false">
+                <div class="ac-list" id="sDistList" role="listbox" aria-label="Gợi ý khu vực"></div>
+              </div>
+              <div class="field">
+                <label for="sType">Loại BĐS</label>
+                <select id="sType" aria-label="Loại bất động sản">
+                  <option>Căn hộ</option>
+                  <option>Nhà phố</option>
+                  <option>Biệt thự</option>
+                  <option>Đất nền</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="sPrice">Khoảng giá</label>
+                <select id="sPrice" aria-label="Khoảng giá">
+                  <option>Tất cả mức giá</option>
+                  <option>Dưới 3 tỷ</option>
+                  <option>3 – 7 tỷ</option>
+                  <option>7 – 15 tỷ</option>
+                  <option>Trên 15 tỷ</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="sArea">Diện tích</label>
+                <select id="sArea" aria-label="Khoảng diện tích">
+                  <option>Tất cả diện tích</option>
+                  <option>Dưới 50 m²</option>
+                  <option>50 – 100 m²</option>
+                  <option>100 – 200 m²</option>
+                  <option>Trên 200 m²</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="eng-actions">
+            <span class="mini-note">Mỗi tin đều có sổ pháp lý rõ ràng &amp; gắn nhãn “Tin xác thực”.</span>
+            <button class="btn" id="searchBtn" type="button"><span>Tìm kiếm <span class="arr" aria-hidden="true">→</span></span></button>
+          </div>
+          <div class="search-result" id="searchResult" aria-live="polite">
+            <div class="sr-n"><b id="srCount">312</b> bất động sản phù hợp</div>
+            <a href="#featured" class="map-link"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.8"/></svg> Xem trên bản đồ</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="trust-strip reveal" style="transition-delay:.32s">
+        <div class="ti"><span class="n figure">2.480</span><span class="t">giao dịch chốt tham chiếu toàn TP.HCM</span></div>
+        <div class="ti"><span class="n figure">1,2%</span><span class="t">sai số định giá trung bình so với giá chốt</span></div>
+        <div class="ti"><span class="n figure">100%</span><span class="t">tin đăng có sổ pháp lý &amp; xác thực chính chủ</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURED LISTINGS -->
+<section class="band featured" id="featured">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="index-num" aria-hidden="true">01</span>
+      <span class="eyebrow reveal">Bất động sản chọn lọc</span>
+      <h2 class="reveal" style="transition-delay:.06s">Những căn đang được định giá lại tại TP.HCM</h2>
+      <p class="lede reveal" style="transition-delay:.12s">Đo trên giao dịch CHỐT lân cận, không phải tin rao. Mỗi tin đều có sổ pháp lý rõ ràng, gắn nhãn “Tin xác thực” và kèm <b>chỉ số giá thật</b> của khu vực.</p>
+    </div>
+
+    <div class="masonry">
+      <article class="card hero-unit">
+        <div class="ph mask" data-ph="Biệt thự Thảo Điền">
+          <div class="badges">
+            <span class="v-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Tin xác thực</span>
+            <span class="pdelta up"><span class="arr" aria-hidden="true">▴</span> Thảo Điền +4,2%/quý</span>
+          </div>
+          <img src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=900&q=80" alt="Biệt thự hiện đại hai tầng với hồ bơi và mảng kính lớn tại Thảo Điền, Thủ Đức" width="900" height="1125" loading="lazy">
+        </div>
+        <div class="meta">
+          <div class="loc"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" width="13" height="13" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.6"/></svg>Thảo Điền · TP. Thủ Đức</div>
+          <h3>Biệt thự vườn 3 mặt thoáng, hồ bơi riêng</h3>
+          <p class="proj">Đường Nguyễn Văn Hưởng · gần <b>trường quốc tế BIS</b></p>
+          <div class="specs"><span>320 m² đất</span><span>4 phòng ngủ</span><span>Hẻm xe hơi 8m</span></div>
+          <div class="legal"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Sổ hồng riêng · Chính chủ <span class="sep">·</span><span class="sub">Đăng 3 ngày trước</span></div>
+          <div class="price-row"><span class="price">38,5<span class="unit">tỷ</span></span><span class="ppm">~120 triệu/m²</span></div>
+          <div class="foot"><span class="posted">Cập nhật hôm nay</span><a href="#valuation" class="map-aff"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.6"/></svg>Xem trên bản đồ</a></div>
+        </div>
+      </article>
+
+      <article class="card u-a">
+        <div class="ph mask" data-ph="Penthouse Quận 1">
+          <div class="badges"><span class="v-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Tin xác thực</span><span class="pdelta up"><span class="arr" aria-hidden="true">▴</span> Bến Nghé +2,8%/quý</span></div>
+          <img src="https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80" alt="Căn hộ penthouse với ban công nhìn ra sông Sài Gòn lúc hoàng hôn" width="800" height="550" loading="lazy">
+        </div>
+        <div class="meta">
+          <div class="loc"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" width="13" height="13" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.6"/></svg>Bến Nghé · Quận 1</div>
+          <h3>Penthouse view sông, trần đôi 5,2m</h3>
+          <p class="proj">Dự án <b>Vinhomes Golden River</b> · mặt tiền Tôn Đức Thắng</p>
+          <div class="specs"><span>185 m²</span><span>3 phòng ngủ</span><span>Tầng 34</span></div>
+          <div class="legal"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Sổ hồng · Sang tên ngay <span class="sep">·</span><span class="sub">Đăng 1 tuần trước</span></div>
+          <div class="price-row"><span class="price">29,8<span class="unit">tỷ</span></span><span class="ppm">~161 triệu/m²</span></div>
+          <div class="foot"><span class="posted">Cập nhật 2 ngày trước</span><a href="#valuation" class="map-aff"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.6"/></svg>Xem trên bản đồ</a></div>
+        </div>
+      </article>
+
+      <article class="card u-b">
+        <div class="ph mask" data-ph="Căn hộ Phú Mỹ Hưng">
+          <div class="badges"><span class="v-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Tin xác thực</span><span class="pdelta"><span class="arr" aria-hidden="true">▴</span> Phú Mỹ Hưng +1,9%/quý</span></div>
+          <img src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80" alt="Nội thất căn hộ tối giản với ánh nắng vàng buổi chiều tại Phú Mỹ Hưng, Quận 7" width="800" height="550" loading="lazy">
+        </div>
+        <div class="meta">
+          <div class="loc"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" width="13" height="13" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.6"/></svg>Phú Mỹ Hưng · Quận 7</div>
+          <h3>Căn hộ góc, hai ban công đón nắng chiều</h3>
+          <p class="proj">Dự án <b>Riverpark Residence</b> · đường Nguyễn Đức Cảnh</p>
+          <div class="specs"><span>98 m²</span><span>2 phòng ngủ</span><span>Đã bàn giao</span></div>
+          <div class="legal"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Sổ hồng riêng · Chính chủ <span class="sep">·</span><span class="sub">Đăng 4 ngày trước</span></div>
+          <div class="price-row"><span class="price">7,4<span class="unit">tỷ</span></span><span class="ppm">~75 triệu/m²</span></div>
+          <div class="foot"><span class="posted">Cập nhật 3 ngày trước</span><a href="#valuation" class="map-aff"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.6"/></svg>Xem trên bản đồ</a></div>
+        </div>
+      </article>
+
+      <article class="card u-c">
+        <div class="ph mask" data-ph="Nhà phố Quận 3">
+          <div class="badges"><span class="v-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Tin xác thực</span></div>
+          <img src="https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=700&q=80" alt="Nhà phố mặt tiền hiện đại với gam màu trung tính tại Quận 3" width="700" height="525" loading="lazy">
+        </div>
+        <div class="meta">
+          <div class="loc"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" width="13" height="13" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.6"/></svg>Võ Thị Sáu · Quận 3</div>
+          <h3>Nhà phố 4 tầng, hẻm xe hơi</h3>
+          <p class="proj">Hẻm 8m đường <b>Võ Thị Sáu</b> · gần Hồ Con Rùa</p>
+          <div class="specs"><span>62 m² đất</span><span>4 tầng</span><span>4 phòng ngủ</span></div>
+          <div class="legal"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Sổ hồng riêng · Chính chủ <span class="sep">·</span><span class="sub">Đăng 5 ngày trước</span></div>
+          <div class="price-row"><span class="price">13,2<span class="unit">tỷ</span></span><span class="ppm">~213 triệu/m²</span></div>
+          <div class="foot"><span class="posted">Cập nhật 5 ngày trước</span><a href="#valuation" class="map-aff"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.6"/></svg>Bản đồ</a></div>
+        </div>
+      </article>
+
+      <article class="card u-d">
+        <div class="ph mask" data-ph="Nhà phố Sala">
+          <div class="badges"><span class="v-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Tin xác thực</span></div>
+          <img src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=700&q=80" alt="Biệt thự song lập màu trắng với cây xanh trước hiên tại khu Sala, Thủ Đức" width="700" height="525" loading="lazy">
+        </div>
+        <div class="meta">
+          <div class="loc"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" width="13" height="13" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.6"/></svg>Khu Sala · TP. Thủ Đức</div>
+          <h3>Nhà phố Sala, thiết kế nguyên bản</h3>
+          <p class="proj">Khu đô thị <b>Sala Đại Quang Minh</b> · gần cầu Thủ Thiêm 2</p>
+          <div class="specs"><span>140 m² đất</span><span>3 phòng ngủ</span><span>1 trệt 2 lầu</span></div>
+          <div class="legal"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Sổ hồng riêng · Chính chủ <span class="sep">·</span><span class="sub">Đăng 6 ngày trước</span></div>
+          <div class="price-row"><span class="price">22,6<span class="unit">tỷ</span></span><span class="ppm">~161 triệu/m²</span></div>
+          <div class="foot"><span class="posted">Cập nhật 6 ngày trước</span><a href="#valuation" class="map-aff"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.6"/></svg>Bản đồ</a></div>
+        </div>
+      </article>
+
+      <!-- breathing brand cell -->
+      <article class="idx-cell reveal">
+        <div>
+          <span class="ic-k">Chỉ số giá thật · Quý II/2026</span>
+          <div class="ic-big">Lệch <span class="pct">6,4%</span></div>
+        </div>
+        <p class="ic-q">Giá rao trung bình ở TP.HCM đang cao hơn giá CHỐT thật <b>6,4%</b>. Chúng tôi định giá theo giá chốt — để bạn không bán hớ, cũng không treo vô vọng.</p>
+      </article>
+
+      <article class="card u-e">
+        <div class="ph mask" data-ph="Vinhomes Central Park · Bình Thạnh">
+          <div class="badges"><span class="v-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Tin xác thực</span><span class="pdelta up"><span class="arr" aria-hidden="true">▴</span> Bình Thạnh +3,1%/quý</span></div>
+          <img src="https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1100&q=80" alt="Phòng khách căn hộ sáng sủa với sofa và cửa sổ lớn nhìn ra công viên tại Vinhomes Central Park, Bình Thạnh" width="1100" height="619" loading="lazy">
+        </div>
+        <div class="meta">
+          <div class="loc"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" width="13" height="13" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.6"/></svg>Vinhomes Central Park · Bình Thạnh</div>
+          <h3>Căn 2 phòng ngủ, view công viên &amp; sông Sài Gòn</h3>
+          <p class="proj">Tòa Park 6 · <b>Vinhomes Central Park</b>, mặt tiền Nguyễn Hữu Cảnh — sát ga Metro số 1</p>
+          <div class="specs"><span>72 m²</span><span>2 phòng ngủ</span><span>Tầng cao</span><span>Full nội thất</span></div>
+          <div class="legal"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Sổ hồng riêng · Chính chủ <span class="sep">·</span><span class="sub">Đăng 2 ngày trước</span></div>
+          <div class="price-row"><span class="price">6,1<span class="unit">tỷ</span></span><span class="ppm">~85 triệu/m²</span></div>
+          <div class="foot"><span class="posted">Cập nhật hôm nay</span><a href="#valuation" class="map-aff"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 1.5C5 1.5 3 3.6 3 6.4 3 10 8 14.5 8 14.5S13 10 13 6.4C13 3.6 11 1.5 8 1.5z"/><circle cx="8" cy="6.3" r="1.6"/></svg>Xem trên bản đồ</a></div>
+        </div>
+      </article>
+
+      <article class="trust-cell reveal">
+        <span class="verified-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Tin xác thực</span>
+        <div class="tc-n figure">1.860</div>
+        <p class="tc-t">tin đăng đã được xác thực sổ pháp lý &amp; chính chủ trong năm nay. Mỗi tin đều đối chiếu chỉ số giá thật của khu vực.</p>
+      </article>
+    </div>
+
+    <div class="more-row reveal">
+      <span class="mr-note">Còn 240 bất động sản có sổ ở khu vực bạn quan tâm.</span>
+      <a href="#search" class="btn btn-ghost"><span>Xem thêm trên bản đồ <span class="arr" aria-hidden="true">→</span></span></a>
+      <a href="#valuation" class="btn"><span>Định giá căn của tôi <span class="arr" aria-hidden="true">→</span></span></a>
+    </div>
+  </div>
+</section>
+
+<!-- AGENT TEAM — two columns, no void -->
+<section class="band agents" id="agents">
+  <div class="wrap">
+    <div class="agents-grid">
+      <div class="agents-intro">
+        <span class="index-num" aria-hidden="true">02</span>
+        <span class="eyebrow reveal">Chuyên viên khu vực</span>
+        <h2 class="reveal" style="transition-delay:.06s">Định giá đúng cần người đi đúng tuyến đường.</h2>
+        <p class="lede reveal" style="transition-delay:.12s">Mỗi chuyên viên phụ trách một khu vực, theo sát từng con đường và từng căn đã chốt. Gọi thẳng — không qua tổng đài, không form chờ.</p>
+        <div class="cov reveal" style="transition-delay:.16s">
+          <div class="cov-h">Vùng phủ · căn đã chốt 2026</div>
+          <div class="cov-chips">
+            <span class="cc">TP. Thủ Đức <span class="d">118</span></span>
+            <span class="cc">Quận 1 &amp; 3 <span class="d">94</span></span>
+            <span class="cc">Quận 7 — PMH <span class="d">131</span></span>
+            <span class="cc">Bình Thạnh <span class="d">87</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="agent-list">
+        <article class="agent-card reveal">
+          <div class="por"><img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&w=300&q=80" alt="Chân dung chuyên viên Nguyễn Mai Anh, nữ mặc vest, nền văn phòng" width="300" height="375" loading="lazy"><span class="ic-badge">Trưởng nhóm</span></div>
+          <div class="ac-body">
+            <div class="ac-top">
+              <div><div class="ac-name">Nguyễn Mai Anh</div><div class="ac-area">Thảo Điền · TP. Thủ Đức</div></div>
+              <div class="ac-closed"><span class="n figure">118</span><span class="t">căn / 2026</span></div>
+            </div>
+            <div class="ac-proof"><span class="pi">●</span>Chốt 118 căn · sai số giá TB dưới 2%</div>
+            <div class="ac-meta"><span>CCMG <b>0312/CCHN</b></span><span class="rt">Phản hồi &lt; 10 phút</span></div>
+            <div class="ac-cta">
+              <a href="tel:+84901234118" class="btn btn-sm"><span>Gọi 0901 234 118</span></a>
+              <a href="https://zalo.me/84901234118" class="btn btn-sm btn-zalo"><span>Chat Zalo</span></a>
+            </div>
+          </div>
+        </article>
+
+        <article class="agent-card reveal" style="transition-delay:.06s">
+          <div class="por"><img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=300&q=80" alt="Chân dung chuyên viên Trần Quốc Bảo, nam mặc vest, nền trung tính" width="300" height="375" loading="lazy"></div>
+          <div class="ac-body">
+            <div class="ac-top">
+              <div><div class="ac-name">Trần Quốc Bảo</div><div class="ac-area">Quận 1 &amp; Quận 3</div></div>
+              <div class="ac-closed"><span class="n figure">94</span><span class="t">căn / 2026</span></div>
+            </div>
+            <div class="ac-proof"><span class="pi">●</span>Chốt 94 căn · sai số giá TB dưới 3%</div>
+            <div class="ac-meta"><span>CCMG <b>0298/CCHN</b></span><span class="rt">Phản hồi &lt; 15 phút</span></div>
+            <div class="ac-cta">
+              <a href="tel:+84901234094" class="btn btn-sm"><span>Gọi 0901 234 094</span></a>
+              <a href="https://zalo.me/84901234094" class="btn btn-sm btn-zalo"><span>Chat Zalo</span></a>
+            </div>
+          </div>
+        </article>
+
+        <article class="agent-card reveal" style="transition-delay:.12s">
+          <div class="por"><img src="https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=300&q=80" alt="Chân dung chuyên viên Lê Thanh Hà, nữ tươi cười, nền sáng" width="300" height="375" loading="lazy"></div>
+          <div class="ac-body">
+            <div class="ac-top">
+              <div><div class="ac-name">Lê Thanh Hà</div><div class="ac-area">Quận 7 — Phú Mỹ Hưng</div></div>
+              <div class="ac-closed"><span class="n figure">131</span><span class="t">căn / 2026</span></div>
+            </div>
+            <div class="ac-proof"><span class="pi">●</span>Chốt 131 căn · sai số giá TB dưới 2,5%</div>
+            <div class="ac-meta"><span>CCMG <b>0305/CCHN</b></span><span class="rt">Phản hồi &lt; 10 phút</span></div>
+            <div class="ac-cta">
+              <a href="tel:+84901234131" class="btn btn-sm"><span>Gọi 0901 234 131</span></a>
+              <a href="https://zalo.me/84901234131" class="btn btn-sm btn-zalo"><span>Chat Zalo</span></a>
+            </div>
+          </div>
+        </article>
+
+        <article class="agent-card reveal" style="transition-delay:.18s">
+          <div class="por"><img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80" alt="Chân dung chuyên viên Phạm Đức Minh, nam mặc sơ mi, nền tối" width="300" height="375" loading="lazy"></div>
+          <div class="ac-body">
+            <div class="ac-top">
+              <div><div class="ac-name">Phạm Đức Minh</div><div class="ac-area">Quận Bình Thạnh</div></div>
+              <div class="ac-closed"><span class="n figure">87</span><span class="t">căn / 2026</span></div>
+            </div>
+            <div class="ac-proof"><span class="pi">●</span>Chốt 87 căn · sai số giá TB dưới 3%</div>
+            <div class="ac-meta"><span>CCMG <b>0287/CCHN</b></span><span class="rt">Phản hồi &lt; 20 phút</span></div>
+            <div class="ac-cta">
+              <a href="tel:+84901234087" class="btn btn-sm"><span>Gọi 0901 234 087</span></a>
+              <a href="https://zalo.me/84901234087" class="btn btn-sm btn-zalo"><span>Chat Zalo</span></a>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SOLD RESULTS -->
+<section class="sold-band" id="sold">
+  <div class="sold-inner">
+    <div class="wrap">
+      <div class="sold-head">
+        <div>
+          <span class="index-num" aria-hidden="true">03</span>
+          <h2 class="reveal">Định giá đúng, chốt nhanh</h2>
+          <p class="lede reveal" style="transition-delay:.08s; margin-top:8px">Đã bán 1.240 căn ở TP.HCM năm nay. So sánh định giá của chúng tôi với giá chốt thật — và số ngày để chốt.</p>
+        </div>
+        <div class="carousel-ctl reveal" style="transition-delay:.12s">
+          <button id="prevBtn" aria-label="Xem các căn trước" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button id="nextBtn" aria-label="Xem các căn tiếp theo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <div class="ribbon-wrap">
+      <div class="ribbon" id="ribbon">
+        <article class="sold-card feat">
+          <span class="tick"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Bán nhanh nhất tuần</span>
+          <div class="addr">9 Trần Não</div>
+          <div class="dist">Khu Bình An · TP. Thủ Đức (khu Quận 2 cũ)</div>
+          <div class="ladder">
+            <div class="lrow ask"><span class="lk">Giá chào</span><span class="lv">16,8 tỷ</span></div>
+            <div class="lrow est"><span class="lk">Định giá của chúng tôi</span><span class="lv">16,4 tỷ</span></div>
+          </div>
+          <div class="final"><span class="fk">Giá chốt thật</span><span class="fv">16,5<span class="unit"> tỷ</span></span></div>
+          <div class="sold-bot"><span class="acc-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Lệch định giá 0,6%</span><span class="days">Chốt sau 9 ngày</span></div>
+        </article>
+
+        <article class="sold-card">
+          <span class="tick"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Đã bán</span>
+          <div class="addr">28 Nguyễn Văn Hưởng</div>
+          <div class="dist">Thảo Điền · TP. Thủ Đức</div>
+          <div class="seller-win"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true"><path d="M8 1v14M3 6l5-5 5 5"/></svg>Treo 8 tháng ế → chốt sau 23 ngày</div>
+          <div class="ladder">
+            <div class="lrow ask"><span class="lk">Giá chào ban đầu</span><span class="lv">41,0 tỷ</span></div>
+            <div class="lrow est"><span class="lk">Định giá của chúng tôi</span><span class="lv">39,8 tỷ</span></div>
+          </div>
+          <div class="final"><span class="fk">Giá chốt thật</span><span class="fv">39,5<span class="unit"> tỷ</span></span></div>
+          <div class="sold-bot"><span class="acc-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Lệch định giá 0,8%</span><span class="days">Chốt sau 23 ngày</span></div>
+        </article>
+
+        <article class="sold-card">
+          <span class="tick"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Đã bán</span>
+          <div class="addr">15 Tôn Dật Tiên</div>
+          <div class="dist">Phú Mỹ Hưng · Quận 7</div>
+          <div class="ladder">
+            <div class="lrow ask"><span class="lk">Giá chào</span><span class="lv">8,2 tỷ</span></div>
+            <div class="lrow est"><span class="lk">Định giá của chúng tôi</span><span class="lv">8,1 tỷ</span></div>
+          </div>
+          <div class="final"><span class="fk">Giá chốt thật</span><span class="fv">8,0<span class="unit"> tỷ</span></span></div>
+          <div class="sold-bot"><span class="acc-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Lệch định giá 1,2%</span><span class="days">Chốt sau 11 ngày</span></div>
+        </article>
+
+        <article class="sold-card">
+          <span class="tick"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Đã bán</span>
+          <div class="addr">7 Lý Tự Trọng</div>
+          <div class="dist">Bến Nghé · Quận 1</div>
+          <div class="ladder">
+            <div class="lrow ask"><span class="lk">Giá chào</span><span class="lv">32,0 tỷ</span></div>
+            <div class="lrow est"><span class="lk">Định giá của chúng tôi</span><span class="lv">31,4 tỷ</span></div>
+          </div>
+          <div class="final"><span class="fk">Giá chốt thật</span><span class="fv">31,2<span class="unit"> tỷ</span></span></div>
+          <div class="sold-bot"><span class="acc-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Lệch định giá 0,6%</span><span class="days">Chốt sau 34 ngày</span></div>
+        </article>
+
+        <article class="sold-card">
+          <span class="tick"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Đã bán</span>
+          <div class="addr">112 Điện Biên Phủ</div>
+          <div class="dist">Quận Bình Thạnh</div>
+          <div class="seller-win"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" aria-hidden="true"><path d="M8 1v14M3 6l5-5 5 5"/></svg>Treo 6 tháng → chốt sau 19 ngày</div>
+          <div class="ladder">
+            <div class="lrow ask"><span class="lk">Giá chào</span><span class="lv">14,5 tỷ</span></div>
+            <div class="lrow est"><span class="lk">Định giá của chúng tôi</span><span class="lv">14,2 tỷ</span></div>
+          </div>
+          <div class="final"><span class="fk">Giá chốt thật</span><span class="fv">14,1<span class="unit"> tỷ</span></span></div>
+          <div class="sold-bot"><span class="acc-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Lệch định giá 0,7%</span><span class="days">Chốt sau 19 ngày</span></div>
+        </article>
+
+        <article class="sold-card">
+          <span class="tick"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Đã bán</span>
+          <div class="addr">45 Pasteur</div>
+          <div class="dist">Phường Võ Thị Sáu · Quận 3</div>
+          <div class="ladder">
+            <div class="lrow ask"><span class="lk">Giá chào</span><span class="lv">21,0 tỷ</span></div>
+            <div class="lrow est"><span class="lk">Định giá của chúng tôi</span><span class="lv">20,6 tỷ</span></div>
+          </div>
+          <div class="final"><span class="fk">Giá chốt thật</span><span class="fv">20,4<span class="unit"> tỷ</span></span></div>
+          <div class="sold-bot"><span class="acc-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Lệch định giá 1,0%</span><span class="days">Chốt sau 27 ngày</span></div>
+        </article>
+      </div>
+    </div>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="band testi" id="testi">
+  <div class="wrap">
+    <span class="index-num" aria-hidden="true">04</span>
+    <div class="testi-grid">
+      <div class="testi-main">
+        <span class="verified-badge reveal" style="margin-bottom:20px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Khách hàng đã xác thực giao dịch</span>
+        <p class="pull reveal"><span class="mark-q">“</span>Tôi treo bán 8 tháng theo giá tin rao. BĐS HCM định giá lại bằng dữ liệu — <em>sát giá chốt thật</em>, lệch chưa tới 1% — và chốt trong 19 ngày.<span class="mark-q">”</span></p>
+        <div class="client reveal" style="transition-delay:.1s">
+          <span class="ava"><img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&q=80" alt="Chân dung chị Hoàng Lan" width="120" height="120" loading="lazy"></span>
+          <div>
+            <div><span class="cname">Chị Hoàng Lan</span> <span class="cdist">— Bình Thạnh</span></div>
+            <div class="cprop">Căn hộ 2PN, Vinhomes Central Park</div>
+          </div>
+        </div>
+      </div>
+      <div class="testi-side">
+        <div class="mini-q reveal">
+          <span class="verified-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Đã xác thực</span>
+          <p>“Báo cáo có 6 căn so sánh thật trong bán kính 1km. Lần đầu tôi thấy con số có cơ sở.”</p>
+          <span class="who"><b>Anh Đặng Khôi</b> — Phú Mỹ Hưng, Quận 7 · nhà phố 5x18</span>
+        </div>
+        <div class="mini-q reveal" style="transition-delay:.08s">
+          <span class="verified-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Đã xác thực</span>
+          <p>“Không thổi giá, cũng không ép hạ. Họ nói thẳng căn của tôi đáng bao nhiêu trên giá chốt.”</p>
+          <span class="who"><b>Cô Nguyễn Bích</b> — Quận 3 · nhà phố Pasteur</span>
+        </div>
+        <div class="mini-q reveal" style="transition-delay:.16s">
+          <span class="verified-badge"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Đã xác thực</span>
+          <p>“Định giá lệch giá chốt đúng 0,8%. Chốt sát ngày kỳ vọng, không phải đoán mò.”</p>
+          <span class="who"><b>Anh Trần Vũ</b> — Thảo Điền, TP. Thủ Đức · biệt thự</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VALUATION CTA -->
+<section class="vcta" id="valuation">
+  <div class="vcta-img">
+    <img src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1500&q=80" alt="Mặt tiền biệt thự sáng đèn lúc chạng vạng, ánh sáng ấm hắt qua khung cửa lớn" width="1500" height="1000" loading="lazy">
+  </div>
+  <div class="wrap">
+    <div class="vcta-grid">
+      <div>
+        <span class="eyebrow reveal">Định giá miễn phí · 30 giây</span>
+        <h2 class="reveal" style="transition-delay:.06s">Đã bán 1.240 căn năm nay. <em>Căn của bạn</em> là tiếp theo.</h2>
+        <p class="urgency reveal" style="transition-delay:.12s">Thị trường Quý II đang điều chỉnh theo tuần. Biết chỉ số giá thật hôm nay để chọn đúng thời điểm bán — đừng để tin rao quyết định thay bạn.</p>
+        <div class="vcta-assure reveal" style="transition-delay:.16s">
+          <span class="a"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Báo cáo trong 30 giây</span>
+          <span class="a"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>Không ràng buộc, không spam</span>
+        </div>
+      </div>
+      <form class="mini-val reveal" style="transition-delay:.18s" id="miniVal" onsubmit="return false;">
+        <div class="mv-label">Nhận chỉ số giá thật cho căn của bạn</div>
+        <div class="field">
+          <label for="mDist">Quận / Khu vực</label>
+          <select id="mDist" aria-label="Chọn quận hoặc khu vực">
+            <option data-base="135">Thảo Điền · TP. Thủ Đức</option>
+            <option data-base="280">Bến Nghé · Quận 1</option>
+            <option data-base="115">Phú Mỹ Hưng · Quận 7</option>
+            <option data-base="195">Quận 3</option>
+            <option data-base="120">Quận Bình Thạnh</option>
+            <option data-base="70">Khu Quận 9 cũ · TP. Thủ Đức</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="mArea">Diện tích (m²)</label>
+          <input id="mArea" type="number" value="100" min="20" max="2000" inputmode="numeric" aria-label="Diện tích mét vuông">
+        </div>
+        <div class="mv-out" aria-live="polite">
+          <div class="l">Chỉ số giá thật ước tính</div>
+          <div class="v"><span id="mVal">13,5</span> tỷ <span style="font-size:.5em;color:rgba(244,239,231,.6)" id="mRange">(12,6 – 14,4)</span></div>
+        </div>
+        <div class="field">
+          <label for="mPhone">Số điện thoại / Zalo</label>
+          <input id="mPhone" type="tel" placeholder="VD: 0901 234 567" inputmode="tel" aria-label="Số điện thoại hoặc Zalo">
+        </div>
+        <button class="btn btn-index" type="submit"><span id="mBtn">Xem giá căn của tôi <span class="arr" aria-hidden="true">→</span></span></button>
+        <div class="mv-foot"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg> Miễn phí · chuyên viên khu vực gọi lại trong 15 phút.</div>
+      </form>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="brand"><span class="mark" aria-hidden="true"></span><span class="bt"><b>BĐS HCM</b><small>Chỉ số giá thật</small></span></div>
+        <p class="fdesc">Định giá và môi giới bất động sản TP.HCM trên dữ liệu giao dịch CHỐT thật. Giá đúng, sổ rõ, người đi đúng tuyến đường.</p>
+        <span class="foot-verified"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8l3.5 3.5L13 4"/></svg>1.860 tin xác thực · 2.480 giao dịch tham chiếu</span>
+      </div>
+      <div class="fcol">
+        <h4>Khu vực</h4>
+        <a href="#featured">TP. Thủ Đức</a>
+        <a href="#featured">Quận 1 &amp; 3</a>
+        <a href="#featured">Quận 7 — Phú Mỹ Hưng</a>
+        <a href="#featured">Bình Thạnh</a>
+      </div>
+      <div class="fcol">
+        <h4>Dịch vụ</h4>
+        <a href="#valuation">Định giá miễn phí</a>
+        <a href="#agents">Chuyên viên khu vực</a>
+        <a href="#sold">Kết quả đã bán</a>
+        <a href="#search">Tìm BĐS có sổ</a>
+      </div>
+      <div class="fcol">
+        <h4>Liên hệ &amp; pháp lý</h4>
+        <a href="tel:+842873030303">028 7303 0303</a>
+        <a href="https://zalo.me/842873030303">Chat Zalo官 chính thức</a>
+        <a href="mailto:dinhgia@bdshcm.vn">dinhgia@bdshcm.vn</a>
+        <p class="lic">CTY TNHH BĐS HCM<br>MSDN: <b>0316.482.197</b> · Sở KH&amp;ĐT TP.HCM<br>VPGD: 8 Lê Lợi, P. Bến Nghé, Quận 1</p>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span>© 2026 BĐS HCM — Chỉ số giá thật. Không liên kết với batdongsan.com.vn. Dữ liệu giao dịch cập nhật hằng tuần.</span>
+      <span>Chính sách bảo mật · Điều khoản</span>
+    </div>
+  </div>
+</footer>
+
+<!-- sticky mobile call bar -->
+<nav class="mobile-bar" aria-label="Liên hệ nhanh">
+  <a class="call" href="tel:+842873030303"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>Gọi ngay</a>
+  <a class="zalo" href="https://zalo.me/842873030303"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 20l1.3-3.9A8.3 8.3 0 0 1 3 11.5 8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/></svg>Chat Zalo</a>
+</nav>
+
+<script>
+(function(){
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.documentElement.classList.add('js');
+
+  /* failsafe — force-reveal everything after 1.5s so no media or text ever stays hidden,
+     even if the IntersectionObserver fails to fire */
+  setTimeout(function(){
+    document.querySelectorAll('.reveal,.mask').forEach(function(e){ e.classList.add('in'); });
+  }, 1500);
+
+  function revealAll(){
+    document.querySelectorAll('.reveal, .mask, .card').forEach(function(el){ el.classList.add('in'); });
+  }
+
+  /* global image fallback — no card ever shows an empty box */
+  var FALLBACK = 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=900&q=80';
+  document.querySelectorAll('img').forEach(function(img){
+    img.addEventListener('error', function(){
+      if(img.dataset.fb) return;
+      img.dataset.fb = '1';
+      img.src = FALLBACK;
+    });
+  });
+
+  try{
+    /* sticky header */
+    var header = document.getElementById('header');
+    function onScroll(){ header.classList.toggle('solid', window.scrollY > 24); }
+    window.addEventListener('scroll', onScroll, {passive:true}); onScroll();
+
+    document.getElementById('menuBtn').addEventListener('click', function(){
+      document.getElementById('valuation').scrollIntoView();
+    });
+
+    /* reveals */
+    if('IntersectionObserver' in window){
+      var io = new IntersectionObserver(function(entries){
+        entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+      }, {threshold:0.16, rootMargin:'0px 0px -8% 0px'});
+      document.querySelectorAll('.reveal, .mask').forEach(function(el){ io.observe(el); });
+      var cio = new IntersectionObserver(function(entries){
+        entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); cio.unobserve(e.target);} });
+      }, {threshold:0.3});
+      document.querySelectorAll('.card').forEach(function(c){ cio.observe(c); });
+    } else { revealAll(); }
+
+    /* parallax drift on watermarks */
+    if(!reduce){
+      var nums = Array.prototype.slice.call(document.querySelectorAll('.index-num'));
+      var ticking=false;
+      window.addEventListener('scroll', function(){
+        if(ticking) return; ticking=true;
+        requestAnimationFrame(function(){
+          var vh = window.innerHeight;
+          nums.forEach(function(n){
+            var r = n.getBoundingClientRect();
+            var prog = (vh - r.top) / (vh + r.height);
+            n.style.transform = 'translateY(' + (prog*18 - 9).toFixed(1) + 'px)';
+          });
+          ticking=false;
+        });
+      }, {passive:true});
+    }
+
+    /* stat counters */
+    if('IntersectionObserver' in window){
+      var statObs = new IntersectionObserver(function(entries){
+        entries.forEach(function(e){
+          if(!e.isIntersecting) return;
+          var el = e.target, target = parseInt(el.textContent.replace(/\D/g,''),10);
+          statObs.unobserve(el);
+          if(reduce || isNaN(target)) return;
+          var start=null, dur=1200, raw=el.textContent, suffix=raw.replace(/[\d.]/g,'');
+          function step(ts){
+            if(!start) start=ts;
+            var p=Math.min((ts-start)/dur,1), eased=1-Math.pow(1-p,3);
+            var val=Math.round(eased*target);
+            el.textContent = val.toLocaleString('vi-VN') + (suffix.indexOf('%')>-1?'%':'');
+            if(p<1) requestAnimationFrame(step); else el.textContent = raw;
+          }
+          requestAnimationFrame(step);
+        });
+      }, {threshold:0.6});
+      document.querySelectorAll('.ac-closed .n, .trust-strip .n').forEach(function(s){ statObs.observe(s); });
+    }
+
+    /* ===== HCMC area data (price/m² in triệu) ===== */
+    var AREAS = [
+      {n:'Thảo Điền, TP. Thủ Đức', b:135}, {n:'An Phú, TP. Thủ Đức', b:128},
+      {n:'Khu Sala, TP. Thủ Đức', b:161}, {n:'Bến Nghé, Quận 1', b:280},
+      {n:'Đa Kao, Quận 1', b:245}, {n:'Phú Mỹ Hưng, Quận 7', b:115},
+      {n:'Tân Phong, Quận 7', b:98}, {n:'Quận 3', b:195},
+      {n:'Quận Bình Thạnh', b:120}, {n:'Vinhomes Central Park, Bình Thạnh', b:128},
+      {n:'Khu Quận 9 cũ, TP. Thủ Đức', b:70}, {n:'Khu Quận 2 cũ, TP. Thủ Đức', b:132}
+    ];
+
+    function fmtTy(n){ return (Math.round(n*10)/10).toFixed(1).replace('.', ','); }
+
+    /* ===== autocomplete ===== */
+    function wireAutocomplete(inputId, listId, onPick){
+      var input = document.getElementById(inputId), list = document.getElementById(listId);
+      if(!input || !list) return;
+      function render(q){
+        var ql = q.trim().toLowerCase();
+        var items = AREAS.filter(function(a){ return !ql || a.n.toLowerCase().indexOf(ql)>-1; }).slice(0,6);
+        list.innerHTML = items.map(function(a){
+          return '<button type="button" role="option" data-base="'+a.b+'" data-name="'+a.n+'"><span>'+a.n+'</span><span class="pd">~'+a.b+' tr/m²</span></button>';
+        }).join('');
+        list.classList.toggle('open', items.length>0);
+        input.setAttribute('aria-expanded', items.length>0 ? 'true':'false');
+      }
+      input.addEventListener('focus', function(){ render(input.value); });
+      input.addEventListener('input', function(){ render(input.value); });
+      list.addEventListener('mousedown', function(e){
+        var b = e.target.closest('button'); if(!b) return;
+        e.preventDefault();
+        input.value = b.getAttribute('data-name');
+        list.classList.remove('open'); input.setAttribute('aria-expanded','false');
+        if(onPick) onPick(parseFloat(b.getAttribute('data-base')));
+      });
+      document.addEventListener('click', function(e){
+        if(!list.contains(e.target) && e.target!==input){ list.classList.remove('open'); input.setAttribute('aria-expanded','false'); }
+      });
+    }
+
+    /* ===== segmented control ===== */
+    var seg = document.querySelector('.seg');
+    var pVal = document.getElementById('panel-value');
+    var pSearch = document.getElementById('panel-search');
+    var searchTag = document.getElementById('searchTag');
+    seg.addEventListener('click', function(e){
+      var btn = e.target.closest('button'); if(!btn) return;
+      seg.querySelectorAll('button').forEach(function(b){ b.setAttribute('aria-selected', b===btn?'true':'false'); });
+      var mode = btn.getAttribute('data-mode');
+      if(mode==='value'){ pVal.hidden=false; pSearch.hidden=true; }
+      else{
+        pVal.hidden=true; pSearch.hidden=false;
+        var verb = btn.getAttribute('data-verb');
+        var label = verb==='mua'?'Mua bất động sản':verb==='thuê'?'Thuê bất động sản':'Ký gửi bán';
+        searchTag.textContent = label + ' · 2.480 tin xác thực';
+        document.getElementById('searchResult').classList.remove('show');
+      }
+    });
+
+    /* ===== valuation engine (hero) ===== */
+    var vDistBase = 135;
+    var vArea = document.getElementById('vArea');
+    var vProj = document.getElementById('vProj');
+    var vRoom = document.getElementById('vRoom');
+    var valNum = document.getElementById('valNum');
+    var valRange = document.getElementById('valRange');
+    var askVal = document.getElementById('askVal');
+    var realVal = document.getElementById('realVal');
+    var realBar = document.getElementById('realBar');
+
+    function rollTo(text){
+      if(reduce){ valNum.textContent=text; return; }
+      valNum.style.opacity='0'; valNum.style.transform='translateY(-10px)';
+      setTimeout(function(){
+        valNum.textContent=text; valNum.style.transform='translateY(10px)'; void valNum.offsetWidth;
+        valNum.style.opacity='1'; valNum.style.transform='translateY(0)';
+      }, 180);
+    }
+    function recalc(){
+      var area = Math.max(20, Math.min(2000, parseFloat(vArea.value)||100));
+      var projM = parseFloat(vProj.value)||1;
+      var roomM = parseFloat(vRoom.value)||1;
+      var total = vDistBase * area / 1000 * projM * roomM; // tỷ
+      var low = total*0.93, high = total*1.07;
+      var ask = total*1.082; // asking premium ~ the index gap
+      rollTo(fmtTy(total));
+      valRange.textContent = 'Khoảng tin cậy ' + fmtTy(low) + ' – ' + fmtTy(high) + ' tỷ · ~' + Math.round(vDistBase*projM) + ' triệu/m²';
+      askVal.textContent = fmtTy(ask) + ' tỷ';
+      realVal.textContent = fmtTy(total) + ' tỷ';
+      realBar.style.width = Math.round(total/ask*100) + '%';
+    }
+    wireAutocomplete('vDist','vDistList', function(base){ vDistBase = base; recalc(); });
+    [vArea,vProj,vRoom].forEach(function(el){ el.addEventListener('input', recalc); el.addEventListener('change', recalc); });
+    recalc();
+
+    /* hero phone capture */
+    document.getElementById('capForm').addEventListener('submit', function(){
+      var phone = document.getElementById('capPhone').value.trim();
+      var btn = document.getElementById('capBtn');
+      if(phone.replace(/\D/g,'').length < 8){ btn.textContent='Nhập số điện thoại hợp lệ'; return; }
+      btn.textContent='Đã nhận — chuyên viên gọi lại trong 15 phút ✓';
+    });
+
+    /* search autocomplete + submit */
+    wireAutocomplete('sDist','sDistList', null);
+    document.getElementById('searchBtn').addEventListener('click', function(){
+      var base = 7 + (document.getElementById('sDist').value.length % 5);
+      var count = 120 + base*31 + (document.getElementById('sType').selectedIndex*23);
+      document.getElementById('srCount').textContent = count.toLocaleString('vi-VN');
+      document.getElementById('searchResult').classList.add('show');
+    });
+
+    /* ===== sold carousel ===== */
+    var ribbon = document.getElementById('ribbon');
+    var prevBtn = document.getElementById('prevBtn');
+    var nextBtn = document.getElementById('nextBtn');
+    var wrap = document.querySelector('.ribbon-wrap');
+    var dotsBox = document.getElementById('dots');
+    var cards = ribbon.querySelectorAll('.sold-card');
+    var step = cards[0].offsetWidth + 20;
+    var pages = Math.max(1, Math.ceil((ribbon.scrollWidth - ribbon.clientWidth) / step) + 1);
+    for(var i=0;i<pages;i++){
+      var d = document.createElement('button'); d.setAttribute('aria-label','Trang '+(i+1));
+      if(i===0) d.className='act'; (function(idx){ d.addEventListener('click', function(){ ribbon.scrollTo({left:idx*step, behavior:'smooth'}); }); })(i);
+      dotsBox.appendChild(d);
+    }
+    function updateCarousel(){
+      var max = ribbon.scrollWidth - ribbon.clientWidth - 2;
+      prevBtn.disabled = ribbon.scrollLeft <= 2;
+      nextBtn.disabled = ribbon.scrollLeft >= max;
+      wrap.classList.toggle('at-end', ribbon.scrollLeft >= max);
+      var active = Math.round(ribbon.scrollLeft / step);
+      dotsBox.querySelectorAll('button').forEach(function(b,idx){ b.classList.toggle('act', idx===active); });
+    }
+    prevBtn.addEventListener('click', function(){ ribbon.scrollBy({left:-step, behavior:'smooth'}); });
+    nextBtn.addEventListener('click', function(){ ribbon.scrollBy({left:step, behavior:'smooth'}); });
+    ribbon.addEventListener('scroll', function(){ requestAnimationFrame(updateCarousel); }, {passive:true});
+    window.addEventListener('resize', function(){ step = cards[0].offsetWidth + 20; updateCarousel(); });
+    updateCarousel();
+
+    /* ===== mini valuation (CTA) ===== */
+    var mDist = document.getElementById('mDist'), mArea = document.getElementById('mArea');
+    var mVal = document.getElementById('mVal'), mRange = document.getElementById('mRange');
+    function mRecalc(){
+      var base = parseFloat(mDist.options[mDist.selectedIndex].getAttribute('data-base'))||120;
+      var area = Math.max(20, Math.min(2000, parseFloat(mArea.value)||100));
+      var total = base*area/1000;
+      mVal.textContent = fmtTy(total);
+      mRange.textContent = '(' + fmtTy(total*0.93) + ' – ' + fmtTy(total*1.07) + ')';
+    }
+    mDist.addEventListener('change', mRecalc); mArea.addEventListener('input', mRecalc); mRecalc();
+    document.getElementById('miniVal').addEventListener('submit', function(){
+      var phone = document.getElementById('mPhone').value.trim();
+      var btn = document.getElementById('mBtn');
+      if(phone.replace(/\D/g,'').length < 8){ btn.textContent='Nhập số điện thoại hợp lệ'; return; }
+      btn.textContent='Đã gửi — chuyên viên gọi lại trong 15 phút ✓';
+    });
+
+  } catch(err){ revealAll(); }
+})();
+</script>
+</body>
+</html>
