@@ -7,13 +7,18 @@ import { atlasDirector, atlasSynthesizer } from '../defs/atlas-strategist';
 import { novaBuilder, novaReviser } from '../defs/nova-designer';
 import { REVIEW_BOARD } from '../board';
 import { runAgent, runBoard } from '../runner';
-import { renderHtmlToPng } from '../../demo-gen/render';
+import { renderHtmlToPng, DESKTOP_WIDTH, MOBILE_WIDTH } from '../../demo-gen/render';
 import { artDirectionFor } from '../../demo-gen/art-direction';
 import type { DemoGenInput } from '../../demo-gen/prompt';
 
 export async function generateDemoHtml(input: DemoGenInput): Promise<string> {
-  if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) {
-    throw new Error('CLAUDE_CODE_OAUTH_TOKEN is not set — run `claude setup-token` and add it to .env.local');
+  // The `claude` CLI reaches a model two ways: directly on the subscription (CLAUDE_CODE_OAUTH_TOKEN)
+  // or through a gateway it points at via ANTHROPIC_BASE_URL (+ ANTHROPIC_AUTH_TOKEN) — e.g. the
+  // self-hosted 9router service, which persists + auto-refreshes the provider auth. Require one of them.
+  if (!process.env.CLAUDE_CODE_OAUTH_TOKEN && !process.env.ANTHROPIC_BASE_URL) {
+    throw new Error(
+      'No Claude backend configured — set CLAUDE_CODE_OAUTH_TOKEN (direct subscription) or ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN (9router gateway).',
+    );
   }
   const dna = artDirectionFor(input.industry);
 
@@ -26,20 +31,18 @@ export async function generateDemoHtml(input: DemoGenInput): Promise<string> {
   // Passes 3-5 — render, expert review board, synthesise, revise. Best-effort: fall back to `built`.
   try {
     const id = `${process.pid}-${Date.now()}`;
-    const desktopPng = `/tmp/demo-${id}-d.png`;
-    const mobilePng = `/tmp/demo-${id}-m.png`;
-    await renderHtmlToPng(built, `/tmp/demo-${id}-d.html`, desktopPng, 1440);
-    await renderHtmlToPng(built, `/tmp/demo-${id}-m.html`, mobilePng, 390);
+    const desktopPngs = await renderHtmlToPng(built, `/tmp/demo-${id}-d.html`, `/tmp/demo-${id}-d.png`, DESKTOP_WIDTH);
+    const mobilePngs = await renderHtmlToPng(built, `/tmp/demo-${id}-m.html`, `/tmp/demo-${id}-m.png`, MOBILE_WIDTH);
 
-    // Pass 3 — the niche-aware board reviews both screenshots in parallel (independent lenses).
-    const reviews = await runBoard(REVIEW_BOARD, { input, desktopPng, mobilePng });
+    // Pass 3 — the niche-aware board reviews every page slice in parallel (independent lenses).
+    const reviews = await runBoard(REVIEW_BOARD, { input, desktopPngs, mobilePngs });
     if (reviews.length === 0) return built;
 
     // Pass 4 — Atlas consolidates the board into one prioritized fix list.
     const fixes = await runAgent(atlasSynthesizer, { input, reviews });
 
-    // Pass 5 — Nova revises the page to satisfy the fixes (sees the screenshots too).
-    return await runAgent(novaReviser, { input, dna, fixes, desktopPng, mobilePng, currentHtml: built });
+    // Pass 5 — Nova revises the page to satisfy the fixes (sees the slices too).
+    return await runAgent(novaReviser, { input, dna, fixes, desktopPngs, mobilePngs, currentHtml: built });
   } catch {
     return built;
   }

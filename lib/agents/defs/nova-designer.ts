@@ -16,8 +16,8 @@ export interface ReviseInput {
   input: DemoGenInput;
   dna: DesignDNA;
   fixes: string;
-  desktopPng: string;
-  mobilePng: string;
+  desktopPngs: string[];
+  mobilePngs: string[];
   currentHtml: string;
 }
 
@@ -40,8 +40,8 @@ export const novaReviser: AgentDef<ReviseInput, string> = {
   role: 'UI Designer — revise the page against the fix list',
   model: 'opus',
   tools: ['Read'],
-  limits: { timeoutMs: 420_000, maxTurns: 10 },
-  buildPrompt: ({ input, dna, fixes, desktopPng, mobilePng, currentHtml }) =>
-    buildRevisePrompt(input, dna, fixes, desktopPng, mobilePng, currentHtml),
+  limits: { timeoutMs: 540_000, maxTurns: 14 },
+  buildPrompt: ({ input, dna, fixes, desktopPngs, mobilePngs, currentHtml }) =>
+    buildRevisePrompt(input, dna, fixes, desktopPngs, mobilePngs, currentHtml),
   validate: html,
 };
