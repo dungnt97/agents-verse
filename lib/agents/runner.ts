@@ -4,6 +4,14 @@
 import { spawn } from 'node:child_process';
 import type { AgentContext, AgentDef, AgentLimits, AgentModel, AgentTool } from './types';
 
+// Resolve the model name actually passed to `--model`. When the worker routes through a gateway
+// (9router) the tier maps to a configured model/combo id via `AGENT_MODEL_<TIER>` (e.g.
+// AGENT_MODEL_OPUS=my-combo); unset falls back to the native CLI name (direct Claude Code subscription).
+function resolveModel(model: AgentModel): string {
+  const override = process.env[`AGENT_MODEL_${model.toUpperCase()}`];
+  return override?.trim() || model;
+}
+
 // Pull the assistant text out of the `--output-format json` envelope. JSON mode is required: plain
 // text print mode drops the START of long output when captured non-interactively.
 function resultText(stdout: string): string {
@@ -16,7 +24,7 @@ function resultText(stdout: string): string {
 // assistant's final text. Rejects on a missing CLI, a non-zero exit, a CLI-reported error, or timeout.
 function runClaude(prompt: string, model: AgentModel, tools: AgentTool[], limits: AgentLimits, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
-    const args = ['-p', '--model', model, '--output-format', 'json', '--max-turns', String(limits.maxTurns)];
+    const args = ['-p', '--model', resolveModel(model), '--output-format', 'json', '--max-turns', String(limits.maxTurns)];
     if (tools.length > 0) args.push('--allowedTools', tools.join(' '));
     const child = spawn('claude', args, { env: process.env });
     let stdout = '';

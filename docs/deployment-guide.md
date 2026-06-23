@@ -73,6 +73,31 @@ AUDIT_CONCURRENCY=2                            # Global concurrency limit (Chrom
 
 > Generate strong values: `openssl rand -base64 32` (password), `openssl rand -hex 32` (auth secret), `openssl rand -hex 16` (Inngest keys).
 
+### Demo generation (Subsystem 3) — `9router` LLM gateway
+
+The demo-gen worker shells the `claude` CLI on a Claude subscription (no metered API key). Instead of holding a raw OAuth token in the worker (a rebuild drops it), the stack runs a **`9router`** service: the worker points `claude` at it (`ANTHROPIC_BASE_URL=http://9router:20128`, set in compose) and 9router persists + auto-refreshes the provider auth in its own `ninerouter_data` volume — and can fall back to a free Claude provider when the subscription quota is hit.
+
+One-time setup (the only interactive step):
+
+```bash
+docker compose up -d 9router          # starts the gateway + dashboard on 127.0.0.1:20128
+# On a VPS the dashboard is localhost-only — tunnel to it: ssh -L 20128:127.0.0.1:20128 user@vps
+```
+
+1. Open `http://localhost:20128`, log in with `INITIAL_PASSWORD`.
+2. **Providers → Connect Claude Code** (OAuth → your subscription; primary opus tier).
+3. **Providers → Connect Kiro AI** → **AWS Builder ID** (free Amazon dev account; free Claude fallback).
+4. **Create an API key**, then put it + the model id in `.env.local`:
+
+```bash
+JWT_SECRET=<openssl rand -hex 32>              # 9router admin
+INITIAL_PASSWORD=<dashboard login>             # 9router first-run login
+ANTHROPIC_AUTH_TOKEN=<the 9router API key>     # the `claude` CLI sends this to the gateway
+AGENT_MODEL_OPUS=cc/claude-opus-4-8            # opus-tier id; see GET /v1/models for the list
+```
+
+Model ids are provider-prefixed (`cc/…` = Claude Code subscription, `kr/…` = Kiro free, e.g. `kr/claude-sonnet-4.5`). For automatic subscription→free fallback, create a 9router **combo** and point `AGENT_MODEL_OPUS` at its id. Recreate the worker after editing `.env.local` (`docker compose up -d --build worker`). Without 9router, set `CLAUDE_CODE_OAUTH_TOKEN` instead (clear `ANTHROPIC_BASE_URL` in the worker env).
+
 ### Estimated monthly cost
 
 Self-generated secrets (`*_PASSWORD`, `BETTER_AUTH_SECRET`, `INNGEST_*`) are free. Paid items below — **prices verified June 2026**; re-check before committing budget. Google Maps is SKU-based (cost varies with the field mask requested) and the universal $200/month Maps credit was removed in 2025.
