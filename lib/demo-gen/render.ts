@@ -11,14 +11,24 @@ interface PwPage {
   goto(url: string, opts: { waitUntil: 'networkidle'; timeout: number }): Promise<unknown>;
   evaluate<R>(expression: string): Promise<R>;
   waitForTimeout(ms: number): Promise<void>;
-  screenshot(opts: { path: string; type: 'png'; clip?: { x: number; y: number; width: number; height: number } }): Promise<Buffer>;
+  screenshot(opts: { path: string; type: 'png'; fullPage?: boolean; clip?: { x: number; y: number; width: number; height: number } }): Promise<Buffer>;
 }
 interface PwContext { newPage(): Promise<PwPage>; close(): Promise<void> }
 interface PwBrowser { newContext(opts: Record<string, unknown>): Promise<PwContext>; close(): Promise<void> }
 
-// Cap the critique screenshot height — the top several screens carry the verdict; a 7000px image is
-// needless tokens for the vision pass.
-const MAX_CRITIQUE_PX = 4600;
+// The critique screenshots feed a vision model. Two bounds: HARD_MAX_PX guards a runaway page, and
+// each delivered slice stays around SLICE_PX so the model receives it at a legible resolution — a
+// single very tall image gets downscaled until text is unreadable AND sections below the old cap were
+// dropped entirely (which is how an empty-void section once shipped unreviewed). A tall page is
+// therefore captured as several ordered top→bottom slices, bounded by MAX_SLICES per viewport.
+const HARD_MAX_PX = 16000;
+const SLICE_PX = 1500;
+const MAX_SLICES = 6;
+
+// The viewport widths the board reviews at. Exported so the prompt labels each slice with the SAME
+// width the page was actually rendered at (a mismatch makes reviewers reason about the wrong canvas).
+export const DESKTOP_WIDTH = 1440;
+export const MOBILE_WIDTH = 390;
 
 // Scroll the page in steps to trigger IntersectionObserver reveals + lazy images, then return up.
 const SCROLL_SCRIPT =
@@ -30,7 +40,7 @@ const PENDING_IMAGES = 'Array.from(document.images).filter(i => !i.complete || i
 
 // Write `html` to `htmlPath`, render it at `viewportWidth`, and save a screenshot to `pngPath`.
 // Waits (capped) for images so the model critiques the settled page, not blank placeholders.
-export async function renderHtmlToPng(html: string, htmlPath: string, pngPath: string, viewportWidth = 1440): Promise<void> {
+export async function renderHtmlToPng(html: string, htmlPath: string, pngPath: string, viewportWidth = DESKTOP_WIDTH): Promise<string[]> {
   await writeFile(htmlPath, html, 'utf8');
   const { chromium } = (await import('playwright')) as unknown as {
     chromium: { launch(opts: Record<string, unknown>): Promise<PwBrowser> };
@@ -53,10 +63,24 @@ export async function renderHtmlToPng(html: string, htmlPath: string, pngPath: s
       await page.waitForTimeout(400);
     }
     await page.waitForTimeout(500);
-    const height = await page.evaluate<number>('document.body.scrollHeight');
+    const fullHeight = Math.min(await page.evaluate<number>('document.body.scrollHeight'), HARD_MAX_PX);
     const width = await page.evaluate<number>('document.documentElement.scrollWidth || ' + viewportWidth);
-    await page.screenshot({ path: pngPath, type: 'png', clip: { x: 0, y: 0, width, height: Math.min(height, MAX_CRITIQUE_PX) } });
+    // Slice the whole page top→bottom into <=MAX_SLICES legible tiles (one shot when it already fits).
+    const nSlices = Math.min(MAX_SLICES, Math.max(1, Math.ceil(fullHeight / SLICE_PX)));
+    const sliceH = Math.ceil(fullHeight / nSlices);
+    const paths: string[] = [];
+    for (let i = 0; i < nSlices; i++) {
+      const y = i * sliceH;
+      const h = Math.min(sliceH, fullHeight - y);
+      if (h <= 0) break;
+      const out = nSlices === 1 ? pngPath : pngPath.replace(/\.png$/i, `-${i}.png`);
+      // `clip` alone is bounded by the viewport, so a y below the fold throws; `fullPage` makes the
+      // resulting image the whole page so any slice region is valid.
+      await page.screenshot({ path: out, type: 'png', fullPage: true, clip: { x: 0, y, width, height: h } });
+      paths.push(out);
+    }
     await context.close();
+    return paths;
   } finally {
     await browser.close();
   }

@@ -86,21 +86,47 @@ services:
     restart: unless-stopped
     # ports: ["127.0.0.1:8288:8288"]   # uncomment for the local Inngest dashboard
 
-  # Audit worker: Playwright + Gemini run here (keeps `web` slim). Registers runAudit via
-  # outbound connect() — no inbound port. mem_limit guards the VPS from Chromium OOM.
+  # LLM gateway (9router): the demo-gen worker shells `claude` pointed at this service instead of
+  # talking to Anthropic directly, so the Claude subscription (or a free Claude provider) is connected
+  # ONCE in the dashboard and persisted + auto-refreshed in the data volume — the worker never holds a
+  # raw OAuth token that a rebuild would drop. One-time setup: open http://localhost:20128, log in with
+  # INITIAL_PASSWORD, connect a provider (Claude Code OAuth + Kiro free as a fallback combo), create an
+  # API key, then put it in .env.local as ANTHROPIC_AUTH_TOKEN and the combo name in AGENT_MODEL_OPUS.
+  "9router":
+    image: decolua/9router:latest
+    env_file:
+      - .env.local             # JWT_SECRET, INITIAL_PASSWORD (9router admin login)
+    environment:
+      DATA_DIR: /app/data      # persisted provider auth + config live here (the named volume below)
+      PORT: "20128"
+    volumes:
+      - ninerouter_data:/app/data
+    ports:
+      - "127.0.0.1:20128:20128"   # dashboard, localhost-only; the worker reaches it via service DNS
+    restart: unless-stopped
+    stop_grace_period: 15s
+
+  # Audit + demo-gen worker: Playwright + Gemini + the `claude` CLI run here (keeps `web` slim).
+  # Registers functions via outbound connect() — no inbound port. mem_limit guards the VPS from OOM.
   worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
     env_file:
-      - .env.local             # DATABASE_URL, GEMINI_API_KEY, GOOGLE_PAGESPEED_API_KEY, INNGEST_*, AUDIT_CONCURRENCY
+      - .env.local             # DATABASE_URL, GEMINI_API_KEY, GOOGLE_PAGESPEED_API_KEY, INNGEST_*, AUDIT_CONCURRENCY, ANTHROPIC_AUTH_TOKEN, AGENT_MODEL_*
     environment:
       USE_DB: "true"
       INNGEST_BASE_URL: http://inngest:8288
+      # Point the `claude` CLI at the 9router gateway. ANTHROPIC_AUTH_TOKEN (the 9router API key) and
+      # AGENT_MODEL_OPUS (the combo id) come from .env.local; clear ANTHROPIC_BASE_URL there to fall
+      # back to a direct subscription via CLAUDE_CODE_OAUTH_TOKEN instead.
+      ANTHROPIC_BASE_URL: http://9router:20128
     depends_on:
       db:
         condition: service_healthy
       inngest:
+        condition: service_started
+      "9router":
         condition: service_started
     restart: unless-stopped
     stop_grace_period: 30s     # let SIGTERM close the browser + drain the pool
@@ -109,3 +135,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  ninerouter_data:

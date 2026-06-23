@@ -23,11 +23,11 @@ const RULES: Array<{ match: RegExp; dna: DesignDNA }> = [
   {
     match: /real ?estate|property|realty|housing|bất động sản|nhà đất/i,
     dna: {
-      aesthetic: 'Architectural-Digest editorial — quiet luxury, confident and calm',
+      aesthetic: 'Modern, trustworthy premium property — clean, confident and warm; credible to Vietnamese buyers, not a fashion magazine',
       palette: 'Ink navy #0E1B2A base, warm bone #F4EFE7 canvas, single brass accent #C2944E. No blue→purple gradients.',
-      fonts: 'Display: "Fraunces" (high-contrast serif). Text: "Inter Tight". Big display sizes, tight tracking.',
-      layout: 'Asymmetric editorial grid: oversized hero imagery bleeding to the edge, generous left margin, large index numbers (01 / 02) labelling sections. Listings in an irregular masonry, not a tidy 3-up row.',
-      motif: 'Thin 1px brass hairline rules + oversized section index numerals; price/stat figures set in the display serif.',
+      fonts: 'Display: "Be Vietnam Pro" (700/800, tight tracking) — clean and trustworthy, NOT a high-contrast fashion serif. Text: "Be Vietnam Pro" (400/500). Native, flawless Vietnamese diacritics.',
+      layout: 'Confident, well-aligned editorial grid: strong hero imagery, clear aligned columns, large index numbers labelling sections. Vary section rhythm through scale + imagery — NOT through detached/offset items or half-empty columns. Listings in an organised responsive grid (cards complete + aligned), never a chaotic masonry with stranded items.',
+      motif: 'Thin 1px brass hairline rules + oversized section index numerals; price/stat figures set in the display face.',
       imagery: 'Architectural & golden-hour interiors, lifestyle-in-place, wide negative space — never a generic skyline stock photo.',
     },
   },
