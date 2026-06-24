@@ -58,6 +58,11 @@ export interface InboundEmail {
 // the sender from data.from and the body from data.text (falling back to a tag-stripped data.html).
 export function parseInboundEmail(body: unknown): InboundEmail | null {
   if (!body || typeof body !== 'object') return null;
+  // Only treat genuine inbound/received events as client replies. Resend posts other event types to the
+  // same endpoint (e.g. email.sent/delivered/bounced for OUR outbound mail) — those carry our own From and
+  // must NOT be fed to the Closer. A typeless payload is allowed (kept permissive for shape drift).
+  const type = (body as { type?: unknown }).type;
+  if (typeof type === 'string' && !/received|inbound/i.test(type)) return null;
   const data = ('data' in body ? (body as { data: unknown }).data : body) as Record<string, unknown> | null;
   if (!data || typeof data !== 'object') return null;
   const from = extractEmailAddress((data as { from?: unknown }).from);

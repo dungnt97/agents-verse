@@ -77,4 +77,15 @@ describe('parseInboundEmail', () => {
     expect(parseInboundEmail({ data: { from: 'garbage', text: 'hi' } })).toBeNull();
     expect(parseInboundEmail(null)).toBeNull();
   });
+
+  it('ignores non-inbound event types (Resend outbound delivery webhooks must not become replies)', () => {
+    for (const type of ['email.sent', 'email.delivered', 'email.bounced', 'email.complained']) {
+      expect(parseInboundEmail({ type, data: { from: 'us@agency.vn', text: 'delivered' } })).toBeNull();
+    }
+    // A genuine inbound type still parses.
+    expect(parseInboundEmail({ type: 'inbound.email.received', data: { from: 'a@b.io', text: 'yes' } })).toEqual({
+      from: 'a@b.io',
+      text: 'yes',
+    });
+  });
 });

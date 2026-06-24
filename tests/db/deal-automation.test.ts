@@ -177,6 +177,31 @@ describe.skipIf(!hasDb)('deal automation actions — USE_DB=true integration (se
     expect((await getDeal()).stage).toBe('lost');
   });
 
+  it('7b. approveDealEscalation refuses a non-deal escalation and never force-closes a lost deal', async () => {
+    // Non-deal kind → rejected outright (no deal mutation).
+    await cleanEsc();
+    await db.insert(escalations).values({
+      id: escId, kind: 'human', sev: 'medium', title: 'x', who: 'x', value: 0, agent: 'x',
+      reason: 'x', rec: 'x', conf: 100, time: 'now', status: 'open', dealId,
+    });
+    await setDeal({ stage: 'quoted' });
+    const bad = await approveDealEscalation(escId);
+    expect(bad.ok).toBe(false);
+    expect((await getDeal()).stage).toBe('quoted'); // deal untouched
+
+    // A stale deal escalation whose deal already moved to a terminal stage must NOT resurrect it to won.
+    await cleanEsc();
+    await setDeal({ stage: 'lost' });
+    await db.insert(escalations).values({
+      id: escId, kind: 'deal', sev: 'high', title: 'stale', who: 'x', value: 9999, agent: 'closer',
+      reason: 'x', rec: 'x', conf: 90, time: 'now', status: 'open', dealId,
+    });
+    const res = await approveDealEscalation(escId);
+    expect(res.ok).toBe(true);
+    expect((await getEsc())!.status).toBe('resolved'); // escalation cleaned up
+    expect((await getDeal()).stage).toBe('lost'); // NOT resurrected to won
+  });
+
   it('7. honors the configured auto-approve threshold from settings.guardrails', async () => {
     // Lower the configured limit below the deal value but above the default. If the action read the
     // wrong guardrails key it would fall back to the 4000 default and NOT escalate at value 3000.
