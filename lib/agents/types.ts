@@ -5,14 +5,14 @@
 
 // Roster agent identities. Iris/Kira are the dashboard-named review members; 'copy'/'niche' are
 // board-internal review sub-lenses (they have ids but no roster card). More are added in later phases.
-export type AgentId = 'atlas' | 'nova' | 'iris' | 'kira' | 'copy' | 'niche';
+export type AgentId = 'atlas' | 'nova' | 'iris' | 'kira' | 'copy' | 'niche' | 'vega';
 
 // Subscription CLI model tier — maps directly to `claude --model`.
 export type AgentModel = 'opus' | 'sonnet' | 'haiku';
 
 // Tools an agent may use during its turn (passed to `claude --allowedTools`). Review/revise passes need
 // Read to view the rendered screenshots; the spec/build passes use none.
-export type AgentTool = 'Read' | 'Bash';
+export type AgentTool = 'Read' | 'Bash' | 'WebFetch' | 'WebSearch';
 
 // Per-call resource caps. `timeoutMs` hard-kills the CLI; `maxTurns` bounds the agentic back-and-forth.
 export interface AgentLimits {
