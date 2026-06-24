@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { inngest, type DealWonData } from '../client';
 import { db } from '../../db/client';
 import { builds, leads, generatedDemos, audits } from '../../db/schema';
@@ -29,7 +29,13 @@ export const runBuild = inngest.createFunction(
         await db
           .insert(builds)
           .values({ leadId, dealId, status: 'failed', error: 'build failed' })
-          .onConflictDoUpdate({ target: builds.leadId, set: { status: 'failed', error: 'build failed', updatedAt: new Date() } });
+          .onConflictDoUpdate({
+            target: builds.leadId,
+            set: { status: 'failed', error: 'build failed', updatedAt: new Date() },
+            // Never demote an already-saved 'ready' build: if save-build committed and only the
+            // delivery-event emit failed, the optimized page stays live (don't fall back to the raw demo).
+            setWhere: sql`${builds.status} <> 'ready'`,
+          });
       });
     },
   },

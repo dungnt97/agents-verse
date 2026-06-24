@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db/client';
 import { escalations, deals } from '@/lib/db/schema';
 import { inngest } from '@/lib/inngest/client';
+import { canTransition, type DealStage } from '@/lib/data/deal-stage-machine';
 import { guardMutation, type MutationResult } from './guard';
 
 // Resolve (approve) or dismiss an escalation from the command center / review panel.
@@ -23,24 +24,28 @@ export async function resolveEscalation(
   return { ok: true };
 }
 
-// Approve a deal-approval escalation: resolve it AND close the linked deal (→ won).
+// Approve a deal-approval escalation: resolve it AND close the linked deal (→ won). Guarded so a stray
+// call can't force-close: only a `deal`-kind escalation acts on the deal, and only when `won` is a LEGAL
+// next stage (won't resurrect a deal already moved to lost/won by another route — just resolves the row).
 export async function approveDealEscalation(escalationId: string): Promise<MutationResult> {
   const blocked = await guardMutation();
   if (blocked) return blocked;
   const [esc] = await db.select().from(escalations).where(eq(escalations.id, escalationId)).limit(1);
   if (!esc) return { ok: false, message: `escalation not found: ${escalationId}` };
-  const [dealRow] = esc.dealId
-    ? await db.select({ leadId: deals.leadId }).from(deals).where(eq(deals.id, esc.dealId)).limit(1)
+  if (esc.kind !== 'deal') return { ok: false, message: `not a deal escalation: ${escalationId}` };
+  const [deal] = esc.dealId
+    ? await db.select({ leadId: deals.leadId, stage: deals.stage }).from(deals).where(eq(deals.id, esc.dealId)).limit(1)
     : [undefined];
+  const close = !!deal && canTransition(deal.stage as DealStage, 'won');
   await db.transaction(async (tx) => {
     await tx.update(escalations).set({ status: 'resolved', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));
-    if (esc.dealId) await tx.update(deals).set({ stage: 'won' }).where(eq(deals.id, esc.dealId));
+    if (esc.dealId && close) await tx.update(deals).set({ stage: 'won' }).where(eq(deals.id, esc.dealId));
   });
   // Closing the deal kicks off post-sale delivery (Cipher build-prep + Mira onboarding), id-deduped per
   // deal. Best-effort: the deal is already committed as won — a missing event bus must not fail the close.
-  if (esc.dealId && dealRow) {
+  if (esc.dealId && deal && close) {
     try {
-      await inngest.send({ name: 'deal/won', data: { dealId: esc.dealId, leadId: dealRow.leadId }, id: `deal/won:${esc.dealId}` });
+      await inngest.send({ name: 'deal/won', data: { dealId: esc.dealId, leadId: deal.leadId }, id: `deal/won:${esc.dealId}` });
     } catch (e) {
       console.error('[deal/won] event send failed; deal still closed:', e);
     }
@@ -51,15 +56,21 @@ export async function approveDealEscalation(escalationId: string): Promise<Mutat
   return { ok: true };
 }
 
-// Reject a deal-approval escalation: dismiss it AND mark the linked deal lost.
+// Reject a deal-approval escalation: dismiss it AND mark the linked deal lost. Same guards as approve:
+// only a `deal`-kind escalation acts, and only when `lost` is legal (never flips an already-won/lost deal).
 export async function rejectDealEscalation(escalationId: string): Promise<MutationResult> {
   const blocked = await guardMutation();
   if (blocked) return blocked;
   const [esc] = await db.select().from(escalations).where(eq(escalations.id, escalationId)).limit(1);
   if (!esc) return { ok: false, message: `escalation not found: ${escalationId}` };
+  if (esc.kind !== 'deal') return { ok: false, message: `not a deal escalation: ${escalationId}` };
+  const [deal] = esc.dealId
+    ? await db.select({ stage: deals.stage }).from(deals).where(eq(deals.id, esc.dealId)).limit(1)
+    : [undefined];
+  const lose = !!deal && canTransition(deal.stage as DealStage, 'lost');
   await db.transaction(async (tx) => {
     await tx.update(escalations).set({ status: 'dismissed', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));
-    if (esc.dealId) await tx.update(deals).set({ stage: 'lost' }).where(eq(deals.id, esc.dealId));
+    if (esc.dealId && lose) await tx.update(deals).set({ stage: 'lost' }).where(eq(deals.id, esc.dealId));
   });
   if (esc.dealId) revalidatePath('/deals');
   revalidatePath('/command');

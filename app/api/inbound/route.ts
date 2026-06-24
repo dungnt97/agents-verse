@@ -25,6 +25,14 @@ export async function POST(req: Request): Promise<Response> {
     return new Response('invalid signature', { status: 401 });
   }
 
+  // Replay defense-in-depth: reject a signed request whose timestamp is more than 5 minutes off from
+  // now (svix-timestamp is unix seconds). The event-id dedup already blocks reprocessing; this also
+  // rejects a much-later replay of a captured valid request.
+  const ts = Number(timestamp);
+  if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 300) {
+    return new Response('stale timestamp', { status: 400 });
+  }
+
   let parsed;
   try {
     parsed = parseInboundEmail(JSON.parse(payload));

@@ -6,10 +6,14 @@ import { eq } from 'drizzle-orm';
 //   - guard.ts calls getCurrentUser() (Better Auth + next/headers); stub a signed-in founder
 //     so guardMutation() passes the auth check when USE_DB=true.
 // Mocks are hoisted by vitest so they apply before the action modules import these deps.
+// Capture pipeline events so we can assert the post-close `deal/won` trigger (Cipher/Mira delivery)
+// without a live Inngest server. The mock also means send never throws here.
+const sendMock = vi.hoisted(() => vi.fn(async (_e: { name?: string }) => {}));
 vi.mock('next/cache', () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 vi.mock('@/lib/auth/session', () => ({
   getCurrentUser: async () => ({ id: 'founder', email: 'founder@agentsverse.ai' }),
 }));
+vi.mock('@/lib/inngest/client', () => ({ inngest: { send: sendMock } }));
 
 import { db } from '@/lib/db/client';
 import { deals, escalations, settings } from '@/lib/db/schema';
@@ -26,6 +30,7 @@ describe.skipIf(!hasDb)('deal automation actions — USE_DB=true integration (se
   // + a leadId FK). Pick deterministically by id so the same deal is exercised every run, then
   // snapshot its mutable columns and restore them after — keeps the shared DB idempotent.
   let dealId = '';
+  let leadId = '';
   let escId = '';
   let snapshot: { stage: string; value: number; conf: number; escReason: string | null };
   let settingsId = '';
@@ -61,6 +66,7 @@ describe.skipIf(!hasDb)('deal automation actions — USE_DB=true integration (se
     const [row] = await db.select().from(deals).orderBy(deals.id).limit(1);
     expect(row).toBeTruthy(); // seed must have run; fail loudly rather than silently no-op
     dealId = row.id;
+    leadId = row.leadId;
     escId = `esc-deal-${dealId}`;
     snapshot = { stage: row.stage, value: row.value, conf: row.conf, escReason: row.escReason };
     const [s] = await db.select().from(settings).limit(1);
@@ -126,6 +132,7 @@ describe.skipIf(!hasDb)('deal automation actions — USE_DB=true integration (se
 
   it('4. below threshold + confident → auto-closes to won, no escalation', async () => {
     await cleanEsc();
+    sendMock.mockClear();
     await setDeal({ stage: 'quoted', value: 1000, conf: 90 });
     const res = await updateDealStage(dealId, 'won');
     expect(res.ok).toBe(true);
@@ -133,6 +140,10 @@ describe.skipIf(!hasDb)('deal automation actions — USE_DB=true integration (se
 
     expect((await getDeal()).stage).toBe('won');
     expect(await getEsc()).toBeNull();
+    // The close fires the post-sale delivery trigger exactly once with the deal's lead.
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'deal/won', data: { dealId, leadId } }),
+    );
   });
 
   it('5. approveDealEscalation resolves the escalation and closes the deal as won', async () => {
@@ -143,10 +154,14 @@ describe.skipIf(!hasDb)('deal automation actions — USE_DB=true integration (se
     expect(gate.escalated).toBe(true);
     expect((await getDeal()).stage).toBe('approval');
 
+    sendMock.mockClear();
     const res = await approveDealEscalation(escId);
     expect(res.ok).toBe(true);
     expect((await getEsc())!.status).toBe('resolved');
     expect((await getDeal()).stage).toBe('won');
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'deal/won', data: { dealId, leadId } }),
+    );
   });
 
   it('6. rejectDealEscalation dismisses the escalation and marks the deal lost', async () => {
@@ -160,6 +175,31 @@ describe.skipIf(!hasDb)('deal automation actions — USE_DB=true integration (se
     expect(res.ok).toBe(true);
     expect((await getEsc())!.status).toBe('dismissed');
     expect((await getDeal()).stage).toBe('lost');
+  });
+
+  it('7b. approveDealEscalation refuses a non-deal escalation and never force-closes a lost deal', async () => {
+    // Non-deal kind → rejected outright (no deal mutation).
+    await cleanEsc();
+    await db.insert(escalations).values({
+      id: escId, kind: 'human', sev: 'medium', title: 'x', who: 'x', value: 0, agent: 'x',
+      reason: 'x', rec: 'x', conf: 100, time: 'now', status: 'open', dealId,
+    });
+    await setDeal({ stage: 'quoted' });
+    const bad = await approveDealEscalation(escId);
+    expect(bad.ok).toBe(false);
+    expect((await getDeal()).stage).toBe('quoted'); // deal untouched
+
+    // A stale deal escalation whose deal already moved to a terminal stage must NOT resurrect it to won.
+    await cleanEsc();
+    await setDeal({ stage: 'lost' });
+    await db.insert(escalations).values({
+      id: escId, kind: 'deal', sev: 'high', title: 'stale', who: 'x', value: 9999, agent: 'closer',
+      reason: 'x', rec: 'x', conf: 90, time: 'now', status: 'open', dealId,
+    });
+    const res = await approveDealEscalation(escId);
+    expect(res.ok).toBe(true);
+    expect((await getEsc())!.status).toBe('resolved'); // escalation cleaned up
+    expect((await getDeal()).stage).toBe('lost'); // NOT resurrected to won
   });
 
   it('7. honors the configured auto-approve threshold from settings.guardrails', async () => {

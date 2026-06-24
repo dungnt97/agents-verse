@@ -150,9 +150,10 @@ export const runOutreach = inngest.createFunction(
 
     // Gate: park the draft as an outreach escalation for the founder to approve. The draft lives on the
     // row (title/rec); the lead is recovered from the deterministic id. A founder-DISMISSED draft is NOT
-    // resurrected (the conflict update skips a dismissed row).
-    await step.run('escalate', async () => {
-      await db
+    // resurrected (the conflict update skips a dismissed row). `.returning()` tells us whether a row was
+    // actually opened — the escalation id is lead-keyed, so a previously-dismissed draft blocks this gate.
+    const parked = await step.run('escalate', async () => {
+      const opened = await db
         .insert(escalations)
         .values({
           id: escId(leadId),
@@ -172,10 +173,24 @@ export const runOutreach = inngest.createFunction(
         })
         .onConflictDoUpdate({
           target: escalations.id,
-          set: { status: 'open', resolvedAt: null, title: draft.subject, rec: draft.body },
+          set: { status: 'open', resolvedAt: null, title: draft.subject, rec: draft.body, runId: runId ?? null },
           setWhere: sql`${escalations.status} <> 'dismissed'`,
-        });
+        })
+        .returning({ id: escalations.id });
+      return opened.length > 0;
     });
+    // The founder previously dismissed outreach for this lead → the dismissed row blocked a fresh gate.
+    // Don't strand the run at 'outreach': close it (so it leaves the active-lead index) and surface a skip
+    // for a manual send. Respects the founder's "don't email this lead" without re-opening the draft.
+    if (!parked) {
+      if (runId)
+        await step.sendEvent('emit-skip', {
+          name: 'outreach/sent',
+          data: { leadId, runId, outcome: 'failed' },
+          id: `outreach/sent:${leadId}`,
+        });
+      return { leadId, skipped: 'outreach previously dismissed for this lead' };
+    }
     return { leadId, gated: true };
   },
 );
