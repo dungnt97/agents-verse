@@ -36,9 +36,14 @@ export async function approveDealEscalation(escalationId: string): Promise<Mutat
     await tx.update(escalations).set({ status: 'resolved', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));
     if (esc.dealId) await tx.update(deals).set({ stage: 'won' }).where(eq(deals.id, esc.dealId));
   });
-  // Closing the deal kicks off post-sale delivery (Cipher build-prep + Mira onboarding), id-deduped per deal.
+  // Closing the deal kicks off post-sale delivery (Cipher build-prep + Mira onboarding), id-deduped per
+  // deal. Best-effort: the deal is already committed as won — a missing event bus must not fail the close.
   if (esc.dealId && dealRow) {
-    await inngest.send({ name: 'deal/won', data: { dealId: esc.dealId, leadId: dealRow.leadId }, id: `deal/won:${esc.dealId}` });
+    try {
+      await inngest.send({ name: 'deal/won', data: { dealId: esc.dealId, leadId: dealRow.leadId }, id: `deal/won:${esc.dealId}` });
+    } catch (e) {
+      console.error('[deal/won] event send failed; deal still closed:', e);
+    }
     revalidatePath('/deals');
   }
   revalidatePath('/command');
@@ -129,11 +134,16 @@ export async function rejectOutreachEscalation(escalationId: string): Promise<Mu
   if (!esc) return { ok: false, message: `escalation not found: ${escalationId}` };
   if (esc.runId) {
     const leadId = esc.id.replace(/^esc-outreach-/, '');
-    await inngest.send({
-      name: 'outreach/sent',
-      data: { leadId, runId: esc.runId, outcome: 'failed' },
-      id: `outreach/sent:${leadId}`,
-    });
+    try {
+      await inngest.send({
+        name: 'outreach/sent',
+        data: { leadId, runId: esc.runId, outcome: 'failed' },
+        id: `outreach/sent:${leadId}`,
+      });
+    } catch (e) {
+      // Best-effort run-close; the dismiss below must succeed regardless of the event bus.
+      console.error('[outreach dismiss] run-close event send failed:', e);
+    }
   }
   await db.update(escalations).set({ status: 'dismissed', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));
   revalidatePath('/command');

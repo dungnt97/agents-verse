@@ -84,9 +84,14 @@ export async function updateDealStage(dealId: string, stage: string): Promise<De
 
   await db.update(deals).set({ stage: target }).where(eq(deals.id, dealId));
   // A close kicks off post-sale delivery (Cipher build-prep + Mira onboarding). id-deduped per deal so a
-  // re-close is a no-op upstream. Send-event-only — the worker owns the build.
+  // re-close is a no-op upstream. Best-effort: the deal is already committed as won — never fail a closed
+  // deal because the event bus is unavailable (e.g. INNGEST_EVENT_KEY unset). Send-event-only.
   if (target === 'won') {
-    await inngest.send({ name: 'deal/won', data: { dealId, leadId: deal.leadId }, id: `deal/won:${dealId}` });
+    try {
+      await inngest.send({ name: 'deal/won', data: { dealId, leadId: deal.leadId }, id: `deal/won:${dealId}` });
+    } catch (e) {
+      console.error('[deal/won] event send failed; deal still closed:', e);
+    }
   }
   dealsTouched();
   return { ok: true };
