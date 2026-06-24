@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, gte, inArray, sql } from 'drizzle-orm';
 import { inngest, type PipelineFactData } from '../client';
 import { db } from '../../db/client';
 import { pipelineRuns, settings, leads, audits, escalations } from '../../db/schema';
@@ -12,6 +12,13 @@ import {
   type PipelineStage,
   type PipelineRunStatus,
 } from '../pipeline-machine';
+import { computeCostMeter } from '../../data/cost-meter';
+
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 import type { AutonomyMode } from '../../data/deal-stage-machine';
 
 // Central pipeline router (WORKER only — relative imports + no `server-only` so it runs under tsx).
@@ -113,6 +120,53 @@ export const orchestratePipeline = inngest.createFunction(
                 eq(pipelineRuns.status, 'running'),
               ),
             );
+        });
+        // Ledger: a run just completed — re-estimate today's spend (runs × rate) and, when it nears the
+        // daily cap, surface/update a single per-day `cost` escalation. The cost is an ESTIMATE (the
+        // subscription has no per-token bill), de-duped on a date-stamped id. Idempotent.
+        await step.run('cost-check', async () => {
+          const today = startOfToday();
+          const [{ runs }] = await db
+            .select({ runs: count() })
+            .from(pipelineRuns)
+            .where(gte(pipelineRuns.startedAt, today));
+          const [s] = await db.select().from(settings).limit(1);
+          const guardrails = (s?.guardrails as Record<string, unknown> | null) ?? {};
+          const meter = computeCostMeter(Number(runs), {
+            costPerRun: guardrails.costPerRun,
+            dailyCap: guardrails.dailyCostCap,
+          });
+          if (!meter.nearCap) return;
+          const pct = Math.round(meter.fractionUsed * 100);
+          const reason = `~${meter.runs} pipeline runs today ≈ $${meter.estimatedCost} of the $${meter.dailyCap} daily cap (rough estimate, not a bill).`;
+          await db
+            .insert(escalations)
+            .values({
+              id: `esc-cost-${today.toISOString().slice(0, 10)}`,
+              kind: 'cost',
+              sev: meter.overCap ? 'high' : 'medium',
+              title: `Estimated AI spend at ${pct}% of the daily cap`,
+              who: 'Ledger',
+              value: Math.round(meter.estimatedCost),
+              agent: 'ledger',
+              reason,
+              rec: 'Pause new pipelines or raise the daily cap in Settings.',
+              conf: 100,
+              time: 'just now',
+              status: 'open',
+            })
+            .onConflictDoUpdate({
+              target: escalations.id,
+              set: {
+                sev: meter.overCap ? 'high' : 'medium',
+                title: `Estimated AI spend at ${pct}% of the daily cap`,
+                value: Math.round(meter.estimatedCost),
+                reason,
+                status: 'open',
+                resolvedAt: null,
+              },
+              setWhere: sql`${escalations.status} <> 'dismissed'`,
+            });
         });
         return { runId, hop: hop.kind };
       }
