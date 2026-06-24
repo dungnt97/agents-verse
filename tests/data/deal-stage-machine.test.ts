@@ -9,6 +9,7 @@ import {
   isTerminalStage,
   canTransition,
   requiresApproval,
+  decideReplyOutcome,
   type DealStage,
 } from '@/lib/data/deal-stage-machine';
 
@@ -226,5 +227,59 @@ describe('requiresApproval — custom threshold / confFloor overrides', () => {
     expect(requiresApproval({ value: 100, conf: 75, autonomyMode: 'full', confFloor: 80 })).toBe(true);
     // conf 65 < default 70 (would gate) but >= custom 60 -> passes.
     expect(requiresApproval({ value: 100, conf: 65, autonomyMode: 'full', confFloor: 60 })).toBe(false);
+  });
+});
+
+describe('decideReplyOutcome — Closer routing (advance vs escalate)', () => {
+  it('advances on a legal, confident, in-budget recommendation', () => {
+    // pricing → quoted is legal; conf above floor; value below threshold; guarded mode.
+    expect(
+      decideReplyOutcome({ currentStage: 'pricing', recommendedStage: 'quoted', conf: 90, value: 1000, autonomyMode: 'guarded' }),
+    ).toEqual({ action: 'advance', toStage: 'quoted' });
+  });
+
+  it('ALWAYS escalates when confidence is below the floor (every mode) — never auto-advances on a guess', () => {
+    for (const autonomyMode of ['manual', 'review', 'guarded', 'full'] as const) {
+      const res = decideReplyOutcome({ currentStage: 'pricing', recommendedStage: 'quoted', conf: 69, value: 100, autonomyMode });
+      expect(res.action, `${autonomyMode} low-conf`).toBe('escalate');
+    }
+  });
+
+  it('escalates when the deal value is at/above the auto-approve threshold (review/guarded)', () => {
+    for (const autonomyMode of ['review', 'guarded'] as const) {
+      const res = decideReplyOutcome({ currentStage: 'quoted', recommendedStage: 'won', conf: 95, value: DEAL_AUTO_APPROVE_LIMIT, autonomyMode });
+      expect(res.action, `${autonomyMode} over-threshold`).toBe('escalate');
+    }
+  });
+
+  it('escalates an illegal / non-next stage rather than forcing it', () => {
+    // pricing → won is not a legal next stage (must pass through quoted); never auto-jump.
+    const res = decideReplyOutcome({ currentStage: 'pricing', recommendedStage: 'won', conf: 99, value: 100, autonomyMode: 'full' });
+    expect(res.action).toBe('escalate');
+  });
+
+  it('manual mode always escalates even a legal high-conf low-value move', () => {
+    expect(
+      decideReplyOutcome({ currentStage: 'pricing', recommendedStage: 'quoted', conf: 99, value: 1, autonomyMode: 'manual' }).action,
+    ).toBe('escalate');
+  });
+
+  it('full mode auto-advances a legal high-conf move regardless of value (only the conf floor gates it)', () => {
+    expect(
+      decideReplyOutcome({ currentStage: 'quoted', recommendedStage: 'won', conf: 90, value: 1_000_000, autonomyMode: 'full' }),
+    ).toEqual({ action: 'advance', toStage: 'won' });
+  });
+
+  it('closing (→ won) ALWAYS escalates outside full mode — even a tiny high-conf deal needs sign-off', () => {
+    for (const autonomyMode of ['manual', 'review', 'guarded'] as const) {
+      const res = decideReplyOutcome({ currentStage: 'quoted', recommendedStage: 'won', conf: 99, value: 1, autonomyMode });
+      expect(res.action, `${autonomyMode} close`).toBe('escalate');
+    }
+  });
+
+  it('a non-close advance (→ quoted) still auto-advances in guarded when confident + in-budget', () => {
+    expect(
+      decideReplyOutcome({ currentStage: 'pricing', recommendedStage: 'quoted', conf: 85, value: 1, autonomyMode: 'guarded' }),
+    ).toEqual({ action: 'advance', toStage: 'quoted' });
   });
 });

@@ -1,5 +1,6 @@
 // Output validators for agent defs — lifted verbatim from the demo-gen engine so behaviour is
 // unchanged. Pure and tsx-safe (relative imports only, no `server-only`).
+import type { ZodType } from 'zod';
 import type { OutputValidator } from './types';
 
 // Keep from the first HTML root marker onward, stripping a wrapping markdown fence / leading prose.
@@ -30,5 +31,28 @@ export function makeTextValidator(): OutputValidator<string> {
     const text = raw.trim();
     if (!text) throw new Error('agent returned empty text');
     return text;
+  };
+}
+
+// Validate a structured JSON object against a zod schema: strip a markdown fence / surrounding prose,
+// JSON.parse, then schema.parse (throws → runAgent retries). Used by agents that must return a typed
+// result the pipeline acts on (e.g. the Closer's recommended deal stage — an invalid stage can never
+// silently advance a deal because the schema rejects it).
+export function makeJsonValidator<O>(schema: ZodType<O>): OutputValidator<O> {
+  return (raw) => {
+    let s = raw.trim();
+    const fence = s.match(/```(?:json)?\s*([\s\S]*?)```\s*$/i);
+    if (fence) s = fence[1].trim();
+    // Tolerate leading/trailing prose by slicing to the outermost object braces.
+    const open = s.indexOf('{');
+    const close = s.lastIndexOf('}');
+    if (open >= 0 && close > open) s = s.slice(open, close + 1);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(s);
+    } catch (e) {
+      throw new Error(`agent output is not valid JSON: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    return schema.parse(parsed);
   };
 }

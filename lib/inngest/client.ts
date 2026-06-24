@@ -46,3 +46,11 @@ export interface PipelineControlData {
   runId: string;
 }
 export type PipelineControlName = 'pipeline/resumed' | 'pipeline/halted';
+
+// A client's reply to an outreach/demo, ingested by the founder pasting it (inbound webhook is a later
+// phase). The Closer worker interprets it and advances or escalates the linked deal.
+export interface ReplyReceivedData {
+  dealId: string;
+  leadId?: string;
+  text: string;
+}
