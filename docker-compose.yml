@@ -99,6 +99,13 @@ services:
     environment:
       DATA_DIR: /app/data      # persisted provider auth + config live here (the named volume below)
       PORT: "20128"
+      # Demo-gen produces large single-shot HTML (~6+ min of streaming, a big reference-anchored prompt
+      # with opus extended thinking). 9router's defaults (first-chunk 200s, stall 360s, connect 60s) can
+      # abort a HEALTHY long run before it finishes — raise them so only a genuine hang trips. These are
+      # read by open-sse/config/runtimeConfig.js via its envMs() helper.
+      STREAM_FIRST_CHUNK_TIMEOUT_MS: "600000"   # 10 min time-to-first-token (long prefill/thinking)
+      STREAM_STALL_TIMEOUT_MS: "900000"         # 15 min inter-chunk stall ceiling
+      FETCH_CONNECT_TIMEOUT_MS: "180000"        # 3 min for upstream response headers
     volumes:
       - ninerouter_data:/app/data
     ports:
