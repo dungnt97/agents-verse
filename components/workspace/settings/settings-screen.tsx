@@ -190,6 +190,7 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
 
   // AI cost limits
   const [daily, setDaily] = useState(50);
+  const [costPerRun, setCostPerRun] = useState(0.4);
   const [monthly, setMonthly] = useState(1200);
   const [perDemo, setPerDemo] = useState(6);
   const [perOut, setPerOut] = useState(1);
@@ -232,6 +233,7 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
               const grResult = await updateGuardrails({
                 autoApproveLimit: approveAbove,
                 dailyCostLimit: daily,
+                costPerRun,
                 confidenceThreshold: confThresh,
                 maxDiscountPct: discount,
               });
@@ -518,6 +520,9 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
               </SettingRow>
               <SettingRow title={t('set.costPerOutreach')}>
                 <Slider value={perOut} min={1} max={10} step={0.5} onChange={setPerOut} prefix="$" />
+              </SettingRow>
+              <SettingRow title={t('set.costPerRun')} desc={t('set.costPerRunDesc')}>
+                <Slider value={costPerRun} min={0.1} max={2} step={0.1} onChange={setCostPerRun} prefix="$" />
               </SettingRow>
               <SettingRow title={t('set.alertThreshold')} desc={t('set.alertThresholdDesc')} last>
                 {/* Static 85% threshold display — source keeps onChange as no-op */}

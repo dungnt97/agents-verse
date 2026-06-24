@@ -98,6 +98,8 @@ export const en = {
   'set.monthlyBudget':      'Monthly budget',
   'set.costPerDemo':        'Cost per demo limit',
   'set.costPerOutreach':    'Cost per outreach limit',
+  'set.costPerRun':         'Cost per pipeline run',
+  'set.costPerRunDesc':     'Blended per-run estimate the Ledger uses for the daily AI-spend gauge.',
   'set.alertThreshold':     'Alert threshold',
   'set.alertThresholdDesc': 'Warn you when spend reaches this share of budget.',
 
@@ -269,6 +271,8 @@ export const vi: Record<keyof typeof en, string> = {
   'set.monthlyBudget':      'Ngân sách tháng',
   'set.costPerDemo':        'Giới hạn chi phí mỗi demo',
   'set.costPerOutreach':    'Giới hạn chi phí mỗi lần tiếp cận',
+  'set.costPerRun':         'Chi phí mỗi lượt pipeline',
+  'set.costPerRunDesc':     'Ước tính chi phí gộp mỗi lượt mà Ledger dùng cho đồng hồ chi tiêu AI hằng ngày.',
   'set.alertThreshold':     'Ngưỡng cảnh báo',
   'set.alertThresholdDesc': 'Cảnh báo khi chi tiêu đạt tỉ lệ này của ngân sách.',
 
