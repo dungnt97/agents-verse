@@ -57,4 +57,16 @@ describe('computeCostMeter', () => {
       expect(m.nearCap).toBe(false);
     }
   });
+
+  // The orchestrator reads the founder cost policy from `guardrails.dailyCostLimit` + `guardrails.costPerRun`
+  // (the exact keys the Settings UI + seed write). An earlier draft read `dailyCostCap`, which nothing wrote,
+  // so the cap silently fell back to the default and the policy never applied. Pin the key contract here.
+  it('applies the founder guardrails when fed via the seeded key names', () => {
+    const guardrails: Record<string, unknown> = { autoApproveLimit: 4000, dailyCostLimit: 8, costPerRun: 1 };
+    const m = computeCostMeter(10, { costPerRun: guardrails.costPerRun, dailyCap: guardrails.dailyCostLimit });
+    expect(m.costPerRun).toBe(1); // founder rate, not the $0.40 default
+    expect(m.dailyCap).toBe(8); // founder cap, not the $50 default
+    expect(m.estimatedCost).toBe(10);
+    expect(m.overCap).toBe(true);
+  });
 });

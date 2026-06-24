@@ -20,6 +20,8 @@ import {
   rejectPipelineEscalation,
   approveOutreachEscalation,
   rejectOutreachEscalation,
+  approveSupportEscalation,
+  rejectSupportEscalation,
 } from '@/lib/actions/escalations';
 import { fmt } from '@/lib/data/format';
 
@@ -38,6 +40,7 @@ const iconFor = (kind: string) =>
     : kind === 'human' ? 'user'
     : kind === 'sales' ? 'deals'
     : kind === 'outreach' ? 'send'
+    : kind === 'support' ? 'chat'
     : 'layers';
 const badgeFor = (sev: string) =>
   sev === 'high' ? 'badge-danger' : sev === 'medium' ? 'badge-warning' : 'badge-info';
@@ -83,7 +86,9 @@ export function ReviewCenter({ open, onClose, onAction, escalations, useDb }: Re
             ? approvePipelineEscalation(e.id)
             : e.kind === 'outreach'
               ? approveOutreachEscalation(e.id)
-              : resolveEscalation(e.id, 'resolved'),
+              : e.kind === 'support'
+                ? approveSupportEscalation(e.id)
+                : resolveEscalation(e.id, 'resolved'),
       t('shell.approve'),
       'success',
     );
@@ -97,7 +102,9 @@ export function ReviewCenter({ open, onClose, onAction, escalations, useDb }: Re
             ? rejectPipelineEscalation(e.id)
             : e.kind === 'outreach'
               ? rejectOutreachEscalation(e.id)
-              : resolveEscalation(e.id, 'dismissed'),
+              : e.kind === 'support'
+                ? rejectSupportEscalation(e.id)
+                : resolveEscalation(e.id, 'dismissed'),
       t('shell.dismiss'),
       'warning',
     );

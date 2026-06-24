@@ -1,4 +1,5 @@
 import { getGeneratedDemo } from '@/lib/repositories/generated-demos';
+import { getBuild } from '@/lib/repositories/builds';
 
 // Serves the AI-generated redesign demo for a lead as a standalone HTML page (this is the URL the
 // "View demo" button opens and that a prospect would be sent). Public on purpose — a demo is meant
@@ -18,6 +19,13 @@ font-family:system-ui,sans-serif;background:#0b1220;color:#e6edf6;text-align:cen
 
 export async function GET(_req: Request, { params }: { params: Promise<{ leadId: string }> }): Promise<Response> {
   const { leadId } = await params;
+
+  // Prefer the delivery-optimized build (SEO/OG injected for a won deal) over the raw generated demo.
+  const build = await getBuild(leadId);
+  if (build?.status === 'ready' && build.html) {
+    return new Response(build.html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
+  }
+
   const demo = await getGeneratedDemo(leadId);
 
   if (!demo) return placeholder('Chưa có demo', 'Demo cho lead này chưa được tạo. Bấm “Generate demo” trong workspace.', 404);

@@ -12,8 +12,10 @@ export interface SendEmailInput {
   to: string;
   subject: string;
   html: string;
-  // Where a recipient unsubscribes (a mailto or a hosted page). Required for CAN-SPAM.
-  unsubscribe: string;
+  // Where a recipient unsubscribes (a mailto or a hosted page). Required (CAN-SPAM) for COMMERCIAL
+  // outreach; omitted for TRANSACTIONAL mail to an existing client (e.g. Mira's post-sale onboarding),
+  // which is exempt — when absent, no List-Unsubscribe header is sent.
+  unsubscribe?: string;
   // Stable key so a worker retry / duplicate trigger can't send the same email twice (Resend dedupes).
   idempotencyKey?: string;
 }
@@ -49,10 +51,15 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
         reply_to: replyTo,
         subject: input.subject,
         html: input.html,
-        headers: {
-          'List-Unsubscribe': `<${input.unsubscribe}>`,
-          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-        },
+        // CAN-SPAM one-click unsubscribe — only for commercial mail (transactional onboarding omits it).
+        ...(input.unsubscribe
+          ? {
+              headers: {
+                'List-Unsubscribe': `<${input.unsubscribe}>`,
+                'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+              },
+            }
+          : {}),
       }),
     });
     if (!res.ok) {
@@ -79,6 +86,21 @@ export function outreachEmailHtml(body: string, demoUrl: string, unsubscribe: st
     paragraphs,
     `<p style="margin:24px 0"><a href="${escapeHtml(demoUrl)}" style="display:inline-block;background:#e03c31;color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600">Xem bản demo</a></p>`,
     `<p style="margin:28px 0 0;font-size:12px;color:#8a8f98">Không muốn nhận email? <a href="${escapeHtml(unsubscribe)}" style="color:#8a8f98">Huỷ đăng ký</a>.</p>`,
+    `</div>`,
+  ].join('');
+}
+
+// Wrap a support/onboarding body (Mira) into a clean transactional HTML email — no marketing CTA, no
+// unsubscribe footer (it's transactional mail to a client who just signed).
+export function supportEmailHtml(body: string): string {
+  const paragraphs = body
+    .trim()
+    .split(/\n{2,}/)
+    .map((p) => `<p style="margin:0 0 16px">${escapeHtml(p).replace(/\n/g, '<br>')}</p>`)
+    .join('');
+  return [
+    `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.6;color:#1b2430;max-width:560px">`,
+    paragraphs,
     `</div>`,
   ].join('');
 }

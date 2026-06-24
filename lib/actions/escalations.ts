@@ -29,11 +29,23 @@ export async function approveDealEscalation(escalationId: string): Promise<Mutat
   if (blocked) return blocked;
   const [esc] = await db.select().from(escalations).where(eq(escalations.id, escalationId)).limit(1);
   if (!esc) return { ok: false, message: `escalation not found: ${escalationId}` };
+  const [dealRow] = esc.dealId
+    ? await db.select({ leadId: deals.leadId }).from(deals).where(eq(deals.id, esc.dealId)).limit(1)
+    : [undefined];
   await db.transaction(async (tx) => {
     await tx.update(escalations).set({ status: 'resolved', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));
     if (esc.dealId) await tx.update(deals).set({ stage: 'won' }).where(eq(deals.id, esc.dealId));
   });
-  if (esc.dealId) revalidatePath('/deals');
+  // Closing the deal kicks off post-sale delivery (Cipher build-prep + Mira onboarding), id-deduped per
+  // deal. Best-effort: the deal is already committed as won — a missing event bus must not fail the close.
+  if (esc.dealId && dealRow) {
+    try {
+      await inngest.send({ name: 'deal/won', data: { dealId: esc.dealId, leadId: dealRow.leadId }, id: `deal/won:${esc.dealId}` });
+    } catch (e) {
+      console.error('[deal/won] event send failed; deal still closed:', e);
+    }
+    revalidatePath('/deals');
+  }
   revalidatePath('/command');
   revalidatePath('/overview');
   return { ok: true };
@@ -102,7 +114,8 @@ export async function approveOutreachEscalation(escalationId: string): Promise<M
   const leadId = esc.id.replace(/^esc-outreach-/, '');
   await inngest.send({
     name: 'outreach/approved',
-    data: { leadId, subject: esc.title, body: esc.rec },
+    // runId (nullable) flows through so the resulting outreach/sent advances the originating pipeline run.
+    data: { leadId, subject: esc.title, body: esc.rec, runId: esc.runId ?? undefined },
     id: `outreach/approved:${esc.id}`,
   });
   await db.update(escalations).set({ status: 'resolved', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));
@@ -111,8 +124,56 @@ export async function approveOutreachEscalation(escalationId: string): Promise<M
   return { ok: true };
 }
 
-// Reject a parked outreach draft → just dismiss it; the email is never sent and the lead stays put.
+// Reject a parked outreach draft → dismiss it; the email is never sent. If the draft belongs to a
+// pipeline run, also close that run (outcome:'failed') so it doesn't strand 'running' at the outreach
+// stage and block a fresh start for the lead — the founder declined to send, so the funnel ends here.
 export async function rejectOutreachEscalation(escalationId: string): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+  const [esc] = await db.select().from(escalations).where(eq(escalations.id, escalationId)).limit(1);
+  if (!esc) return { ok: false, message: `escalation not found: ${escalationId}` };
+  if (esc.runId) {
+    const leadId = esc.id.replace(/^esc-outreach-/, '');
+    try {
+      await inngest.send({
+        name: 'outreach/sent',
+        data: { leadId, runId: esc.runId, outcome: 'failed' },
+        id: `outreach/sent:${leadId}`,
+      });
+    } catch (e) {
+      // Best-effort run-close; the dismiss below must succeed regardless of the event bus.
+      console.error('[outreach dismiss] run-close event send failed:', e);
+    }
+  }
+  await db.update(escalations).set({ status: 'dismissed', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));
+  revalidatePath('/command');
+  revalidatePath('/overview');
+  return { ok: true };
+}
+
+// Approve a parked onboarding draft (Mira) → emit `support/approved` so the worker sends the asset-request
+// email the founder reviewed. Subject/body live on the escalation; the lead is recovered from the
+// deterministic id `esc-support-<leadId>`. Emit BEFORE resolving so a send failure leaves it re-actionable.
+export async function approveSupportEscalation(escalationId: string): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+  const [esc] = await db.select().from(escalations).where(eq(escalations.id, escalationId)).limit(1);
+  if (!esc) return { ok: false, message: `escalation not found: ${escalationId}` };
+  if (esc.kind !== 'support') return { ok: false, message: `not a support escalation: ${escalationId}` };
+  const leadId = esc.id.replace(/^esc-support-/, '');
+  await inngest.send({
+    name: 'support/approved',
+    data: { leadId, subject: esc.title, body: esc.rec },
+    id: `support/approved:${esc.id}`,
+  });
+  await db.update(escalations).set({ status: 'resolved', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));
+  revalidatePath('/command');
+  revalidatePath('/overview');
+  return { ok: true };
+}
+
+// Reject a parked onboarding draft → just dismiss it; the email is never sent.
+export async function rejectSupportEscalation(escalationId: string): Promise<MutationResult> {
   const blocked = await guardMutation();
   if (blocked) return blocked;
   await db.update(escalations).set({ status: 'dismissed', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));

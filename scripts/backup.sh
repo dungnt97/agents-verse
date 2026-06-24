@@ -22,8 +22,26 @@ docker compose exec -T db sh -c 'pg_dump -Fc -U "$POSTGRES_USER" "$POSTGRES_DB"'
 echo "[backup] rotating local dumps older than ${RETENTION_DAYS}d"
 find "$BACKUP_DIR" -name 'agentsverse-*.dump' -type f -mtime +"$RETENTION_DAYS" -delete
 
-# --- OFF-SITE (wire this up — required for a real backup) ----------------
-# Encrypt then upload, e.g.:
-#   gpg --symmetric --cipher-algo AES256 "$OUT"
-#   rclone copy "${OUT}.gpg" remote:agentsverse-backups/
-echo "[backup] local dump done. TODO: encrypt + upload off-site."
+# --- OFF-SITE (env-driven; a backup on the same VPS is NOT a backup) ------
+# Set these on the VPS to enable encrypted off-site upload:
+#   BACKUP_GPG_PASSPHRASE  symmetric AES256 passphrase (the dump holds the founder hash + lead PII)
+#   RCLONE_REMOTE          rclone target, e.g. "r2:agentsverse-backups" (run `rclone config` first)
+UPLOAD="$OUT"
+
+if [ -n "${BACKUP_GPG_PASSPHRASE:-}" ]; then
+  echo "[backup] encrypting (AES256)"
+  printf '%s' "$BACKUP_GPG_PASSPHRASE" | \
+    gpg --batch --yes --passphrase-fd 0 --symmetric --cipher-algo AES256 "$OUT"
+  rm -f "$OUT"            # keep only the encrypted copy on disk
+  UPLOAD="${OUT}.gpg"
+else
+  echo "[backup] WARNING: BACKUP_GPG_PASSPHRASE unset — dump is UNENCRYPTED (contains PII + the founder hash)."
+fi
+
+if [ -n "${RCLONE_REMOTE:-}" ]; then
+  echo "[backup] uploading off-site -> ${RCLONE_REMOTE}"
+  rclone copy "$UPLOAD" "$RCLONE_REMOTE"
+  echo "[backup] off-site upload complete."
+else
+  echo "[backup] NOTICE: RCLONE_REMOTE unset — local-only backup. Set it for real off-site protection."
+fi

@@ -1,10 +1,10 @@
 # Development Roadmap — Agents Verse
 
-**Last updated:** June 14, 2026
+**Last updated:** June 24, 2026
 
 ## Project Status Overview
 
-Agents Verse is **feature-complete for Subsystems 1, 2 and 3**. All routes are live, Postgres is wired, auth is real, the audit engine (PageSpeed + Playwright + Gemini via Inngest) is production-ready, and demo generation now produces real redesign pages via a multi-pass Claude pipeline. The next developer session can pick up at **Subsystem 4 (outreach/email)**, still key-gated and optional in scope.
+Agents Verse now runs the **full autonomous agency funnel**: discover → audit → demo → outreach → reply → deal → delivery, with a central pipeline orchestrator, human-in-the-loop gates, and a cost ledger. All six phases of the `agent-company-flow` plan have landed (the runtime/registry, the orchestrator + `pipeline_runs` ledger, approval gates + kill-switch, the Closer sales-brain, Echo outreach + Resend, and Phase 6 delivery — Cipher build-prep, Mira onboarding, the Resend inbound webhook, and the Ledger cost meter). Email send/receive is **key-gated** on Resend; everything else runs on the existing Claude CLI/gateway token. `typecheck`, `lint`, `test`, and `build` are green with no DB or keys.
 
 ---
 
@@ -17,8 +17,10 @@ Agents Verse is **feature-complete for Subsystems 1, 2 and 3**. All routes are l
 | **Subsystem 2** | Website Audit (PageSpeed + Playwright + Gemini, durable Inngest) | ✅ Code-complete | 8-dimensional scoring (visual, mobile, cta, trust, seo, speed, content, conversion). Screenshot + vision analysis. Self-hosted Inngest worker + Redis. Requires `GEMINI_API_KEY`, `GOOGLE_PAGESPEED_API_KEY`, `INNGEST_*` keys. |
 | **Docker & Deploy** | Self-hosted on single VPS (web + db + redis + inngest + worker) | ✅ Done | Compose file: entrypoint runs migrate → seed → start. Reverse proxy (Caddy/Nginx) for TLS. Backup script (`scripts/backup.sh`) provided but off-site upload is user's responsibility. |
 | **Subsystem 3** | Demo Generation (multi-pass Claude pipeline → rendered redesign page) | ✅ Code-complete | The audit worker shells the **Claude Code CLI** (runs on the user's subscription via `CLAUDE_CODE_OAUTH_TOKEN` — no metered API key). 5-pass pipeline per industry DNA: creative-director spec → build → niche-aware **expert review board** (UI/UX designer, conversion copywriter, domain expert, art director) reads desktop+mobile screenshots → synthesise fixes → revise. Output stored in `generated_demos`, served standalone at `/demo/[leadId]`; the audit screen's "Generate demo" / "View demo" buttons drive it. Requires `claude setup-token` + the worker image (it bundles the CLI + Playwright). |
-| **Subsystem 4** | Outreach & Email (Resend API, CAN-SPAM, approval gates) | ⬜ Not built | Depends on: Resend API key, templates, SMTP or event integration. Toast-only today. Estimated effort: 1–2 sprints. **Key-gated** (Resend subscription). |
-| **Subsystem 5** | Deal Automation (stage machine + approval gate + escalation) | ✅ Done | Enforced deal stage machine (`lib/data/deal-stage-machine.ts`) + autonomy/value approval gate: `quoted→won` auto-closes below the founder threshold, else routes to founder review (creates a deal-linked escalation; ReviewCenter approve/reject resolves it + advances the deal). ReviewCenter + Command Center both show open escalations only and resolve deal escalations through the deal-aware actions (advancing the deal). Production timeline is interactive (advance stages + toggle received assets, persisted via `setProductionStage`/`toggleProductionAsset`). |
+| **Subsystem 4** | Outreach & Email (Echo, Resend API, CAN-SPAM, approval gates) | ✅ Code-complete (key-gated) | `lib/agents/defs/echo-outreach.ts` drafts a VN demo-offer email; `run-outreach.ts` sends via `lib/integrations/resend.ts` with CAN-SPAM (real From/Reply-To, one-click List-Unsubscribe). Gated by autonomy (`full` sends, else founder approves an `outreach` escalation). Degrades `{ok:false}` without `RESEND_API_KEY`. |
+| **Subsystem 5** | Deal Automation (stage machine + Closer brain + approval gate) | ✅ Done | Enforced deal stage machine (`lib/data/deal-stage-machine.ts`) + autonomy/value gate. The **Closer** (`lib/agents/defs/closer-sales.ts` + `handle-reply.ts`) interprets a client reply (zod-validated `recommendedStage`, `DEAL_CONF_FLOOR` never bypassed) and auto-advances or escalates. ReviewCenter + Command Center show open escalations only. Production timeline is interactive. |
+| **Pipeline orchestrator** | Central `pipeline_runs` ledger + `decideNextHop` + gates + kill-switch | ✅ Done | One durable orchestrator routes audit→demo→outreach under the live autonomy gate; idempotent conditional stage writes; per-run pause + global kill-switch (live autonomy re-read per hop); founder approve/reject = resume/halt. Discovery auto-starts a run per fresh lead (guarded/full, capped by `PIPELINE_DAILY_CAP`). |
+| **Subsystem 6** | Delivery + inbound + finance (Cipher, Mira, inbound webhook, Ledger) | ✅ Code-complete (inbound key-gated) | On `deal/won`: **Cipher** (`run-build.ts`) optimizes the demo into a delivery build (SEO/OG/JSON-LD/sitemap in `builds`; degrades to deterministic metadata without a key) and **Mira** (`run-support.ts`) drafts the onboarding/asset-request email (gated like Echo). **Resend inbound webhook** (`app/api/inbound/route.ts`, Svix-verified, `RESEND_INBOUND_SECRET`) feeds client replies to the Closer. **Ledger** estimates daily AI spend from `pipeline_runs` and raises a `cost` escalation near the cap. |
 
 ---
 
@@ -64,36 +66,23 @@ Agents Verse is **feature-complete for Subsystems 1, 2 and 3**. All routes are l
 
 ---
 
-## Next Steps for Future Sessions
+## Remaining / Deferred
 
-### If Subsystem 3 (Demo Generation) is Scoped In
-1. **Design phase:** Finalize demo renderer approach (Claude design API + Imagen/Nano Banana for images + Remotion or Puppeteer for final render).
-2. **Integrate:** Wire `lib/actions/run-demo-generation.ts` (server action, may need async Inngest job) to `/demos/[id]` "Generate" button.
-3. **Hosting:** Decide on demo URL persistence (S3 / Vercel Blob / self-hosted `nginx-static`). Update the `demos.demoUrl` field.
-4. **Test:** Generate a demo, verify URL is reachable and renders correctly.
-5. **Cost control:** Track spend on Claude + Imagen in `metrics.cost`; expose in Settings as usage gauge.
+The agency funnel is feature-complete. What's left is operational config, deliberate deferrals, and polish.
 
-### If Subsystem 4 (Outreach & Email) is Scoped In
-1. **Setup:** Provision Resend API key (or compatible SMTP provider).
-2. **Templates:** Seed email templates in DB (4 tone variants: Friendly, Premium, Direct, Local).
-3. **Action:** Wire `lib/actions/send-outreach.ts` to `/demos/[id]` or `/deals/[id]` "Send outreach" button.
-4. **Compliance:** Implement CAN-SPAM headers (From, ReplyTo, unsubscribe link).
-5. **Approval gate:** Tie to autonomy mode and outreach guardrails in Settings.
-6. **Test:** Send a test email; verify delivery and audit trail in `activity` log.
+### Operational (config, not code)
+- **Resend keys** to actually send/receive email: `RESEND_API_KEY` + `OUTREACH_FROM` (outbound), `RESEND_INBOUND_SECRET` (inbound webhook). Without them, outreach/Mira degrade and `/api/inbound` returns 503 (replies stay founder-paste).
+- **`PIPELINE_DAILY_CAP`** bounds how many runs discovery auto-starts per day (Claude-CLI burst guard).
+- **Off-site backup**: `scripts/backup.sh` now does env-driven encrypt (`BACKUP_GPG_PASSPHRASE`) + upload (`RCLONE_REMOTE`); the founder supplies the passphrase + an `rclone config` remote.
 
-### If Subsystem 5 (Deal Automation) is Scoped In
-1. **State machine:** Define deal stage transitions (`pricing → created → quoted → approval → call → won/lost`).
-2. **Escalation:** Tie deal approval to founder review if value > threshold.
-3. **Production timeline:** Make `deals.production.stages` a mutable workflow (not just display).
-4. **Notifications:** Wire escalation alerts to review center + chat widget.
-5. **Test:** Move a deal through its lifecycle; verify stage transitions and escalations.
+### Deferred (deliberate, with reasons)
+- **Orion LLM re-rank** — NOT built. The agent runtime shells the `claude` CLI in the worker only; discovery runs as a synchronous server action. A real LLM re-rank would require promoting all of `lib/discovery/*` into the worker chain (dropping their `server-only` guards) for marginal value on thin pre-enrichment data. Orion remains a deterministic Places pass and is live on the dashboard overlay. Revisit if a stronger pre-enrichment signal exists.
+- **Demo archival** — NOT needed. `generated_demos` is keyed by `leadId` (one row per lead, overwritten on re-gen), so the "demo URL explosion" concern can't occur; no archival mechanism required.
+- **Chat widget streaming Claude** — kept rule-based by founder decision (faithful port; live AI on a public page adds cost/abuse surface + a key).
 
-### Long-term Improvements (Not Required for Initial Ship)
-- **Automated tests:** Vitest (150 pure/logic) + DB-mode integration (44 tests vs real Postgres: repos, deal automation, server actions, production, audit-job reads) + CI gate. Remaining: audit worker chain (key-gated) + auth-gate/middleware paths.
-- **Chat widget:** Replace rule-based `setTimeout` with streaming Claude API integration.
-- **Per-agent real-time spend tracking:** Wire actual usage meters (cost per agent per day) instead of UI-only config.
-- **Demo cleanup:** Mark completed or old demos for archival; avoid demo URL explosion.
-- **Backup strategy:** Implement off-site encrypted backup via `scripts/backup.sh` + rclone or S3 (user's responsibility; script has commented examples).
+### Polish (open)
+- **Per-agent real-time spend**: the dashboard now overlays an ESTIMATED per-agent daily cost (`lib/data/agent-rates.ts`) for agents with a countable unit (orion/vega/kira/atlas/nova/iris/echo); closer/mira/ledger keep seeded cost (no clean per-agent counter yet).
+- **Tests still open**: the audit worker chain (Playwright/Gemini, key-gated) and the in-worker Resend send step. Auth-gate/middleware/guard remain thin.
 
 ---
 

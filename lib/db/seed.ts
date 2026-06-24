@@ -28,6 +28,7 @@ import {
   reqStatusEnum,
 } from './schema';
 import { AV } from '../data';
+import { DEFAULT_COST_PER_RUN } from '../data/cost-meter';
 import { auth } from '../auth/server';
 
 type LeadStage = (typeof leadStageEnum.enumValues)[number];
@@ -124,7 +125,9 @@ async function seedDomain() {
     .values({
       id: 'default',
       autonomyMode: 'guarded',
-      guardrails: { autoApproveLimit: 4000, dailyCostLimit: AV.metrics.costLimit },
+      // costPerRun seeds the Ledger's blended per-run estimate (subscription has no per-token bill);
+      // founder-overridable. dailyCostLimit is the daily spend ceiling the cost meter compares against.
+      guardrails: { autoApproveLimit: 4000, dailyCostLimit: AV.metrics.costLimit, costPerRun: DEFAULT_COST_PER_RUN },
       pricing: { landingPage: 900, businessWebsite: 2400 },
     })
     .onConflictDoNothing();
