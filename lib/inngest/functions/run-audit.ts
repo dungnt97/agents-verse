@@ -21,9 +21,21 @@ export const runAudit = inngest.createFunction(
       { limit: 1, key: 'event.data.leadId' },
     ],
     triggers: [{ event: 'audit/requested' }],
+    // When part of an orchestrated run, report terminal failure (after retries are exhausted) as a
+    // fact so the orchestrator can fail the run. Transient failures retry without emitting.
+    onFailure: async ({ event, step }) => {
+      const { leadId, runId } = event.data.event.data as AuditRequestedData;
+      if (runId) {
+        await step.sendEvent('emit-audit-failed', {
+          name: 'audit/completed',
+          data: { leadId, runId, outcome: 'failed' as const },
+          id: `audit/completed:${runId}`,
+        });
+      }
+    },
   },
   async ({ event, step }) => {
-    const { leadId } = event.data as AuditRequestedData;
+    const { leadId, runId } = event.data as AuditRequestedData;
 
     await step.run('mark-running', async () => {
       await db
@@ -70,6 +82,18 @@ export const runAudit = inngest.createFunction(
             set: { status: 'done', error: null, finishedAt: new Date(), updatedAt: new Date() },
           });
       });
+
+      // Tell the orchestrator the audit step succeeded so it can decide the next hop. Only for
+      // orchestrated runs — a one-off manual audit (no runId) drives no pipeline.
+      if (runId) {
+        // One audit/completed per run (id keyed by runId) — success and the onFailure variant share
+        // the id, and they're mutually exclusive, so the orchestrator processes exactly one.
+        await step.sendEvent('emit-audit-completed', {
+          name: 'audit/completed',
+          data: { leadId, runId, outcome: 'ok' as const },
+          id: `audit/completed:${runId}`,
+        });
+      }
 
       return { leadId, status: 'done' as const };
     } catch (err) {

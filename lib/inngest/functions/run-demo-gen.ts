@@ -11,11 +11,30 @@ export const runDemoGen = inngest.createFunction(
   {
     id: 'run-demo-gen',
     retries: 1,
-    concurrency: [{ limit: 1, key: 'event.data.leadId' }],
+    // Two caps: the keyless entry caps THIS function's total concurrent generations (fn-scoped, the
+    // subscription/VPS-burst guard); the keyed entry serializes per lead. As the only claude-CLI fn
+    // today, the fn-scoped cap is effectively the global claude budget. When a second claude-CLI fn
+    // is added it must share this budget via an account/env-scoped concurrency key, not a second
+    // keyless fn-scoped limit (which would NOT be shared).
+    concurrency: [
+      { limit: Number(process.env.CLAUDE_AGENT_CONCURRENCY) || 2 },
+      { limit: 1, key: 'event.data.leadId' },
+    ],
     triggers: [{ event: 'demo/requested' }],
+    // Report terminal failure (after retries) as a fact so the orchestrator can fail the run.
+    onFailure: async ({ event, step }) => {
+      const { leadId, runId } = event.data.event.data as DemoRequestedData;
+      if (runId) {
+        await step.sendEvent('emit-demo-failed', {
+          name: 'demo/completed',
+          data: { leadId, runId, outcome: 'failed' as const },
+          id: `demo/completed:${runId}`,
+        });
+      }
+    },
   },
   async ({ event, step }) => {
-    const { leadId } = event.data as DemoRequestedData;
+    const { leadId, runId } = event.data as DemoRequestedData;
 
     await step.run('mark-generating', async () => {
       await db
@@ -57,6 +76,17 @@ export const runDemoGen = inngest.createFunction(
             set: { html, status: 'ready', error: null, updatedAt: new Date() },
           });
       });
+
+      // Tell the orchestrator the demo step succeeded so it can close the run (or, in later phases,
+      // hop onward). Only for orchestrated runs — a one-off manual demo (no runId) drives no pipeline.
+      if (runId) {
+        // One demo/completed per run (id keyed by runId), shared with the onFailure variant.
+        await step.sendEvent('emit-demo-completed', {
+          name: 'demo/completed',
+          data: { leadId, runId, outcome: 'ok' as const },
+          id: `demo/completed:${runId}`,
+        });
+      }
 
       return { leadId, status: 'ready' as const };
     } catch (err) {

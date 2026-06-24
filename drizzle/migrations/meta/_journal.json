@@ -43,6 +43,13 @@
       "when": 1782037100479,
       "tag": "0005_massive_scarlet_witch",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782271177057,
+      "tag": "0006_perfect_dorian_gray",
+      "breakpoints": true
     }
   ]
 }
