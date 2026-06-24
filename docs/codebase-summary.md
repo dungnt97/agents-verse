@@ -4,7 +4,7 @@ A high-level map of the codebase for engineer/LLM onboarding. Factual, grounded 
 
 ## What This Project Is — Current State
 
-Agents Verse is a **production-ready full-stack SaaS** for autonomous, demo-first web agency operations. An AI workforce of 11 specialized agents operating across 8 virtual departments ("rooms") finds local businesses with outdated websites, audits them, generates live redesign demos, and prepares outreach. The founder retains control through escalation gates, autonomy modes, and cost/outreach guardrails.
+Agents Verse is a **production-ready full-stack SaaS** for autonomous, demo-first web agency operations. An AI workforce of 11 specialized agents across 8 virtual departments ("rooms") runs the full funnel — discover → audit → demo → outreach → reply → deal → delivery — coordinated by a central pipeline orchestrator (`pipeline_runs` ledger + `decideNextHop`). Echo emails prospects, the Closer interprets replies and advances deals, Cipher preps the delivery build and Mira onboards the client, and the Ledger estimates AI spend. The founder retains control through escalation gates, autonomy modes, a per-run pause + global kill-switch, and cost/outreach guardrails. Email send/receive is key-gated on Resend; everything else runs on the Claude CLI/gateway token.
 
 **Technology Stack (all production-grade, all live):**
 - **Frontend:** Next.js 16.2.9 + React 19.2.7 + TypeScript strict (17 routes: marketing + workspace)
@@ -200,9 +200,10 @@ Core entities are defined in `lib/data/types.ts` and mirrored in `lib/db/schema/
 - **Subsystem 2 (Audit):** Real website scoring via PageSpeed Insights + Playwright + Gemini vision (8-dimension: visual, mobile, cta, trust, seo, speed, content, conversion). Durable execution via self-hosted Inngest + Redis. Requires `GEMINI_API_KEY`, `GOOGLE_PAGESPEED_API_KEY`, `INNGEST_*` keys, and a separate `worker` container (see docker-compose). Demo mode shows mock audit results.
 - **Docker deploy:** Multi-service setup with entrypoint (web + db + redis + inngest + worker). Requires VPS + env vars + reverse proxy for TLS.
 
-**Future subsystems (roadmap, not in this release):**
-- **Subsystem 3:** Demo Gen (template + Claude + Imagen/Nano → single renderer)
-- **Subsystem 4:** Outreach (Resend + approval gate + CAN-SPAM compliance)
+**Agent-company-flow subsystems (all built):**
+- **Agent runtime + registry** (`lib/agents/*`) — shared `claude`-CLI runner lifted from demo-gen; defs for atlas/nova/iris/kira/vega/closer/echo/cipher/mira.
+- **Pipeline orchestrator** (`lib/inngest/functions/orchestrate-pipeline.ts` + `pipeline-machine.ts` + `pipeline_runs`) — audit→demo→outreach under the autonomy gate; pause/kill-switch; resume/halt.
+- **Closer** (deal reply → advance/escalate), **Echo** (outreach email, Resend, CAN-SPAM), **Cipher** (`run-build.ts` delivery build → `builds`), **Mira** (`run-support.ts` onboarding), **Resend inbound webhook** (`app/api/inbound/route.ts`), **Ledger** (cost meter → `cost` escalation).
 
 **Demo data:** Seed includes 8 leads (dentists in Austin, TX) + 11 agents + 8 rooms + 5 demo requests + 4 deals. Fully functional UI with mock state; discovery and real audits require credentials to execute (Google Places API, Gemini, PageSpeed Insights).
 
@@ -231,14 +232,13 @@ The original buildless prototype (root `*.jsx` / `data*.js` / `index.html` / `st
 - **Subsystem 1 (Lead Discovery)** — Complete. Google Places API 2-phase (Pro + optional Enterprise) with email scraping.
 - **Subsystem 2 (Audit)** — Complete. Real website scoring via PageSpeed Insights + Playwright + Gemini 2.5 Flash. Durable execution via self-hosted Inngest + Redis. Worker runs Chromium + vision analysis in isolation.
 
-**Known gaps (mock-only or future, expected):**
-- Demo generation (Subsystem 3) — mock demo URLs only; no real Claude+Imagen renderer yet.
-- Outreach engine (Subsystem 4) — replies and "send" actions trigger toast callbacks, not real Resend sends yet.
-- Chat widget — static rule-based (`setTimeout`), not streaming Claude AI yet.
-- Agent history/outputs — richly seeded only for a couple of roles; others fall back to defaults.
-- No per-agent real-time spend tracking; settings expose config UI only.
-- Deal lifecycle — stage machine + autonomy/value approval gate + escalation flow are live (`lib/data/deal-stage-machine.ts`, `lib/actions/deals.ts`, dynamic ReviewCenter). Production timeline is interactive (advance stages + toggle received assets, persisted).
-- Test coverage: Vitest unit suite (pure/logic, 150 tests) + DB-mode integration (44 tests / 4 files: repository dual-mode, deal automation, mutation server actions, production actions, audit-job reads vs a real seeded Postgres), both gated in CI (`.github/workflows/ci.yml`: `verify` = typecheck → lint → test → build; `test-db` = Postgres service). Not yet covered: the audit worker chain (key-gated) + auth-gate/middleware paths.
+**Known gaps / deferrals (expected):**
+- Email send/receive is **key-gated** (Resend): outreach + Mira degrade and `/api/inbound` returns 503 without the keys; the rest of the funnel still runs to demo + build.
+- **Orion LLM re-rank** — deliberately not built (discovery is a synchronous server action; the LLM runtime is worker-only). Orion remains a deterministic Places pass, live on the dashboard overlay.
+- **Demo archival** — unnecessary: `generated_demos` is keyed by `leadId` (one row/lead, overwritten), so there's no demo-URL explosion to clean up.
+- **Chat widget** — rule-based (`setTimeout`) by founder decision, not streaming Claude.
+- **Per-agent spend** — dashboard overlays an estimated daily cost for agents with a countable unit (`lib/data/agent-rates.ts`); closer/mira/ledger keep seeded cost.
+- **Test coverage**: Vitest unit (pure/logic incl. pipeline machine, cost meter, agent validators, SEO injection, inbound signature) + DB-mode integration (repos, deal automation, orchestration/gates, mutations) gated in CI. Still open: the audit worker chain (Playwright/Gemini, key-gated), the in-worker Resend send, and auth-gate/middleware paths.
 
 ## Unresolved Questions
 

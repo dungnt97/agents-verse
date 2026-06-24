@@ -11,7 +11,7 @@ export type PipelineStage = 'audit' | 'demo' | 'outreach' | 'reply' | 'deal' | '
 export type PipelineRunStatus = 'running' | 'waiting_approval' | 'paused' | 'done' | 'failed';
 
 // Fact events a worker step emits when it concludes.
-export type PipelineFact = 'audit/completed' | 'demo/completed';
+export type PipelineFact = 'audit/completed' | 'demo/completed' | 'outreach/sent';
 
 // Run statuses that count as "in flight" — the set the partial-unique active-run index keys on and
 // the guard every conditional stage write uses.
@@ -27,6 +27,7 @@ export const ACTIVE_RUN_STATUSES: readonly PipelineRunStatus[] = [
 export const FACT_FROM_STAGE: Record<PipelineFact, PipelineStage> = {
   'audit/completed': 'audit',
   'demo/completed': 'demo',
+  'outreach/sent': 'outreach',
 };
 
 // Modes in which a SAFE pre-client hop (audit→demo produces no outbound contact) may auto-run.
@@ -37,8 +38,9 @@ const PRECLIENT_AUTOHOP_MODES: readonly AutonomyMode[] = ['guarded', 'full'];
 // What the orchestrator should do after observing a fact. `fromStatus` is the run status the emit's
 // conditional stage write must match: an auto-hop advances a 'running' run; a founder resume advances
 // a 'waiting_approval' one. Pinning it keeps a redelivered fact from ever releasing a parked gate.
+export type PipelineEmitEvent = 'demo/requested' | 'outreach/requested';
 export type NextHop =
-  | { kind: 'emit'; event: 'demo/requested'; from: PipelineStage; to: PipelineStage; fromStatus: PipelineRunStatus }
+  | { kind: 'emit'; event: PipelineEmitEvent; from: PipelineStage; to: PipelineStage; fromStatus: PipelineRunStatus }
   | { kind: 'gate'; from: PipelineStage; reason: string }
   | { kind: 'done'; from: PipelineStage }
   | { kind: 'fail'; reason: string }
@@ -76,18 +78,28 @@ export function decideNextHop({ fact, outcome, run, settings }: HopInput): NextH
       }
       return { kind: 'gate', from: 'audit', reason: 'manual advance to demo' };
     }
-    case 'demo/completed':
-      // The auto-chain ends at the built demo for now (outreach is a later subsystem). The run is
-      // complete; the funnel beyond demo is wired in subsequent phases.
-      return { kind: 'done', from: 'demo' };
+    case 'demo/completed': {
+      // demo→outreach hands the lead to Echo. It's pre-SEND (Echo gates the actual email under
+      // guarded), so auto-advance under guarded/full; manual/review gate the hand-off to the founder.
+      if (PRECLIENT_AUTOHOP_MODES.includes(settings.autonomyMode)) {
+        return { kind: 'emit', event: 'outreach/requested', from: 'demo', to: 'outreach', fromStatus: 'running' };
+      }
+      return { kind: 'gate', from: 'demo', reason: 'manual advance to outreach' };
+    }
+    case 'outreach/sent':
+      // Outreach is the last stage of the lead-acquisition funnel — the email went out (or the founder
+      // approved its send). Reply → deal → delivery run as their own deal-centric subsystems. (A skip
+      // emits outcome:'failed', which the failed-outcome guard above fails the run so it can't strand.)
+      return { kind: 'done', from: 'outreach' };
   }
 }
 
 // The forward hop a founder approval releases from a run parked at `stage`. The gate fires AFTER a
 // stage completes, so this mirrors the auto-hop the machine would have taken from that stage. Keyed
 // by parked stage; expands as later subsystems add gated hops (demo→outreach, etc.).
-export const RESUME_HOP: Partial<Record<PipelineStage, { event: 'demo/requested'; to: PipelineStage }>> = {
+export const RESUME_HOP: Partial<Record<PipelineStage, { event: PipelineEmitEvent; to: PipelineStage }>> = {
   audit: { event: 'demo/requested', to: 'demo' },
+  demo: { event: 'outreach/requested', to: 'outreach' },
 };
 
 type RunState = { stage: PipelineStage; status: PipelineRunStatus };

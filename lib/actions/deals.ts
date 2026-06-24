@@ -3,6 +3,7 @@
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db/client';
+import { inngest } from '@/lib/inngest/client';
 import { deals, escalations, settings } from '@/lib/db/schema';
 import {
   canTransition,
@@ -82,6 +83,11 @@ export async function updateDealStage(dealId: string, stage: string): Promise<De
   }
 
   await db.update(deals).set({ stage: target }).where(eq(deals.id, dealId));
+  // A close kicks off post-sale delivery (Cipher build-prep + Mira onboarding). id-deduped per deal so a
+  // re-close is a no-op upstream. Send-event-only — the worker owns the build.
+  if (target === 'won') {
+    await inngest.send({ name: 'deal/won', data: { dealId, leadId: deal.leadId }, id: `deal/won:${dealId}` });
+  }
   dealsTouched();
   return { ok: true };
 }

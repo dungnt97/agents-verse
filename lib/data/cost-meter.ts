@@ -6,7 +6,7 @@
 // Blended per-run estimate (a run is opus-heavy: audit is ~free, demo gen runs several opus passes).
 // Founder-overridable via settings.guardrails.costPerRun.
 export const DEFAULT_COST_PER_RUN = 0.4; // USD
-export const DEFAULT_DAILY_CAP = 50; // USD/day; override via settings.guardrails.dailyCostCap
+export const DEFAULT_DAILY_CAP = 50; // USD/day; override via settings.guardrails.dailyCostLimit
 export const COST_ALERT_FRACTION = 0.8; // raise a cost escalation at 80% of the cap
 
 export interface CostMeter {

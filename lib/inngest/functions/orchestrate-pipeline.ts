@@ -35,6 +35,7 @@ export const orchestratePipeline = inngest.createFunction(
     triggers: [
       { event: 'audit/completed' },
       { event: 'demo/completed' },
+      { event: 'outreach/sent' },
       { event: 'pipeline/resumed' },
       { event: 'pipeline/halted' },
     ],
@@ -134,7 +135,10 @@ export const orchestratePipeline = inngest.createFunction(
           const guardrails = (s?.guardrails as Record<string, unknown> | null) ?? {};
           const meter = computeCostMeter(Number(runs), {
             costPerRun: guardrails.costPerRun,
-            dailyCap: guardrails.dailyCostCap,
+            // `dailyCostLimit` is the founder-facing key the Settings UI + seed write; read it here
+            // (an earlier draft read `dailyCostCap`, which nothing wrote — the cap silently fell back
+            // to the default and the founder's policy never applied).
+            dailyCap: guardrails.dailyCostLimit,
           });
           if (!meter.nearCap) return;
           const pct = Math.round(meter.fractionUsed * 100);

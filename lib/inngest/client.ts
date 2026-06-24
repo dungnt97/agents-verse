@@ -37,7 +37,8 @@ export interface PipelineFactData {
 }
 
 // The fact event names the orchestrator listens for (single contract reference for the worker fns).
-export type PipelineFactName = 'audit/completed' | 'demo/completed';
+// `outreach/sent` doubles as the funnel's closing fact (the run completes once the email goes out).
+export type PipelineFactName = 'audit/completed' | 'demo/completed' | 'outreach/sent';
 
 // Founder control events emitted by the escalations actions when a pipeline-gate escalation is
 // approved (resumed → release the held hop) or rejected (halted → terminate the run). The
@@ -65,8 +66,35 @@ export interface OutreachApprovedData {
   leadId: string;
   subject: string;
   body: string;
+  // Carried through from the parked draft's escalation so the resulting `outreach/sent` can advance the
+  // originating pipeline run (absent for a one-off manual outreach with no run behind it).
+  runId?: string;
 }
+// Emitted once the email actually goes out. Doubles as the pipeline's closing fact: `outcome:'ok'`
+// completes the run; `outcome:'failed'` (e.g. nothing to send) fails it so it can't strand at 'outreach'.
 export interface OutreachSentData {
   leadId: string;
   runId?: string;
+  outcome?: 'ok' | 'failed';
+}
+
+// A deal closed `won` — emitted by every close path (founder approval, direct stage advance, or the
+// Closer's full-autonomy auto-close), id-deduped per deal. Drives the post-sale delivery subsystems:
+// Cipher build-prep (run-build) and Mira onboarding (run-support). Decoupled from `pipeline_runs`.
+export interface DealWonData {
+  dealId: string;
+  leadId: string;
+}
+
+// Cipher finished a delivery build for a won deal's lead (SEO/OG-optimized site ready to hand off).
+export interface DeliveryCompletedData {
+  leadId: string;
+  dealId: string;
+}
+
+// Mira onboarding: the founder approved a parked onboarding draft → send the asset-request email.
+export interface SupportApprovedData {
+  leadId: string;
+  subject: string;
+  body: string;
 }

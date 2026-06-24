@@ -75,12 +75,26 @@ export const runOutreach = inngest.createFunction(
 
     // Founder approved a parked draft → re-validate (the lead may have changed), then send.
     if (eventName === 'outreach/approved') {
-      const { subject, body } = event.data as OutreachApprovedData;
+      const { subject, body, runId } = event.data as OutreachApprovedData;
       const sendable = await step.run('check-approved', () => loadSendable(leadId));
-      if ('skip' in sendable) return { leadId, skipped: sendable.skip };
+      if ('skip' in sendable) {
+        // The lead changed since the draft was parked (already contacted, demo unlinked…). Close the
+        // originating run instead of leaving it stranded at 'outreach'.
+        if (runId)
+          await step.sendEvent('emit-skip', {
+            name: 'outreach/sent',
+            data: { leadId, runId, outcome: 'failed' },
+            id: `outreach/sent:${leadId}`,
+          });
+        return { leadId, skipped: sendable.skip };
+      }
       await step.run('send-approved', () => sendOutreachEmail(leadId, sendable.email, subject, body));
       await step.run('mark-sent-approved', () => markSent(leadId));
-      await step.sendEvent('emit-sent', { name: 'outreach/sent', data: { leadId }, id: `outreach/sent:${leadId}` });
+      await step.sendEvent('emit-sent', {
+        name: 'outreach/sent',
+        data: { leadId, runId, outcome: 'ok' },
+        id: `outreach/sent:${leadId}`,
+      });
       return { leadId, sent: true };
     }
 
@@ -104,7 +118,17 @@ export const runOutreach = inngest.createFunction(
         autonomyMode: (s?.autonomyMode as AutonomyMode | undefined) ?? 'guarded',
       };
     });
-    if ('skip' in loaded) return { leadId, skipped: loaded.skip };
+    if ('skip' in loaded) {
+      // Nothing to send (no email / no ready demo). If this came from a pipeline run, close it with a
+      // failed outcome so it doesn't sit 'running' at 'outreach' forever and block a fresh start.
+      if (runId)
+        await step.sendEvent('emit-skip', {
+          name: 'outreach/sent',
+          data: { leadId, runId, outcome: 'failed' },
+          id: `outreach/sent:${leadId}`,
+        });
+      return { leadId, skipped: loaded.skip };
+    }
 
     // Draft the email (the claude call) — memoized so a later gate/send failure doesn't re-spend it.
     const draft = await step.run('draft', () =>
@@ -120,7 +144,7 @@ export const runOutreach = inngest.createFunction(
     if (loaded.autonomyMode === 'full') {
       await step.run('send', () => sendOutreachEmail(leadId, loaded.email, draft.subject, draft.body));
       await step.run('mark-sent', () => markSent(leadId));
-      await step.sendEvent('emit-sent', { name: 'outreach/sent', data: { leadId, runId }, id: `outreach/sent:${leadId}` });
+      await step.sendEvent('emit-sent', { name: 'outreach/sent', data: { leadId, runId, outcome: 'ok' }, id: `outreach/sent:${leadId}` });
       return { leadId, sent: true };
     }
 
@@ -143,6 +167,8 @@ export const runOutreach = inngest.createFunction(
           conf: loaded.score,
           time: 'just now',
           status: 'open',
+          // Link the parked draft to its run so approving the send advances the originating pipeline.
+          runId: runId ?? null,
         })
         .onConflictDoUpdate({
           target: escalations.id,

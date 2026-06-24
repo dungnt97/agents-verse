@@ -33,7 +33,11 @@ function hop(over: Partial<HopInput> & Pick<HopInput, 'fact'>): HopInput {
 
 describe('FACT_FROM_STAGE / ACTIVE_RUN_STATUSES', () => {
   it('maps each fact to the stage that must precede it', () => {
-    expect(FACT_FROM_STAGE).toEqual({ 'audit/completed': 'audit', 'demo/completed': 'demo' });
+    expect(FACT_FROM_STAGE).toEqual({
+      'audit/completed': 'audit',
+      'demo/completed': 'demo',
+      'outreach/sent': 'outreach',
+    });
   });
 
   it('counts running/waiting_approval/paused as the active set', () => {
@@ -65,14 +69,45 @@ describe('decideNextHop — audit/completed auto-hop vs gate', () => {
   });
 });
 
-describe('decideNextHop — demo/completed closes the run', () => {
-  it('returns done in every mode (auto-chain ends at the built demo for now)', () => {
-    for (const autonomyMode of ALL_MODES) {
+describe('decideNextHop — demo/completed hands off to outreach', () => {
+  it('auto-hops to outreach under guarded/full (Echo gates the actual send)', () => {
+    for (const autonomyMode of ['guarded', 'full'] as const) {
       expect(decideNextHop(hop({ fact: 'demo/completed', settings: { autonomyMode } }))).toEqual({
-        kind: 'done',
+        kind: 'emit',
+        event: 'outreach/requested',
         from: 'demo',
+        to: 'outreach',
+        fromStatus: 'running',
       });
     }
+  });
+
+  it('gates the hand-off under manual/review', () => {
+    for (const autonomyMode of ['manual', 'review'] as const) {
+      expect(decideNextHop(hop({ fact: 'demo/completed', settings: { autonomyMode } }))).toEqual({
+        kind: 'gate',
+        from: 'demo',
+        reason: 'manual advance to outreach',
+      });
+    }
+  });
+});
+
+describe('decideNextHop — outreach/sent closes the funnel', () => {
+  it('returns done in every mode once the email goes out', () => {
+    for (const autonomyMode of ALL_MODES) {
+      expect(decideNextHop(hop({ fact: 'outreach/sent', settings: { autonomyMode } }))).toEqual({
+        kind: 'done',
+        from: 'outreach',
+      });
+    }
+  });
+
+  it('a failed outreach outcome (nothing to send) fails the run so it cannot strand at outreach', () => {
+    expect(decideNextHop(hop({ fact: 'outreach/sent', outcome: 'failed' }))).toEqual({
+      kind: 'fail',
+      reason: 'step failed: outreach/sent',
+    });
   });
 });
 
@@ -152,6 +187,7 @@ describe('decideNextHop — terminal failure fails the run', () => {
 describe('RESUME_HOP', () => {
   it('maps a parked stage to the hop a founder approval releases (mirrors the auto-hop)', () => {
     expect(RESUME_HOP.audit).toEqual({ event: 'demo/requested', to: 'demo' });
+    expect(RESUME_HOP.demo).toEqual({ event: 'outreach/requested', to: 'outreach' });
   });
 });
 

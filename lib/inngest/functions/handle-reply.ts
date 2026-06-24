@@ -44,6 +44,7 @@ export const handleReply = inngest.createFunction(
       const limit = (s?.guardrails as Record<string, unknown> | null | undefined)?.autoApproveLimit;
       const threshold = typeof limit === 'number' ? limit : DEAL_AUTO_APPROVE_LIMIT;
       return {
+        leadId: deal.leadId,
         client: deal.client,
         industry: deal.industry,
         city: deal.city,
@@ -145,6 +146,16 @@ export const handleReply = inngest.createFunction(
       });
       return 'escalated';
     });
+
+    // The Closer auto-closed the deal (only reachable under full autonomy) → kick off post-sale delivery
+    // (Cipher build-prep + Mira onboarding), id-deduped per deal.
+    if (applied === 'advanced' && decision.action === 'advance' && decision.toStage === 'won') {
+      await step.sendEvent('emit-deal-won', {
+        name: 'deal/won',
+        data: { dealId, leadId: loaded.leadId },
+        id: `deal/won:${dealId}`,
+      });
+    }
 
     return { dealId, applied, recommendedStage: closer.recommendedStage, conf: closer.conf };
   },
