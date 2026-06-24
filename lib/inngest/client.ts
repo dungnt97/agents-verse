@@ -38,3 +38,11 @@ export interface PipelineFactData {
 
 // The fact event names the orchestrator listens for (single contract reference for the worker fns).
 export type PipelineFactName = 'audit/completed' | 'demo/completed';
+
+// Founder control events emitted by the escalations actions when a pipeline-gate escalation is
+// approved (resumed → release the held hop) or rejected (halted → terminate the run). The
+// orchestrator listens for these alongside the fact events and routes them through the machine.
+export interface PipelineControlData {
+  runId: string;
+}
+export type PipelineControlName = 'pipeline/resumed' | 'pipeline/halted';

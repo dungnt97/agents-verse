@@ -88,4 +88,18 @@ describe.skipIf(!hasDb)('startPipeline — USE_DB=true integration (seeded Postg
     const [run] = await db.select().from(pipelineRuns).where(eq(pipelineRuns.id, res.runId!)).limit(1);
     expect(run.status).toBe('paused');
   });
+
+  it('5. pausePipelineRun does NOT pause a run parked at a gate (avoids stranding it)', async () => {
+    // A waiting_approval run is moved by approving/rejecting its escalation, not by the kill switch —
+    // pausing it would let an approve consume the escalation while the run stays paused with no resume.
+    await cleanRuns();
+    const res = await startPipeline(leadId);
+    expect(res.ok).toBe(true);
+    await db.update(pipelineRuns).set({ status: 'waiting_approval' }).where(eq(pipelineRuns.id, res.runId!));
+
+    const paused = await pausePipelineRun(res.runId!);
+    expect(paused.ok).toBe(true); // action succeeds, but the conditional write matches nothing
+    const [run] = await db.select().from(pipelineRuns).where(eq(pipelineRuns.id, res.runId!)).limit(1);
+    expect(run.status).toBe('waiting_approval'); // unchanged — not paused
+  });
 });
