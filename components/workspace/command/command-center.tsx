@@ -22,6 +22,8 @@ import {
   rejectDealEscalation,
   approvePipelineEscalation,
   rejectPipelineEscalation,
+  approveOutreachEscalation,
+  rejectOutreachEscalation,
 } from '@/lib/actions/escalations';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { Escalation } from '@/lib/data/types';
@@ -77,9 +79,9 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
   const { useDb } = useWorkspaceState();
   const [isPending, startTransition] = useTransition();
   const sevCls = e.sev === 'high' ? 'badge-danger' : e.sev === 'medium' ? 'badge-warning' : 'badge-neutral';
-  const kindIcon = ({ human: 'user', deal: 'deals', cost: 'dollar', pipeline: 'layers', sales: 'deals' } as Record<string, string>)[e.kind] || 'alert';
+  const kindIcon = ({ human: 'user', deal: 'deals', cost: 'dollar', pipeline: 'layers', sales: 'deals', outreach: 'send' } as Record<string, string>)[e.kind] || 'alert';
   /* kindLabel resolved via i18n keys */
-  const kindLabelKey = ({ human: 'dash.kindHuman', deal: 'dash.kindDeal', cost: 'dash.kindCost', pipeline: 'dash.kindPipeline', sales: 'dash.kindSales' } as Record<string, string>)[e.kind] || 'dash.kindEscalation';
+  const kindLabelKey = ({ human: 'dash.kindHuman', deal: 'dash.kindDeal', cost: 'dash.kindCost', pipeline: 'dash.kindPipeline', sales: 'dash.kindSales', outreach: 'dash.kindOutreach' } as Record<string, string>)[e.kind] || 'dash.kindEscalation';
 
   /* Resolve or dismiss the escalation via the server action, then refresh + toast. */
   function handleResolve(resolution: 'resolved' | 'dismissed') {
@@ -93,6 +95,7 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
       // (won/lost); pipeline escalations resume/halt the linked run; other kinds just resolve.
       const isDeal = e.kind === 'deal' && !!e.dealId;
       const isPipeline = e.kind === 'pipeline' && !!e.runId;
+      const isOutreach = e.kind === 'outreach';
       const result = isDeal
         ? resolution === 'resolved'
           ? await approveDealEscalation(e.id)
@@ -101,7 +104,11 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
           ? resolution === 'resolved'
             ? await approvePipelineEscalation(e.id)
             : await rejectPipelineEscalation(e.id)
-          : await resolveEscalation(e.id, resolution);
+          : isOutreach
+            ? resolution === 'resolved'
+              ? await approveOutreachEscalation(e.id)
+              : await rejectOutreachEscalation(e.id)
+            : await resolveEscalation(e.id, resolution);
       if (result.ok) {
         router.refresh();
         const msg = resolution === 'resolved' ? 'Approved · ' + e.who : 'Dismissed · ' + e.who;

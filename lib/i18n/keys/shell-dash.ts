@@ -88,6 +88,7 @@ export const en: Record<string, string> = {
   'dash.kindCost': 'Cost warning',
   'dash.kindPipeline': 'Pipeline gate',
   'dash.kindSales': 'Client reply',
+  'dash.kindOutreach': 'Outreach email',
   'dash.kindEscalation': 'Escalation',
 
   // ---- Command Center — escalation queue filter chips ----
@@ -219,6 +220,7 @@ export const vi: Record<string, string> = {
   'dash.kindCost': 'Cảnh báo chi phí',
   'dash.kindPipeline': 'Cổng duyệt pipeline',
   'dash.kindSales': 'Phản hồi khách',
+  'dash.kindOutreach': 'Email tiếp cận',
   'dash.kindEscalation': 'Chuyển xử lý',
 
   // ---- Command Center — escalation queue filter chips ----
