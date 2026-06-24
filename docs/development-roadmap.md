@@ -74,11 +74,12 @@ The agency funnel is feature-complete. What's left is operational config, delibe
 - **Resend keys** to actually send/receive email: `RESEND_API_KEY` + `OUTREACH_FROM` (outbound), `RESEND_INBOUND_SECRET` (inbound webhook). Without them, outreach/Mira degrade and `/api/inbound` returns 503 (replies stay founder-paste).
 - **`PIPELINE_DAILY_CAP`** bounds how many runs discovery auto-starts per day (Claude-CLI burst guard).
 - **Off-site backup**: `scripts/backup.sh` now does env-driven encrypt (`BACKUP_GPG_PASSPHRASE`) + upload (`RCLONE_REMOTE`); the founder supplies the passphrase + an `rclone config` remote.
+- **Assistant chat keys**: the global `ChatWidget` is now a real streaming Q&A assistant (`app/api/chat` → the gateway, sonnet, token-by-token). Set `ANTHROPIC_BASE_URL`+`ANTHROPIC_AUTH_TOKEN`+`AGENT_MODEL_SONNET` on `web` to enable it; without them it degrades to the built-in rule-based replies (demo mode unchanged). Q&A only — no work execution, no live-account data injection; the public endpoint is rate-limited + input-capped.
 
 ### Deferred (deliberate, with reasons)
 - **Orion LLM re-rank** — NOT built. The agent runtime shells the `claude` CLI in the worker only; discovery runs as a synchronous server action. A real LLM re-rank would require promoting all of `lib/discovery/*` into the worker chain (dropping their `server-only` guards) for marginal value on thin pre-enrichment data. Orion remains a deterministic Places pass and is live on the dashboard overlay. Revisit if a stronger pre-enrichment signal exists.
 - **Demo archival** — NOT needed. `generated_demos` is keyed by `leadId` (one row per lead, overwritten on re-gen), so the "demo URL explosion" concern can't occur; no archival mechanism required.
-- **Chat widget streaming Claude** — kept rule-based by founder decision (faithful port; live AI on a public page adds cost/abuse surface + a key).
+- **Per-agent chat personas** — the per-agent mini-chat in the agent-detail screen stays rule-based; only the global assistant bubble is wired to live Claude.
 
 ### Polish (open)
 - **Per-agent real-time spend**: the dashboard now overlays an ESTIMATED per-agent daily cost (`lib/data/agent-rates.ts`) for agents with a countable unit (orion/vega/kira/atlas/nova/iris/echo); closer/mira/ledger keep seeded cost (no clean per-agent counter yet).

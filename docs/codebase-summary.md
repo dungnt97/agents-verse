@@ -236,7 +236,7 @@ The original buildless prototype (root `*.jsx` / `data*.js` / `index.html` / `st
 - Email send/receive is **key-gated** (Resend): outreach + Mira degrade and `/api/inbound` returns 503 without the keys; the rest of the funnel still runs to demo + build.
 - **Orion LLM re-rank** — deliberately not built (discovery is a synchronous server action; the LLM runtime is worker-only). Orion remains a deterministic Places pass, live on the dashboard overlay.
 - **Demo archival** — unnecessary: `generated_demos` is keyed by `leadId` (one row/lead, overwritten), so there's no demo-URL explosion to clean up.
-- **Chat widget** — rule-based (`setTimeout`) by founder decision, not streaming Claude.
+- **Assistant chat** — the global `ChatWidget` streams real Q&A from `app/api/chat` (gateway, sonnet) when configured, degrading to the built-in rule-based replies otherwise. Q&A only; no live-account data; rate-limited. (The per-agent mini-chat in agent-detail stays rule-based.)
 - **Per-agent spend** — dashboard overlays an estimated daily cost for agents with a countable unit (`lib/data/agent-rates.ts`); closer/mira/ledger keep seeded cost.
 - **Test coverage**: Vitest unit (pure/logic incl. pipeline machine, cost meter, agent validators, SEO injection, inbound signature) + DB-mode integration (repos, deal automation, orchestration/gates, mutations) gated in CI. Still open: the audit worker chain (Playwright/Gemini, key-gated), the in-worker Resend send, and auth-gate/middleware paths.
 

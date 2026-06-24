@@ -1,7 +1,8 @@
 /* =========================================================================
    AGENTS VERSE — ChatWidget + chatReply
-   Rule-based reply logic is pure and static;
-   UI state is fully client-side. No server data needed.
+   Q&A assistant: streams real replies from /api/chat (Claude via the gateway) when configured, and
+   falls back to the static rule-based `chatReply` below when it isn't (demo mode) or on error. UI state
+   is fully client-side. The assistant answers questions only — it never does work for the user.
    ========================================================================= */
 'use client';
 
@@ -9,7 +10,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Icon } from '@/components/brand/icon';
 import { Mark } from '@/components/brand/mark';
 
-/* Static rule-based reply — no AI call, matches original exactly */
+/* Static rule-based reply — the offline fallback used when the live assistant gateway isn't configured. */
 export function chatReply(text: string): string {
   const t = text.toLowerCase();
   if (/approv|review|escalat|attention|need/.test(t))
@@ -44,10 +45,54 @@ export function ChatWidget() {
   useEffect(() => { if (open) setTimeout(()=>inputRef.current&&inputRef.current.focus(), 250); }, [open]);
 
   const send = (text: string) => {
-    const m = (text||'').trim(); if (!m) return;
-    setMsgs(x => [...x, { role:'you', text:m }]);
-    setVal(''); setTyping(true);
-    setTimeout(() => { setTyping(false); setMsgs(x => [...x, { role:'bot', text: chatReply(m) }]); }, 750);
+    const m = (text || '').trim();
+    if (!m) return;
+    // Snapshot the prior transcript (for the model) before optimistically appending the user's message.
+    const history = msgs.map(x => ({ role: x.role === 'you' ? 'user' : 'assistant', content: x.text }));
+    setMsgs(x => [...x, { role: 'you', text: m }]);
+    setVal('');
+    setTyping(true);
+    void streamReply(m, history);
+  };
+
+  // Stream a real assistant reply from /api/chat (token-by-token). Falls back to the built-in rule-based
+  // reply when the gateway isn't configured (demo mode → 503) or on a connection error — the widget
+  // always answers. A mid-stream error keeps whatever already streamed.
+  const streamReply = async (m: string, history: { role: string; content: string }[]) => {
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ messages: [...history, { role: 'user', content: m }] }),
+      });
+      if (!res.ok || !res.body) {
+        setTyping(false);
+        setMsgs(x => [...x, { role: 'bot', text: chatReply(m) }]);
+        return;
+      }
+      setTyping(false);
+      setMsgs(x => [...x, { role: 'bot', text: '' }]);
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let acc = '';
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          acc += dec.decode(value, { stream: true });
+          setMsgs(x => { const y = [...x]; y[y.length - 1] = { role: 'bot', text: acc }; return y; });
+        }
+      } catch {
+        /* mid-stream drop — keep the partial reply already shown */
+      }
+      if (!acc.trim()) {
+        setMsgs(x => { const y = [...x]; y[y.length - 1] = { role: 'bot', text: chatReply(m) }; return y; });
+      }
+    } catch {
+      // Initial connection failed (no bot bubble added yet) → rule-based fallback.
+      setTyping(false);
+      setMsgs(x => [...x, { role: 'bot', text: chatReply(m) }]);
+    }
   };
   const suggestions = ['What needs my approval?', 'Summarize today', 'How are demos doing?', 'Pricing & cost'];
 
