@@ -16,7 +16,8 @@ export const vegaResearcher: AgentDef<ResearchInput, string> = {
   role: 'Website Critic — research the client brand + niche references',
   model: 'opus',
   tools: ['Read'],
-  limits: { timeoutMs: 240_000, maxTurns: 8 },
+  // Multi-turn vision research over a large full-page screenshot; headroom for a slow first token.
+  limits: { timeoutMs: 360_000, maxTurns: 8 },
   buildPrompt: ({ input, oldSitePngs }) => buildResearchPrompt(input, oldSitePngs),
   validate: (raw) => raw.trim(),
 };

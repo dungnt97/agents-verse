@@ -26,7 +26,10 @@ export const novaBuilder: AgentDef<BuildInput, string> = {
   role: 'UI Designer — build the page from the spec',
   model: 'opus',
   tools: [],
-  limits: { timeoutMs: 300_000, maxTurns: 1 },
+  // A full single-shot HTML build streams ~6+ min on opus (observed 276-390s through the gateway); 600s
+  // gives real headroom so a healthy build is never SIGKILLed mid-stream — the old 300s wall cut builds
+  // off near completion, failing all 3 retries and sinking the whole demo run.
+  limits: { timeoutMs: 600_000, maxTurns: 1 },
   buildPrompt: ({ input, spec }) => buildBuildPrompt(input, spec),
   validate: html,
 };
@@ -37,7 +40,8 @@ export const novaReviser: AgentDef<ReviseInput, string> = {
   role: 'UI Designer — revise the page against the fix list',
   model: 'opus',
   tools: ['Read'],
-  limits: { timeoutMs: 480_000, maxTurns: 10 },
+  // Revise rewrites the full document too (observed ~390s); match the build's 600s headroom.
+  limits: { timeoutMs: 600_000, maxTurns: 10 },
   buildPrompt: ({ input, fixes, desktopPngs, mobilePngs, currentHtml }) =>
     buildRevisePrompt(input, fixes, desktopPngs, mobilePngs, currentHtml),
   validate: html,

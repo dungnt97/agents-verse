@@ -53,9 +53,11 @@ export const runDemoGen = inngest.createFunction(
       const [audit] = await db.select().from(audits).where(eq(audits.leadId, leadId)).limit(1);
       if (!audit) throw new Error(`no audit for lead: ${leadId}`);
 
-      // The CLI call is the slow part — its own step so a save failure doesn't re-spend the call.
-      const html = await step.run('generate', () =>
-        generateDemoHtml({
+      // Run the multi-pass pipeline with each pass as its own memoized step (research → director →
+      // build → review-revise). A retry / worker restart resumes from the last completed pass instead
+      // of re-spending the whole ~20-32 min run — the expensive ~6-min build is never redone once done.
+      const html = await generateDemoHtml(
+        {
           company: lead.company,
           industry: lead.industry,
           city: lead.city,
@@ -64,7 +66,8 @@ export const runDemoGen = inngest.createFunction(
           problems: audit.problems,
           redesign: audit.redesign,
           summary: audit.summary,
-        }),
+        },
+        { run: (id, fn) => step.run(id, fn) },
       );
 
       await step.run('save', async () => {
