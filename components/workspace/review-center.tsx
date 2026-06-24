@@ -31,7 +31,7 @@ interface ReviewCenterProps {
 
 // Icon + badge styling derived from the escalation kind/severity (presentation only).
 const iconFor = (kind: string) =>
-  kind === 'deal' ? 'deals' : kind === 'cost' ? 'dollar' : kind === 'human' ? 'user' : 'layers';
+  kind === 'deal' ? 'deals' : kind === 'cost' ? 'dollar' : kind === 'human' ? 'user' : kind === 'sales' ? 'deals' : 'layers';
 const badgeFor = (sev: string) =>
   sev === 'high' ? 'badge-danger' : sev === 'medium' ? 'badge-warning' : 'badge-info';
 

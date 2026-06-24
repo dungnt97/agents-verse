@@ -77,9 +77,9 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
   const { useDb } = useWorkspaceState();
   const [isPending, startTransition] = useTransition();
   const sevCls = e.sev === 'high' ? 'badge-danger' : e.sev === 'medium' ? 'badge-warning' : 'badge-neutral';
-  const kindIcon = ({ human: 'user', deal: 'deals', cost: 'dollar', pipeline: 'layers' } as Record<string, string>)[e.kind] || 'alert';
+  const kindIcon = ({ human: 'user', deal: 'deals', cost: 'dollar', pipeline: 'layers', sales: 'deals' } as Record<string, string>)[e.kind] || 'alert';
   /* kindLabel resolved via i18n keys */
-  const kindLabelKey = ({ human: 'dash.kindHuman', deal: 'dash.kindDeal', cost: 'dash.kindCost', pipeline: 'dash.kindPipeline' } as Record<string, string>)[e.kind] || 'dash.kindEscalation';
+  const kindLabelKey = ({ human: 'dash.kindHuman', deal: 'dash.kindDeal', cost: 'dash.kindCost', pipeline: 'dash.kindPipeline', sales: 'dash.kindSales' } as Record<string, string>)[e.kind] || 'dash.kindEscalation';
 
   /* Resolve or dismiss the escalation via the server action, then refresh + toast. */
   function handleResolve(resolution: 'resolved' | 'dismissed') {

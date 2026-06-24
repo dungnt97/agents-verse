@@ -5,7 +5,7 @@
 
 // Roster agent identities. Iris/Kira are the dashboard-named review members; 'copy'/'niche' are
 // board-internal review sub-lenses (they have ids but no roster card). More are added in later phases.
-export type AgentId = 'atlas' | 'nova' | 'iris' | 'kira' | 'copy' | 'niche' | 'vega';
+export type AgentId = 'atlas' | 'nova' | 'iris' | 'kira' | 'copy' | 'niche' | 'vega' | 'closer';
 
 // Subscription CLI model tier — maps directly to `claude --model`.
 export type AgentModel = 'opus' | 'sonnet' | 'haiku';
