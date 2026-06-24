@@ -89,3 +89,34 @@ export async function rejectPipelineEscalation(escalationId: string): Promise<Mu
   revalidatePath('/overview');
   return { ok: true };
 }
+
+// Approve a parked outreach draft → emit `outreach/approved` so the worker sends the email the founder
+// reviewed. The draft (subject/body) lives on the escalation (title/rec); the lead is recovered from the
+// deterministic id `esc-outreach-<leadId>`. Emit BEFORE resolving so a send failure leaves it re-actionable.
+export async function approveOutreachEscalation(escalationId: string): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+  const [esc] = await db.select().from(escalations).where(eq(escalations.id, escalationId)).limit(1);
+  if (!esc) return { ok: false, message: `escalation not found: ${escalationId}` };
+  if (esc.kind !== 'outreach') return { ok: false, message: `not an outreach escalation: ${escalationId}` };
+  const leadId = esc.id.replace(/^esc-outreach-/, '');
+  await inngest.send({
+    name: 'outreach/approved',
+    data: { leadId, subject: esc.title, body: esc.rec },
+    id: `outreach/approved:${esc.id}`,
+  });
+  await db.update(escalations).set({ status: 'resolved', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));
+  revalidatePath('/command');
+  revalidatePath('/overview');
+  return { ok: true };
+}
+
+// Reject a parked outreach draft → just dismiss it; the email is never sent and the lead stays put.
+export async function rejectOutreachEscalation(escalationId: string): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+  await db.update(escalations).set({ status: 'dismissed', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));
+  revalidatePath('/command');
+  revalidatePath('/overview');
+  return { ok: true };
+}

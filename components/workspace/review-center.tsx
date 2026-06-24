@@ -18,6 +18,8 @@ import {
   rejectDealEscalation,
   approvePipelineEscalation,
   rejectPipelineEscalation,
+  approveOutreachEscalation,
+  rejectOutreachEscalation,
 } from '@/lib/actions/escalations';
 import { fmt } from '@/lib/data/format';
 
@@ -31,7 +33,12 @@ interface ReviewCenterProps {
 
 // Icon + badge styling derived from the escalation kind/severity (presentation only).
 const iconFor = (kind: string) =>
-  kind === 'deal' ? 'deals' : kind === 'cost' ? 'dollar' : kind === 'human' ? 'user' : kind === 'sales' ? 'deals' : 'layers';
+  kind === 'deal' ? 'deals'
+    : kind === 'cost' ? 'dollar'
+    : kind === 'human' ? 'user'
+    : kind === 'sales' ? 'deals'
+    : kind === 'outreach' ? 'send'
+    : 'layers';
 const badgeFor = (sev: string) =>
   sev === 'high' ? 'badge-danger' : sev === 'medium' ? 'badge-warning' : 'badge-info';
 
@@ -74,7 +81,9 @@ export function ReviewCenter({ open, onClose, onAction, escalations, useDb }: Re
           ? approveDealEscalation(e.id)
           : e.kind === 'pipeline' && e.runId
             ? approvePipelineEscalation(e.id)
-            : resolveEscalation(e.id, 'resolved'),
+            : e.kind === 'outreach'
+              ? approveOutreachEscalation(e.id)
+              : resolveEscalation(e.id, 'resolved'),
       t('shell.approve'),
       'success',
     );
@@ -86,7 +95,9 @@ export function ReviewCenter({ open, onClose, onAction, escalations, useDb }: Re
           ? rejectDealEscalation(e.id)
           : e.kind === 'pipeline' && e.runId
             ? rejectPipelineEscalation(e.id)
-            : resolveEscalation(e.id, 'dismissed'),
+            : e.kind === 'outreach'
+              ? rejectOutreachEscalation(e.id)
+              : resolveEscalation(e.id, 'dismissed'),
       t('shell.dismiss'),
       'warning',
     );
