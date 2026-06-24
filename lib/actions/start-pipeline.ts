@@ -1,7 +1,7 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { inngest } from '@/lib/inngest/client';
 import { getCurrentUser } from '@/lib/auth/session';
@@ -52,8 +52,10 @@ export async function startPipeline(leadId: string): Promise<StartPipelineResult
   return { ok: true, message: `Pipeline started for ${lead.company}.`, runId };
 }
 
-// Founder kill switch: halt an in-flight run. The orchestrator's pure machine refuses to act on a
-// paused run, so no further hop fires until it's resumed (resume lands with the gate UI next phase).
+// Founder kill switch: halt an actively-running run. The orchestrator's pure machine refuses to act
+// on a paused run, so no further hop fires. Only a 'running' run is pausable: a run parked at a gate
+// ('waiting_approval') is already stopped and is moved by approving/rejecting its escalation — pausing
+// it would consume the escalation on approve and strand the run paused with no way to resume.
 export async function pausePipelineRun(runId: string): Promise<{ ok: boolean; message?: string }> {
   if (!USE_DB) return { ok: false, message: 'This action needs the database (set USE_DB=true).' };
   if (!(await getCurrentUser())) throw new Error('Unauthorized');
@@ -61,7 +63,7 @@ export async function pausePipelineRun(runId: string): Promise<{ ok: boolean; me
   await db
     .update(pipelineRuns)
     .set({ status: 'paused', updatedAt: new Date() })
-    .where(and(eq(pipelineRuns.id, runId), inArray(pipelineRuns.status, ['running', 'waiting_approval'])));
+    .where(and(eq(pipelineRuns.id, runId), eq(pipelineRuns.status, 'running')));
 
   revalidatePath('/overview');
   return { ok: true };

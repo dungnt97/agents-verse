@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest';
 
 import {
   decideNextHop,
+  decideResume,
+  decideHalt,
   FACT_FROM_STAGE,
+  RESUME_HOP,
   ACTIVE_RUN_STATUSES,
   type HopInput,
   type PipelineFact,
@@ -46,6 +49,7 @@ describe('decideNextHop — audit/completed auto-hop vs gate', () => {
         event: 'demo/requested',
         from: 'audit',
         to: 'demo',
+        fromStatus: 'running', // an auto-hop releases a running run
       });
     }
   });
@@ -142,5 +146,55 @@ describe('decideNextHop — terminal failure fails the run', () => {
       hop({ fact: 'audit/completed', outcome: 'failed', run: { stage: 'demo', status: stale } }),
     );
     expect(res.kind).toBe('stop');
+  });
+});
+
+describe('RESUME_HOP', () => {
+  it('maps a parked stage to the hop a founder approval releases (mirrors the auto-hop)', () => {
+    expect(RESUME_HOP.audit).toEqual({ event: 'demo/requested', to: 'demo' });
+  });
+});
+
+describe('decideResume — founder approved a gate', () => {
+  it('releases the held hop from a parked run, advancing the waiting_approval row', () => {
+    expect(decideResume({ stage: 'audit', status: 'waiting_approval' })).toEqual({
+      kind: 'emit',
+      event: 'demo/requested',
+      from: 'audit',
+      to: 'demo',
+      fromStatus: 'waiting_approval', // a resume releases the PARKED row, not a running one
+    });
+  });
+
+  it('is a no-op when the run is not actually parked (duplicate resume / already moved on)', () => {
+    for (const status of ['running', 'done', 'failed', 'paused'] as const) {
+      const res = decideResume({ stage: 'audit', status });
+      expect(res).toEqual({ kind: 'stop', reason: `run not awaiting approval (status ${status})` });
+    }
+  });
+
+  it('stops when the parked stage has no resume hop defined', () => {
+    expect(decideResume({ stage: 'delivery', status: 'waiting_approval' })).toEqual({
+      kind: 'stop',
+      reason: 'no resume hop from delivery',
+    });
+  });
+});
+
+describe('decideHalt — founder rejected a gate', () => {
+  it('terminates a parked run', () => {
+    expect(decideHalt({ stage: 'audit', status: 'waiting_approval' })).toEqual({
+      kind: 'fail',
+      reason: 'halted by founder review',
+    });
+  });
+
+  it('is a no-op when the run is not parked (duplicate halt / already moved on)', () => {
+    for (const status of ['running', 'done', 'failed', 'paused'] as const) {
+      expect(decideHalt({ stage: 'audit', status })).toEqual({
+        kind: 'stop',
+        reason: `run not awaiting approval (status ${status})`,
+      });
+    }
   });
 });

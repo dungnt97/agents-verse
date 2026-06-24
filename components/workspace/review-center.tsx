@@ -12,7 +12,13 @@ import { Icon } from '@/components/brand/icon';
 import { useI18n } from '@/lib/i18n';
 import type { ToastKind } from '@/lib/providers/toast-provider';
 import type { Escalation } from '@/lib/data/types';
-import { resolveEscalation, approveDealEscalation, rejectDealEscalation } from '@/lib/actions/escalations';
+import {
+  resolveEscalation,
+  approveDealEscalation,
+  rejectDealEscalation,
+  approvePipelineEscalation,
+  rejectPipelineEscalation,
+} from '@/lib/actions/escalations';
 import { fmt } from '@/lib/data/format';
 
 interface ReviewCenterProps {
@@ -58,17 +64,29 @@ export function ReviewCenter({ open, onClose, onAction, escalations, useDb }: Re
     });
   };
 
+  // Deal escalations advance the linked deal; pipeline escalations resume/halt the linked run; every
+  // other kind just resolves the row.
   const approve = (e: Escalation) =>
     run(
       e,
-      () => (e.kind === 'deal' && e.dealId ? approveDealEscalation(e.id) : resolveEscalation(e.id, 'resolved')),
+      () =>
+        e.kind === 'deal' && e.dealId
+          ? approveDealEscalation(e.id)
+          : e.kind === 'pipeline' && e.runId
+            ? approvePipelineEscalation(e.id)
+            : resolveEscalation(e.id, 'resolved'),
       t('shell.approve'),
       'success',
     );
   const dismiss = (e: Escalation) =>
     run(
       e,
-      () => (e.kind === 'deal' && e.dealId ? rejectDealEscalation(e.id) : resolveEscalation(e.id, 'dismissed')),
+      () =>
+        e.kind === 'deal' && e.dealId
+          ? rejectDealEscalation(e.id)
+          : e.kind === 'pipeline' && e.runId
+            ? rejectPipelineEscalation(e.id)
+            : resolveEscalation(e.id, 'dismissed'),
       t('shell.dismiss'),
       'warning',
     );

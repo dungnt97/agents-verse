@@ -16,7 +16,13 @@ import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { fmt } from '@/lib/data/format';
-import { resolveEscalation, approveDealEscalation, rejectDealEscalation } from '@/lib/actions/escalations';
+import {
+  resolveEscalation,
+  approveDealEscalation,
+  rejectDealEscalation,
+  approvePipelineEscalation,
+  rejectPipelineEscalation,
+} from '@/lib/actions/escalations';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { Escalation } from '@/lib/data/types';
 
@@ -71,9 +77,9 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
   const { useDb } = useWorkspaceState();
   const [isPending, startTransition] = useTransition();
   const sevCls = e.sev === 'high' ? 'badge-danger' : e.sev === 'medium' ? 'badge-warning' : 'badge-neutral';
-  const kindIcon = ({ human: 'user', deal: 'deals', cost: 'dollar' } as Record<string, string>)[e.kind] || 'alert';
+  const kindIcon = ({ human: 'user', deal: 'deals', cost: 'dollar', pipeline: 'layers' } as Record<string, string>)[e.kind] || 'alert';
   /* kindLabel resolved via i18n keys */
-  const kindLabelKey = ({ human: 'dash.kindHuman', deal: 'dash.kindDeal', cost: 'dash.kindCost' } as Record<string, string>)[e.kind] || 'dash.kindEscalation';
+  const kindLabelKey = ({ human: 'dash.kindHuman', deal: 'dash.kindDeal', cost: 'dash.kindCost', pipeline: 'dash.kindPipeline' } as Record<string, string>)[e.kind] || 'dash.kindEscalation';
 
   /* Resolve or dismiss the escalation via the server action, then refresh + toast. */
   function handleResolve(resolution: 'resolved' | 'dismissed') {
@@ -84,13 +90,18 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
     }
     startTransition(async () => {
       // Deal escalations resolve through the deal-aware actions so the linked deal advances
-      // (won/lost), not just the escalation status. Other kinds use the generic resolve.
+      // (won/lost); pipeline escalations resume/halt the linked run; other kinds just resolve.
       const isDeal = e.kind === 'deal' && !!e.dealId;
+      const isPipeline = e.kind === 'pipeline' && !!e.runId;
       const result = isDeal
         ? resolution === 'resolved'
           ? await approveDealEscalation(e.id)
           : await rejectDealEscalation(e.id)
-        : await resolveEscalation(e.id, resolution);
+        : isPipeline
+          ? resolution === 'resolved'
+            ? await approvePipelineEscalation(e.id)
+            : await rejectPipelineEscalation(e.id)
+          : await resolveEscalation(e.id, resolution);
       if (result.ok) {
         router.refresh();
         const msg = resolution === 'resolved' ? 'Approved · ' + e.who : 'Dismissed · ' + e.who;

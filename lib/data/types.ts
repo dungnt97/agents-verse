@@ -79,9 +79,11 @@ export interface Escalation {
   rec: string;
   conf: number;
   time: string;
-  // Resolution lifecycle + optional deal link (DB mode); absent on legacy mock rows.
+  // Resolution lifecycle + optional links (DB mode); absent on legacy mock rows. dealId links a
+  // deal-approval escalation; runId links a pipeline-gate escalation (resolving it resumes/halts the run).
   status?: 'open' | 'resolved' | 'dismissed';
   dealId?: string | null;
+  runId?: string | null;
 }
 
 export interface ActivityItem {

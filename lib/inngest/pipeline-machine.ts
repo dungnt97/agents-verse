@@ -34,9 +34,11 @@ export const FACT_FROM_STAGE: Record<PipelineFact, PipelineStage> = {
 // pre-client work flow — the founder gate lands later in the funnel, before outbound email or close.
 const PRECLIENT_AUTOHOP_MODES: readonly AutonomyMode[] = ['guarded', 'full'];
 
-// What the orchestrator should do after observing a fact.
+// What the orchestrator should do after observing a fact. `fromStatus` is the run status the emit's
+// conditional stage write must match: an auto-hop advances a 'running' run; a founder resume advances
+// a 'waiting_approval' one. Pinning it keeps a redelivered fact from ever releasing a parked gate.
 export type NextHop =
-  | { kind: 'emit'; event: 'demo/requested'; from: PipelineStage; to: PipelineStage }
+  | { kind: 'emit'; event: 'demo/requested'; from: PipelineStage; to: PipelineStage; fromStatus: PipelineRunStatus }
   | { kind: 'gate'; from: PipelineStage; reason: string }
   | { kind: 'done'; from: PipelineStage }
   | { kind: 'fail'; reason: string }
@@ -70,7 +72,7 @@ export function decideNextHop({ fact, outcome, run, settings }: HopInput): NextH
     case 'audit/completed': {
       // audit→demo is pre-client and safe; auto-run it unless the founder drives steps manually.
       if (PRECLIENT_AUTOHOP_MODES.includes(settings.autonomyMode)) {
-        return { kind: 'emit', event: 'demo/requested', from: 'audit', to: 'demo' };
+        return { kind: 'emit', event: 'demo/requested', from: 'audit', to: 'demo', fromStatus: 'running' };
       }
       return { kind: 'gate', from: 'audit', reason: 'manual advance to demo' };
     }
@@ -79,4 +81,34 @@ export function decideNextHop({ fact, outcome, run, settings }: HopInput): NextH
       // complete; the funnel beyond demo is wired in subsequent phases.
       return { kind: 'done', from: 'demo' };
   }
+}
+
+// The forward hop a founder approval releases from a run parked at `stage`. The gate fires AFTER a
+// stage completes, so this mirrors the auto-hop the machine would have taken from that stage. Keyed
+// by parked stage; expands as later subsystems add gated hops (demo→outreach, etc.).
+export const RESUME_HOP: Partial<Record<PipelineStage, { event: 'demo/requested'; to: PipelineStage }>> = {
+  audit: { event: 'demo/requested', to: 'demo' },
+};
+
+type RunState = { stage: PipelineStage; status: PipelineRunStatus };
+
+// Founder approved a parked gate → release the held hop. Only a run actually parked at a gate can be
+// resumed; a duplicate resume (run already moved on) is a no-op. The emit pins fromStatus to
+// 'waiting_approval' so the conditional write advances exactly the parked row.
+export function decideResume(run: RunState): NextHop {
+  if (run.status !== 'waiting_approval') {
+    return { kind: 'stop', reason: `run not awaiting approval (status ${run.status})` };
+  }
+  const hop = RESUME_HOP[run.stage];
+  if (!hop) return { kind: 'stop', reason: `no resume hop from ${run.stage}` };
+  return { kind: 'emit', event: hop.event, from: run.stage, to: hop.to, fromStatus: 'waiting_approval' };
+}
+
+// Founder rejected a parked gate → halt the run (terminal). Only a parked run can be halted; a
+// duplicate halt is a no-op.
+export function decideHalt(run: RunState): NextHop {
+  if (run.status !== 'waiting_approval') {
+    return { kind: 'stop', reason: `run not awaiting approval (status ${run.status})` };
+  }
+  return { kind: 'fail', reason: 'halted by founder review' };
 }
