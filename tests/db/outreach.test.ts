@@ -20,6 +20,8 @@ const hasDb = !!process.env.DATABASE_URL && process.env.USE_DB === 'true';
 describe.skipIf(!hasDb)('sendOutreach — USE_DB=true integration (seeded Postgres)', () => {
   let leadId = '';
   let prevEmail: string | null = null;
+  let demoPreexisted = false;
+  const demoHtml = '<html><body>demo</body></html>';
   const prevKey = process.env.RESEND_API_KEY;
   const prevFrom = process.env.OUTREACH_FROM;
   const setConfigured = () => {
@@ -28,17 +30,23 @@ describe.skipIf(!hasDb)('sendOutreach — USE_DB=true integration (seeded Postgr
   };
 
   beforeAll(async () => {
-    // A lead that has a READY generated demo (so the outreach link is valid).
-    const [demo] = await db.select().from(generatedDemos).where(eq(generatedDemos.status, 'ready')).limit(1);
-    expect(demo).toBeTruthy();
-    leadId = demo.leadId;
-    const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+    // Set up the prerequisites ourselves — generated_demos rows are created at runtime, not seeded.
+    const [lead] = await db.select().from(leads).orderBy(leads.id).limit(1);
+    expect(lead).toBeTruthy(); // seed must have run
+    leadId = lead.id;
     prevEmail = lead.email;
     await db.update(leads).set({ email: 'owner@example.com' }).where(eq(leads.id, leadId));
+    const [existing] = await db.select().from(generatedDemos).where(eq(generatedDemos.leadId, leadId)).limit(1);
+    demoPreexisted = !!existing;
+    await db
+      .insert(generatedDemos)
+      .values({ leadId, html: demoHtml, status: 'ready', updatedAt: new Date() })
+      .onConflictDoUpdate({ target: generatedDemos.leadId, set: { html: demoHtml, status: 'ready', updatedAt: new Date() } });
   });
 
   afterAll(async () => {
     if (leadId) await db.update(leads).set({ email: prevEmail }).where(eq(leads.id, leadId));
+    if (leadId && !demoPreexisted) await db.delete(generatedDemos).where(eq(generatedDemos.leadId, leadId));
     if (prevKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = prevKey;
     if (prevFrom === undefined) delete process.env.OUTREACH_FROM; else process.env.OUTREACH_FROM = prevFrom;
   });
