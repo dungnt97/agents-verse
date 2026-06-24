@@ -10,7 +10,10 @@ import { generateDemoHtml } from '../../agents/pipelines/demo';
 export const runDemoGen = inngest.createFunction(
   {
     id: 'run-demo-gen',
-    retries: 1,
+    // 2 retries: each Inngest retry RESUMES from the last completed pass (the steps are checkpointed),
+    // so a pass that loses a multi-minute gateway spike gets re-attempted across Inngest's longer
+    // (minutes) backoff windows — on top of runAgent's in-pass retries — before the run is failed.
+    retries: 2,
     // Two caps: the keyless entry caps THIS function's total concurrent generations (fn-scoped, the
     // subscription/VPS-burst guard); the keyed entry serializes per lead. As the only claude-CLI fn
     // today, the fn-scoped cap is effectively the global claude budget. When a second claude-CLI fn

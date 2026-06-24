@@ -43,10 +43,20 @@ function runClaude(prompt: string, model: AgentModel, tools: AgentTool[], limits
       cleanup();
       reject(new Error(`claude CLI not runnable: ${err.message}`));
     });
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       cleanup();
       if (code !== 0) {
-        reject(new Error(`claude exited ${code}${stderr ? ` — ${stderr.slice(0, 300)}` : ''}`));
+        // Surface everything diagnostic: signal (SIGKILL = our timeout/abort), stderr, AND stdout — the
+        // CLI frequently writes the real failure (auth/gateway/limit) to stdout even on a non-zero exit,
+        // so discarding it left "exited 1" with no cause.
+        const detail = [
+          signal ? `signal=${signal}` : '',
+          stderr.trim() ? `stderr=${stderr.trim().slice(0, 600)}` : '',
+          stdout.trim() ? `stdout=${stdout.trim().slice(0, 600)}` : '',
+        ]
+          .filter(Boolean)
+          .join(' | ');
+        reject(new Error(`claude exited ${code}${detail ? ` — ${detail}` : ' — (no output)'}`));
         return;
       }
       try {
@@ -64,7 +74,7 @@ function runClaude(prompt: string, model: AgentModel, tools: AgentTool[], limits
 // a truncated HTML document that fails validation). Retrying the whole call+validate rescues an
 // otherwise-dead expensive run; the backoff lets a gateway token refresh recover between attempts.
 export async function runAgent<I, O>(def: AgentDef<I, O>, input: I, ctx?: AgentContext): Promise<O> {
-  const attempts = 3;
+  const attempts = 5;
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
     try {
@@ -72,7 +82,13 @@ export async function runAgent<I, O>(def: AgentDef<I, O>, input: I, ctx?: AgentC
       return def.validate(raw);
     } catch (e) {
       lastErr = e;
-      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 5000 * (i + 1)));
+      // Log every attempt (with the agent id) so a failing pass is identifiable + its cause visible,
+      // instead of only the final error bubbling up opaquely.
+      console.error(`[agent ${def.id}] attempt ${i + 1}/${attempts} failed: ${e instanceof Error ? e.message : String(e)}`);
+      // Exponential backoff (capped at 30s) — a transient gateway spike (a `503 high demand`, or a
+      // dropped connection that surfaces as a no-output `exited 1`) lasts seconds-to-minutes, so ride it
+      // out within the pass (≈65s across the retries) instead of failing the whole ~20-32 min run.
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, Math.min(30_000, 5000 * 2 ** i)));
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
