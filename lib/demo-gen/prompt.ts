@@ -1,10 +1,10 @@
-// Prompt builders for the multi-pass demo-generation engine. Pure (no runtime deps) so they are
-// safe in the worker tsx chain. Pipeline: (1) creative-director spec → (2) build → (3) a niche-aware
-// EXPERT REVIEW BOARD (UI/UX, copywriter, domain expert, art director) critiques the rendered
-// screenshots → (4) synthesise fixes → (5) revise. The board is what pushes output past "good AI"
-// to "a real studio shipped this", judged objectively against each discipline's and the niche's bar.
+// Prompt builders for the multi-pass demo-generation engine. Pure (no runtime deps) so they are safe
+// in the worker tsx chain. Pipeline: (1) creative-director spec → (2) build → (3) a niche-aware EXPERT
+// REVIEW BOARD critiques the rendered screenshots → (4) synthesise fixes → (5) revise. The prompts are
+// deliberately TIGHT and reference-anchored: a few bold, concrete demands (commit to one art direction,
+// real depth, a visible signature, two distinct fonts) rather than a long defensive checklist — a pile
+// of "don't" rules makes the model tick boxes and ship something flat and safe.
 import type { AuditResult } from '../data/types';
-import type { DesignDNA } from './art-direction';
 
 export interface DemoGenInput {
   company: string;
@@ -16,20 +16,6 @@ export interface DemoGenInput {
   redesign: AuditResult['redesign'];
   summary: string;
 }
-
-// The tells that make a generated site read as "AI". Banned in the build pass.
-const AI_TELLS = [
-  'Everything centered / perfectly symmetric layouts with no editorial tension',
-  'A generic three-stat bar (e.g. "500+ Projects · 99% Satisfaction · 24/7")',
-  'Three identical evenly-spaced feature cards in a tidy row',
-  'Blue→purple (or purple→pink) gradients and the default "modern SaaS" palette',
-  'Default fonts (Poppins / Inter for headings everywhere) and a flat type scale',
-  'Single flat drop-shadows instead of layered, optically-tuned shadows',
-  'A row of circular testimonial avatars that all look the same',
-  'Filler copy ("Elevate", "Seamless", "Empower", "Unlock") and vague platitudes',
-  'Identical section rhythm — every band the same height/padding with no variation',
-  'Emoji used as iconography; lorem ipsum or placeholder TODOs',
-];
 
 function clientBlock(input: DemoGenInput): string {
   const weakest = Object.entries(input.scores)
@@ -48,64 +34,84 @@ function clientBlock(input: DemoGenInput): string {
   ].join('\n');
 }
 
-function dnaBlock(dna: DesignDNA): string {
+// PASS 0 — research (best-effort). Ground the redesign in the client's REAL brand (from their current
+// site) and benchmark best-in-class niche references, so the director designs from reality not invention.
+export function buildResearchPrompt(input: DemoGenInput, oldSitePngs: string[]): string {
+  const shots = oldSitePngs.length
+    ? oldSitePngs.map((pth, i) => `- current-site shot ${i + 1}: ${pth}`).join('\n')
+    : '- (current-site screenshot unavailable — work from the audit summary)';
   return [
-    `ART DIRECTION (commit fully to this — do not drift to a generic look):`,
-    `- Aesthetic: ${dna.aesthetic}`,
-    `- Palette: ${dna.palette}`,
-    `- Fonts: ${dna.fonts}`,
-    `- Layout archetype: ${dna.layout}`,
-    `- Signature motif: ${dna.motif}`,
-    `- Imagery: ${dna.imagery}`,
+    `You are a brand + web-design researcher at a top studio prepping a redesign pitch for "${input.company}" (${input.industry}, ${input.city}). Produce a TIGHT research brief (markdown, ~200 words) the creative director designs from. Output ONLY the brief.`,
+    ``,
+    `Audit context: ${input.summary}`,
+    ``,
+    `PART 1 — CLIENT REALITY (ground the redesign; do NOT invent a new company): use your Read tool to VIEW the client's CURRENT site:`,
+    shots,
+    `Extract the REAL brand to carry forward — brand/wordmark + its actual colours (hex), the real product/listings + photo style, the genuine value proposition + tone — and the 2-3 worst things to KILL in the redesign.`,
+    ``,
+    `PART 2 — REFERENCE BAR (benchmark the niche): from your knowledge of best-in-class ${input.industry} websites (global + the ${input.city} / Vietnam market), name 2-3 worth rivalling and extract concrete, CURRENT design cues to steal: layout system, type-pairing energy, colour mood, signature interactions, what makes a 2026 ${input.industry} site feel premium.`,
+    ``,
+    `Output exactly two blocks — "CLIENT REALITY" (brand name, colours, real assets, tone, kill-list) and "REFERENCE BAR" (named sites + concrete design cues). Specific and factual; no preamble.`,
   ].join('\n');
 }
 
-// PASS 1 — Creative director. Output a tight, concrete design spec (text), not HTML.
-export function buildDirectorPrompt(input: DemoGenInput, dna: DesignDNA): string {
+// PASS 1 — Creative director. A tight, opinionated, reference-anchored spec that commits to ONE bold
+// art direction and solves the palette/type per-brand (no locked per-niche DNA — that made every demo
+// in a category identical and contradicted the modern direction).
+export function buildDirectorPrompt(input: DemoGenInput, researchBrief: string): string {
   return [
-    `You are the creative director at a top studio. Write a TIGHT, concrete design spec for a redesign landing page that will win this client. Decisiveness over options — pick exact values.`,
+    `You are the creative director at a top studio (the bar of Linear, Stripe, Vercel, Aesop, Arc, an Awwwards Site of the Day). Write a TIGHT, opinionated design spec for a redesign landing page that wins this client. Be decisive — pick exact values, never offer options. ~250-350 words, markdown, no preamble. Output ONLY the spec.`,
     ``,
     clientBlock(input),
     ``,
-    dnaBlock(dna),
+    researchBrief.trim()
+      ? `=== RESEARCH BRIEF (ground your design in this — REAL brand + REAL references, not invention) ===\n${researchBrief.trim()}\n=== END RESEARCH BRIEF ===\nCarry the client's REAL brand from the brief (its actual name, colours, assets, tone) and rival the named references; do NOT invent a generic company or a category-cliché palette.`
+      : ``,
     ``,
-    `Deliver a spec (markdown, ~250-400 words) covering:`,
-    `1. The ONE memorable idea that makes this page feel bespoke (the hook a human designer would pitch).`,
-    `2. Exact design tokens: every colour as hex, the 2 Google Fonts + weights, a fluid type scale (clamp values), a spacing scale, radius & shadow language. YOU own the typography decision — choose fonts that genuinely fit how THIS niche's customers judge credibility. The art direction above is a starting point, not a mandate: if its suggested font would read as off-niche (e.g. a high-contrast fashion serif on a trust-driven property / legal / medical brand, or a stiff corporate face on a playful one), pick a better-fitting Google Fonts pairing and state in one line why it suits the niche. Both fonts MUST render flawless Vietnamese diacritics.`,
-    `3. The layout system: grid, margins, and how section rhythm VARIES (heights, alignment, full-bleed vs contained) to avoid monotony.`,
-    `4. Section-by-section blueprint (in the audit's order) — what's in each, the one distinctive treatment per section, and the niche-essential functional elements a real ${input.industry} site must have.`,
-    `5. Motion language: which elements animate and how (specific, not "fade in").`,
-    `6. Copy voice + 3 example headlines in natural Vietnamese for ${input.city}.`,
+    `COMMIT TO ONE BOLD ART DIRECTION. Pick the ONE archetype that genuinely fits this brand and execute it without compromise — do NOT default to warm-cream/serif "editorial trust" (that look is itself a tired AI default; use it only for genuine prestige luxury and only if earned):`,
+    `- Ethereal Glass — deep near-black canvas (#08090C, never pure #000), soft radial mesh-gradient orbs glowing behind, frosted glass cards (backdrop-filter blur + 1px inner white highlight + tinted inner shadow), wide geometric grotesk. Fits tech / proptech / finance / AI.`,
+    `- Soft Structuralism — light silver / warm off-white, MASSIVE bold grotesk headlines, floating cards on large soft diffused ambient shadows, generous air. Fits property / health / consumer / services.`,
+    `- Vivid Modern — ONE confident tasteful brand colour on a near-neutral base, bold blocks, oversized type, springy motion. Fits hospitality / food / fitness / lifestyle.`,
+    `- Brutalist-Lite — raw grotesk / mono, hard edges, exposed grid, high contrast, oversized type. Fits creative / agency / bold brands.`,
+    `- Refined Editorial — warm paper + subtle film-grain + a real display serif. ONLY for earned quiet luxury (prestige property, law, jewellery).`,
     ``,
-    `It must read as a confident human art-director's spec. Avoid these AI tells entirely:`,
-    ...AI_TELLS.map((t) => `- ${t}`),
+    `ANCHOR THE BAR: name 2-3 real references this should rival (e.g. "the surface depth of Vercel, the type contrast of Aesop, an Awwwards property site") and what credible looks like in THIS niche ("like Nest Seekers / The Agency, not a generic listings portal"). Make it unmistakably THIS brand, not a category template.`,
     ``,
-    `Output ONLY the spec. No preamble.`,
+    `Then lock these as exact, paste-ready decisions:`,
+    `1. ONE memorable idea — the bespoke hook a human designer would pitch for THIS brand (one sentence) + the ONE signature visual move that carries the page (a kinetic type treatment, a real mesh/grain atmosphere, an editorial overlap, a distinctive hero composition).`,
+    `2. Palette — SOLVE it per-brand; do NOT reach for the category cliché (property→brass/gold, tech→cobalt, health→teal). One near-neutral canvas + one deep anchor + exactly ONE accent, every value as hex; the accent is a less-expected but on-tone hue (justify in one line). The background is a DESIGNED surface (mesh / grain / layered tint), never a flat fill.`,
+    `3. Type — TWO DIFFERENT Google Fonts: a characterful DISPLAY face (e.g. Bricolage Grotesque, Unbounded, Outfit, Sora, Familjen Grotesk, Fraunces) and a separate readable BODY face (e.g. Be Vietnam Pro, Plus Jakarta Sans, Lexend, Mulish). NEVER the same family for both; NEVER Inter / Roboto / Open Sans / Space Grotesk. Demand extreme contrast — display clamp() to ~clamp(2.6rem,6vw,5.5rem), body 16-18px, a big weight jump, tight display tracking. Both MUST render flawless Vietnamese diacritics; if the natural fit fails VN, pick the best VN-correct alternative and say so.`,
+    `4. Spend boldness in ONE focal point (an oversized display headline, one full-bleed image, or one saturated accent moment); keep everything else quiet and restrained.`,
+    `5. Layout — grid, margins, and how section rhythm VARIES (scale, alignment, full-bleed vs contained) so no two bands feel the same. Intentional asymmetric negative space is GOOD — do NOT fill it.`,
+    `6. Section-by-section blueprint in the audit's order — what's in each, its one distinctive treatment, and the niche-essential functional modules a real ${input.industry} customer expects.`,
+    `7. Motion — name specific gestures (staggered entrance, a kinetic hero, a sticky header that solidifies + blurs), not "fade in".`,
+    `8. Copy voice + 3 example headlines in natural Vietnamese for ${input.city}.`,
+    ``,
+    `SELF-CHECK before finishing: would this exact spec appear UNCHANGED for a different brand in this category? If yes, push palette/type/signature until it could only be THIS brand. Could a reviewer name your signature move from the hero screenshot alone? If not, make it bolder. Is the background a designed surface, not a flat fill?`,
   ].join('\n');
 }
 
-// Shared build/craft constraints used by the build and revise passes.
+// Shared execution rules for the build + revise passes. Lean and concrete: depth + a visible signature
+// carry the same loud weight that anti-void rules used to monopolise, so the model stops shipping flat.
 function craftConstraints(input: DemoGenInput): string {
   return [
-    `BUILD AS: ONE complete, self-contained HTML5 document (doctype → </html>). All CSS in a single <style>; all JS in one <script> before </body>. Only external resources allowed: Google Fonts <link> and Unsplash images (https://images.unsplash.com/...).`,
-    `CRAFT BAR: real responsive layout (mobile-first, flawless on phone + desktop); layered shadows; tracking on display type; WCAG-AA contrast; every <img> has descriptive alt + a working https://images.unsplash.com/photo-... URL and width/height or aspect-ratio to avoid layout shift. Interactive elements have visible hover/focus/active states.`,
-    `SPACING SYSTEM (be disciplined — sloppy padding is the #1 tell of amateur work): define a spacing scale as CSS custom properties on a 4px base (e.g. --s1..--s12) and use ONLY those tokens for every padding/margin/gap — no ad-hoc pixel values. Consistent vertical section rhythm + container gutters; nothing touches the container/viewport edge; body text at a 45-75ch measure; align everything to the grid.`,
-    `GRID/FLEX TRACK FILL (hard rule — the #1 cause of amateur voids): never give a track 1fr / flex:1 / auto-that-expands and place inside it a single child capped narrower than the track (max-width, an N-ch measure, or intrinsically small) and edge-aligned — that strands a dead blank band. For every capped block do ONE of: (a) size its track to the content with max-content / fit-content / minmax(0,Nch) instead of 1fr; (b) center it via justify-self / justify-items / margin-inline:auto; or (c) put a second real element (image, sidebar, stat, peek-preview) in the remaining space. A capped text column (e.g. max-width:60ch) MUST live in a track sized to that cap, not the wide remainder. At every breakpoint — especially ≥1440px — every grid/flex track must be visually occupied; no track may render its content under ~60% of its width without a deliberate symmetric reason. Before finishing, walk EVERY display:grid/flex and confirm no track ends in dead space.`,
-    `CONTAINER & FULL-BLEED: cap the main content container at ~1200–1320px unless a band is deliberately full-bleed. A full-bleed band may bleed its BACKGROUND/imagery to the viewport edge, but its TEXT and interactive content stay in the same constrained, grid-aligned inner container (centered, or paired with the bleed imagery) — never a short column left-aligned across an open expanse.`,
-    `BAND DENSITY & RHYTHM PARITY: a section's content must justify its height — never pad a thin section (e.g. one testimonial) into a tall near-empty slab; short sections get less vertical padding or gain real secondary content (a stat, a second column, imagery), and no band may be more than ~40% empty background. If sections are numbered/indexed, every band carries the same structural anchors (its index + a real <h2> heading) — never a band whose header is an eyebrow alone. NO empty/placeholder cards or trailing blank bands.`,
-    `ASYMMETRY DISCIPLINE: editorial asymmetry is welcome but MUST read as deliberate and balanced, never broken. Do NOT use transform/translate to vertically detach a grid/flex item so it floats or looks misaligned ("lệch"); items in a row align to a shared baseline/grid. A heading or intro column must NOT sit alone above a large empty area — pair it with supporting content/imagery or size its track to its content (don't span it across an open expanse). Every multi-item set (team/agents, listings, cards, logos) is COMPLETE and uniform: every item carries the SAME fields (photo + name + role + detail) — never one full card beside another that is photo-only or missing its info, and never a lone item offset away from the set.`,
-    `INTERACTIVITY: where the niche promises a tool (search, filter, "định giá"/quote, booking), implement a CONVINCING client-side mock in vanilla JS (compute a result locally from the inputs) — it must actually respond, not be decorative.`,
-    `CAROUSELS/SLIDERS: the slider viewport must be sized to its content and centered or filled — never a narrow item left-aligned in a wide track. The at-rest / single-item state must look intentional and full (center the card, or show peek-previews of adjacent items); pagination dots/arrows align to the content, not float in empty space.`,
-    `MOTION: tasteful, varied, vanilla — IntersectionObserver scroll reveals (staggered), animated number counters on scroll, hover micro-interactions, a sticky header that solidifies + blurs on scroll. Respect @media (prefers-reduced-motion: reduce). CRITICAL no-JS-safe reveal: put NO hidden-initial styles (opacity:0, visibility:hidden, hiding clip-path) in the base CSS. Add one class to <html> via an inline script at the very start of <body> — \`<script>document.documentElement.classList.add('js')</script>\` — and gate every hidden-initial reveal behind it (e.g. \`.js .reveal{opacity:0;transform:translateY(24px)}\`). Without JS ALL content is visible; JS only adds the entrance. NEVER hide <img>/media behind a clip-path or opacity:0 reveal — images MUST paint immediately on load (a demo has to SHOW complete imagery); reveal fades may apply to text/cards only. And add a JS FAILSAFE so nothing can ever stay hidden if an observer misfires: \`setTimeout(()=>document.querySelectorAll('.reveal,.mask,.in-view').forEach(e=>e.classList.add('in','is-visible')),1500)\`.`,
-    `CONTENT: all copy in natural, fluent, specific Vietnamese for the ${input.city} market — realistic, factually-coherent names/listings/numbers (no contradictions, no defunct place names, no implausible figures), never lorem or "TODO". Keep the brand name "${input.company}". Make the primary conversion path obvious and the CTA "${input.redesign.cta}" unmissable; on mobile add a sticky primary-action bar where the niche expects it.`,
-    `Output the ENTIRE document in this single response, ending with </html>. Do not stop early. Output ONLY raw HTML — no markdown fences, no commentary.`,
+    `OUTPUT: ONE complete self-contained HTML5 document (doctype → </html>), all CSS in a single <style>, all JS in one <script> before </body>. Only external resources: Google Fonts <link> and Unsplash images (https://images.unsplash.com/photo-...). Output ONLY raw HTML — no markdown fences, no commentary. Do not stop early.`,
+    `DEPTH IS MANDATORY (this is what makes it 2026, not 2021): the background MUST be a designed surface — a layered radial / mesh-gradient and/or a fixed low-opacity SVG feTurbulence grain overlay (pointer-events:none). A flat solid background is an automatic FAIL. Use tinted shadows that carry the background hue (never pure black), layered not single drop-shadows, and where the archetype calls for it true glassmorphism (backdrop-filter blur + 1px inset highlight). Vary border-radius by role.`,
+    `SIGNATURE MUST BE VISIBLE: the spec's ONE signature move must be unmistakable in the first viewport — a reviewer should be able to name it from the hero screenshot alone. Do not dilute it into generic polish.`,
+    `TYPE: load and actually use BOTH fonts — display face for headings only, body face for text. Extreme size/weight contrast, tight display tracking, text-wrap:balance on headings, a single H1, body line-height 1.4-1.6, WCAG-AA contrast. Never one family for everything. NAV & UI LABELS stay SMALL (~0.9-1rem) and use white-space:nowrap so nav links, buttons and badges NEVER break mid-phrase to a second line — the big clamp() display sizes are for HERO and section headings ONLY, never for nav/labels/inputs.`,
+    `SPACING & LAYOUT: define a 4px-base spacing scale as CSS custom properties and use only those tokens (no ad-hoc pixels). Cap main content ~1200-1320px (full-bleed bands may bleed background/imagery but keep TEXT grid-aligned). Use flex/grid + gap; vary section rhythm. Intentional asymmetric whitespace is a FEATURE — keep it; just don't pad a thin section into an empty slab, strand a capped column alone in a wide track (size the track to its content, center it, or add a second real element), or ship a multi-item set whose cards have mismatched fields. The top header/nav is COMPACT and fits on ONE row at desktop — if its items won't fit, collapse to a menu/hamburger button rather than letting links wrap or overflow. No inline label, button, chip or nav item may wrap to two lines or spill past its container at any width. Real responsive layout, mobile-first, flawless at 375 / 768 / 1440px.`,
+    `IMAGERY (curate, don't scatter): real Unsplash photos via <img src>, each with descriptive alt + width/height (or aspect-ratio) so nothing shifts, painting immediately. All photos share ONE consistent grade — apply a unifying brand-accent tint over each via mix-blend-mode or a brand-tinted ::after/gradient overlay so disparate stock reads as shot for one brand. Prefer few large images over many small. No emoji icons (use inline SVG); no placeholder boxes.`,
+    `INTERACTIVITY: where the niche promises a tool (search, filter, "định giá"/quote, booking), implement a CONVINCING vanilla-JS mock that computes a real result from the inputs — it must actually respond. Make the CTA "${input.redesign.cta}" unmissable; on mobile add a sticky primary-action bar where the niche expects it.`,
+    `MOTION (vanilla, gate behind @media (prefers-reduced-motion: reduce)): IntersectionObserver staggered scroll reveals, hover micro-interactions with cubic-bezier/spring easing, tactile :active scale(.98), a sticky header that solidifies + blurs, a button-in-button trailing icon (arrow in its own circle, never a naked icon). NO-JS-SAFE REVEAL (critical): put NO opacity:0 / visibility:hidden in base CSS; add class 'js' to <html> via an inline script at the very start of <body> and gate every reveal behind \`.js\` (e.g. \`.js .reveal{opacity:0;transform:translateY(24px)}\`); NEVER hide <img>/media behind a reveal; add a failsafe \`setTimeout(()=>document.querySelectorAll('.reveal,.mask,.in-view').forEach(e=>e.classList.add('in','is-visible')),1500)\`.`,
+    `CONTENT: natural, fluent, specific Vietnamese for ${input.city} — realistic, factually-coherent names/listings/numbers, never lorem or "TODO". Keep the brand name "${input.company}".`,
+    `NEVER (instant AI / dated tells): Inter/Roboto/Open Sans or one font for everything; purple→blue / purple→pink gradients; pure #000; a flat texture-less background; three equal cards in a tidy row; a generic stat bar; emoji icons; the same radius on everything; a centered-H1-over-dark-photo hero; round fake numbers and clichés ("Elevate", "Seamless", "Unleash"). Introduce no colours, fonts, or radii the spec did not name.`,
   ].join('\n');
 }
 
 // PASS 2 — Build the page from the spec.
-export function buildBuildPrompt(input: DemoGenInput, dna: DesignDNA, spec: string): string {
+export function buildBuildPrompt(input: DemoGenInput, spec: string): string {
   return [
-    `You are a world-class front-end engineer building the page your creative director specced. Follow the spec EXACTLY — its palette, fonts, layout rhythm, motif and the one memorable idea.`,
+    `You are a world-class front-end engineer building exactly what your creative director specced. Follow the spec's direction, palette, the TWO distinct fonts, the focal point, and the ONE signature move — faithfully and boldly. Do not sand it toward a safe template.`,
     ``,
     `=== DESIGN SPEC ===`,
     spec,
@@ -113,17 +119,13 @@ export function buildBuildPrompt(input: DemoGenInput, dna: DesignDNA, spec: stri
     ``,
     clientBlock(input),
     ``,
-    dnaBlock(dna),
-    ``,
-    `Avoid every one of these AI tells:`,
-    ...AI_TELLS.map((t) => `- ${t}`),
-    ``,
     craftConstraints(input),
   ].join('\n');
 }
 
-// PASS 3 — the expert review board. Each persona judges the rendered screenshots objectively
-// against its own discipline's and the niche's standards (state the bar first, then findings).
+// PASS 3 — the expert review board. Each persona judges the rendered screenshots against its
+// discipline's bar. Re-aimed so intentional whitespace is a PASS and "flat / dated / single-font /
+// template palette" is a blocker equal to a real layout bug.
 export interface ReviewPersona {
   key: string;
   brief: (input: DemoGenInput) => string;
@@ -133,22 +135,22 @@ export const REVIEW_PERSONAS: ReviewPersona[] = [
   {
     key: 'uiux',
     brief: () =>
-      `You are a SENIOR UI/UX DESIGNER (ex-top-agency, Awwwards juror). First STATE the objective standards you apply (visual hierarchy & focal flow, layout/grid discipline & alignment, one consistent spacing scale, typographic scale & rhythm, colour/contrast & WCAG, component states, affordances/interaction clarity, mobile usability & tap targets, conversion UX). Then list every concrete defect: element + viewport, the issue, why it matters professionally, severity (blocker/major/minor), and a specific fix. Be exacting about sloppy spacing, weak hierarchy, accidental empty voids, and clumsy mobile. HORIZONTAL BALANCE & NEGATIVE-SPACE INTENT — you are the designated OWNER of this defect class: for EVERY section ask whether the content width is intentional or whether a wide track (1fr / flex:1 / auto 1fr) holds content capped by max-width/max-ch and leaves a large blank band on one side. A large unexplained blank band beside capped content (a track rendering >40% empty without a deliberate symmetric reason) is a BLOCKER, not a minor — name the section + selector; do not pass the page until every section is balanced at desktop width.`,
+      `You are a SENIOR UI/UX DESIGNER (ex-top-agency, Awwwards juror). STATE your standards (visual hierarchy & focal flow, type scale & rhythm, spacing consistency, colour/contrast & WCAG, component states, mobile usability & tap targets, conversion clarity). Then list concrete defects: element + viewport, the issue, severity (blocker/major/minor), a specific fix. IMPORTANT — intentional asymmetric negative space and generous whitespace are a FEATURE, not a defect: do NOT flag them. Only flag layout that is genuinely BROKEN: misaligned items, overlapping/clipped content, an element stranded by a transform, a capped column alone in a wide track, or a multi-item set whose cards have mismatched fields. Be exacting about weak hierarchy, flat type contrast, inconsistent spacing, clumsy mobile, and especially TEXT THAT WRAPS OR OVERFLOWS (nav links breaking to two lines, oversized nav/label fonts, clipped buttons, a cramped header) — call these out with the element + a concrete fix.`,
   },
   {
     key: 'copy',
     brief: (input) =>
-      `You are a CONVERSION COPYWRITER & CONTENT STRATEGIST, native to the ${input.city} market. First STATE your standards (value-prop clarity, headline hook, message hierarchy & scannability, specificity vs vague fluff, CTA quality, trust/proof language, natural fluent Vietnamese tone for this niche). Then critique the ACTUAL copy on the page — headlines, subheads, section intros, card/agent/testimonial text, CTAs. Flag anything generic, AI-written, translated-sounding, exaggerated, factually incoherent, or unconvincing to a real local ${input.industry} customer. Give concrete Vietnamese rewrites as fixes, with severity.`,
+      `You are a CONVERSION COPYWRITER & CONTENT STRATEGIST, native to the ${input.city} market. STATE your standards (value-prop clarity, headline hook, message hierarchy & scannability, specificity vs vague fluff, CTA quality, trust/proof language, natural fluent Vietnamese tone for this niche). Then critique the ACTUAL copy — headlines, subheads, section intros, card/testimonial text, CTAs. Flag anything generic, AI-written, translated-sounding, exaggerated, factually incoherent, or unconvincing to a real local ${input.industry} customer. Give concrete Vietnamese rewrites as fixes, with severity.`,
   },
   {
     key: 'niche',
     brief: (input) =>
-      `You are a ${input.industry.toUpperCase()} DOMAIN EXPERT who has built product in this category and knows how ${input.city} customers actually decide. First STATE the niche bar — what best-in-class ${input.industry} sites MUST deliver and what local users expect (the must-have functional modules, the trust/credibility signals specific to this category, the information buyers compare, and the mobile/contact behaviours of this market). Then judge whether THIS page is credible and useful to a real customer, what category-essential elements are missing or wrong, and concrete fixes with severity. Be objective about conventions, not just aesthetics. ALSO judge whether the TYPOGRAPHY and overall visual styling fit how a real ${input.industry} customer expects a credible brand in THIS category to look — an off-niche typeface (e.g. a high-contrast fashion-magazine serif on a trust-driven property/legal/medical brand) or styling that fights the category's trust conventions is a real defect; name it with a concrete font/style fix.`,
+      `You are a ${input.industry.toUpperCase()} DOMAIN EXPERT who has built product in this category and knows how ${input.city} customers actually decide. STATE the niche bar — the must-have functional modules, the trust/credibility signals specific to this category, the information buyers compare, the mobile/contact behaviours of this market. Then judge whether THIS page is credible and useful to a real customer, what category-essential elements are missing or wrong, and concrete fixes with severity. Also judge whether the typography + styling fit how a real ${input.industry} customer expects a credible brand to look (an off-niche typeface or styling that fights the category's conventions is a real defect).`,
   },
   {
     key: 'art',
     brief: () =>
-      `You are an ART DIRECTOR / brand lead. First STATE your bar (bespoke & premium vs templated/AI-generated; brand cohesion & one distinctive nameable idea; craft in the details; the "would this win the pitch and make the client proud" test). Then identify what still reads as AI/templated or generic, what lacks craft, and the specific moves that would make it feel like a real award-worthy brand. Concrete fixes with severity.`,
+      `You are an ART DIRECTOR / brand lead. STATE your bar (bespoke & premium vs templated/AI-generated; one distinctive nameable idea; craft in the details; the "would this win the pitch" test). Then identify what reads as AI/templated/generic and the specific moves to make it award-worthy. Judge MODERNITY & DISTINCTIVENESS STRICTLY — treat these as BLOCKERS equal to any layout bug: a FLAT texture-less background (no mesh/grain/depth), a SINGLE font used for everything (no display↔body contrast), a category-cliché or default palette (property→brass, tech→blue-purple), or NO nameable signature move visible in the hero. If this page would look identical for a different brand in the same category, that is a blocker — say so with a concrete fix.`,
   },
 ];
 
@@ -171,7 +173,7 @@ export function buildPersonaReviewPrompt(
     sliceList('Desktop', desktopWidth, desktopPngs),
     sliceList('Mobile', mobileWidth, mobilePngs),
     ``,
-    `COVERAGE: do NOT assume a section you cannot see is absent or fine. Expected sections: ${input.redesign.sections.join(', ')}. If any is missing from the slices, FLAG it as UNREVIEWED rather than passing it. You CANNOT see hover/focus/active or post-interaction states — do not credit them. Inspect EACH section individually and, for each, state whether it is horizontally balanced and free of empty voids at desktop width before moving on.`,
+    `COVERAGE: do NOT assume a section you cannot see is absent or fine. Expected sections: ${input.redesign.sections.join(', ')}. If any is missing from the slices, FLAG it as UNREVIEWED. You CANNOT see hover/focus/active or post-interaction states — do not credit them.`,
     ``,
     persona.brief(input),
     ``,
@@ -179,22 +181,21 @@ export function buildPersonaReviewPrompt(
   ].join('\n');
 }
 
-// PASS 4 — synthesise the board into one prioritized fix list.
+// PASS 4 — synthesise the board into ONE short, bold fix list. Capped so revise commits to high-impact
+// moves instead of spreading its budget across safe nitpicks.
 export function buildReviewSynthesisPrompt(input: DemoGenInput, reviews: string[]): string {
   return [
-    `You are the studio's design director consolidating an expert review board's notes on the "${input.company}" (${input.industry}) demo page into ONE prioritized, de-duplicated fix list a builder can execute.`,
+    `You are the studio's design director consolidating an expert review board's notes on the "${input.company}" (${input.industry}) demo into ONE prioritized fix list a builder can execute.`,
     ``,
     ...reviews.map((r, i) => `=== REVIEW ${i + 1} ===\n${r}`),
     ``,
-    `PRESERVE every BLOCKER and every layout / spacing / whitespace / horizontal-balance / empty-void finding VERBATIM with its section number, viewport, and selector. NEVER merge these into a generic "tighten spacing" line and never down-rank a structural or spatial defect to minor just because only one reviewer raised it — geometry defects are usually caught by a single discipline. De-dup ONLY true restatements of the same defect. A finding about blank space beside capped content or an under-filled track is a BLOCKER and must lead the list with an exact CSS-level instruction (selector · track · viewport).`,
-    `Produce a numbered, prioritized fix list (BLOCKERS first, then major, then minor), each tagged [severity · design|content|niche|brand] and written as a concrete instruction. Drop only noise and true overlap. Be decisive — only what genuinely makes the page impress the client and serve a real ${input.industry} user. Output ONLY the fix list.`,
+    `Produce a SHORT numbered list — AT MOST 6 fixes — ordered by impact on how premium and modern the page feels. LEAD with any MODERNITY/DISTINCTIVENESS blocker (flat background, single font, cliché palette, no visible signature) or genuinely BROKEN-layout blocker; then the highest-leverage craft / content / niche fixes. Each fix is ONE concrete instruction tagged [severity · design|content|niche|brand]. Do NOT pad with minor nitpicks and do NOT flag intentional whitespace — a tight list of bold fixes beats a long list of safe ones. Output ONLY the fix list.`,
   ].join('\n');
 }
 
-// PASS 5 — revise the page to satisfy the fix list.
+// PASS 5 — revise the page to satisfy the fix list, WITHOUT flattening the design.
 export function buildRevisePrompt(
   input: DemoGenInput,
-  dna: DesignDNA,
   fixes: string,
   desktopPngs: string[],
   mobilePngs: string[],
@@ -203,17 +204,15 @@ export function buildRevisePrompt(
   const render = (label: string, paths: string[]) =>
     paths.length <= 1 ? `${label} ${paths[0] ?? '(none)'}` : `${label} slices top→bottom: ${paths.join(' , ')}`;
   return [
-    `You are a senior designer + front-end engineer doing a major revision of the "${input.company}" (${input.industry}, ${input.city}) demo page. Use your Read tool to view the current render (tall pages come as ordered top→bottom slices — read them all): ${render('desktop', desktopPngs)}; ${render('mobile', mobilePngs)}.`,
+    `You are a senior designer + front-end engineer revising the "${input.company}" (${input.industry}, ${input.city}) demo page. Use your Read tool to view the current render (tall pages come as ordered top→bottom slices — read them all): ${render('desktop', desktopPngs)}; ${render('mobile', mobilePngs)}.`,
     ``,
-    `Apply ALL of these expert-review fixes (blockers are mandatory):`,
+    `Apply these expert-review fixes BOLDLY (blockers are mandatory) — do not sand the design toward a safe template:`,
     fixes,
     ``,
-    dnaBlock(dna),
+    `Output ONE complete, polished, responsive HTML document.`,
     ``,
-    `Keep the strong editorial art direction and the working content; fix everything the board flagged — design, content credibility, and niche-essential functionality. Output ONE complete, polished, responsive HTML document.`,
-    ``,
-    `REGRESSION GUARD: while restructuring, do NOT introduce new horizontal voids — every grid/flex track must be filled to its measure or intentionally sized; if a track is 1fr / auto 1fr / flex:1 but its only child is max-width/max-ch capped, widen the content, resize the track to the content, or add a second real element. Re-check EVERY section at both desktop and mobile width for blank bands beside capped content.`,
-    `VERIFICATION: before you output, silently walk the numbered fix list and confirm each change is actually present in your HTML (the selector exists and reflects the change); do not output the document until every BLOCKER is satisfied.`,
+    `REGRESSION GUARD: the design's signature move, the TWO distinct fonts (display ≠ body), and the designed non-flat background MUST remain present and prominent after your edits — never flatten the page chasing fixes. Keep all working content and imagery.`,
+    `VERIFICATION: before you output, silently confirm each numbered fix is present in your HTML and the design is still bold; do not output until every blocker is satisfied.`,
     ``,
     `=== CURRENT HTML (revise this) ===`,
     currentHtml,

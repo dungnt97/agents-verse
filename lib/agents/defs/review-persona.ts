@@ -30,7 +30,7 @@ export function reviewDef(id: AgentId, role: string, persona: ReviewPersona): Ag
     role,
     model: 'opus',
     tools: ['Read'],
-    limits: { timeoutMs: 360_000, maxTurns: 16 },
+    limits: { timeoutMs: 300_000, maxTurns: 8 },
     buildPrompt: ({ input, desktopPngs, mobilePngs }) =>
       buildPersonaReviewPrompt(persona, input, desktopPngs, mobilePngs, DESKTOP_WIDTH, MOBILE_WIDTH),
     validate: makeTextValidator(),

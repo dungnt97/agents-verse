@@ -17,7 +17,8 @@ function resolveModel(model: AgentModel): string {
 function resultText(stdout: string): string {
   const j = JSON.parse(stdout) as { result?: string; is_error?: boolean; error?: string };
   if (j.is_error) throw new Error(`claude error: ${j.result ?? j.error ?? 'unknown'}`);
-  return (j.result ?? '').trim();
+  // Some providers (e.g. Kiro) prepend a <thinking>…</thinking> block; strip it so spec/review text is clean.
+  return (j.result ?? '').replace(/^\s*<thinking>[\s\S]*?<\/thinking>\s*/i, '').trim();
 }
 
 // One `claude -p` call. Prompt is piped over stdin (robust for very long prompts). Returns the
@@ -59,11 +60,22 @@ function runClaude(prompt: string, model: AgentModel, tools: AgentTool[], limits
   });
 }
 
-// Run one agent: build its prompt from the typed input, call the CLI with its model/tools/limits, and
-// validate the output. Throws if the CLI fails or the output fails validation.
+// Run one agent with retries on ANY transient failure — a CLI/gateway blip OR an unusable output (e.g.
+// a truncated HTML document that fails validation). Retrying the whole call+validate rescues an
+// otherwise-dead expensive run; the backoff lets a gateway token refresh recover between attempts.
 export async function runAgent<I, O>(def: AgentDef<I, O>, input: I, ctx?: AgentContext): Promise<O> {
-  const raw = await runClaude(def.buildPrompt(input), def.model, def.tools, def.limits, ctx?.signal);
-  return def.validate(raw);
+  const attempts = 3;
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const raw = await runClaude(def.buildPrompt(input), def.model, def.tools, def.limits, ctx?.signal);
+      return def.validate(raw);
+    } catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 5000 * (i + 1)));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 // Run a panel of agents in parallel, best-effort: any that fail or return unusable output are dropped

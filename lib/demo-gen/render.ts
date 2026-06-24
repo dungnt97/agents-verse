@@ -22,8 +22,8 @@ interface PwBrowser { newContext(opts: Record<string, unknown>): Promise<PwConte
 // dropped entirely (which is how an empty-void section once shipped unreviewed). A tall page is
 // therefore captured as several ordered top→bottom slices, bounded by MAX_SLICES per viewport.
 const HARD_MAX_PX = 16000;
-const SLICE_PX = 1500;
-const MAX_SLICES = 6;
+const SLICE_PX = 2600;
+const MAX_SLICES = 3;
 
 // The viewport widths the board reviews at. Exported so the prompt labels each slice with the SAME
 // width the page was actually rendered at (a mismatch makes reviewers reason about the wrong canvas).

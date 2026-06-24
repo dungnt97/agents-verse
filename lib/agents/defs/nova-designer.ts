@@ -2,19 +2,16 @@
 // and the Pass-5 major revision against the board's fix list. Both wrap existing demo-gen builders
 // unchanged and emit one complete HTML document. tsx-safe: relative imports, no `server-only`.
 import { buildBuildPrompt, buildRevisePrompt, type DemoGenInput } from '../../demo-gen/prompt';
-import type { DesignDNA } from '../../demo-gen/art-direction';
 import type { AgentDef } from '../types';
 import { makeHtmlValidator } from '../validators';
 
 export interface BuildInput {
   input: DemoGenInput;
-  dna: DesignDNA;
   spec: string;
 }
 
 export interface ReviseInput {
   input: DemoGenInput;
-  dna: DesignDNA;
   fixes: string;
   desktopPngs: string[];
   mobilePngs: string[];
@@ -30,7 +27,7 @@ export const novaBuilder: AgentDef<BuildInput, string> = {
   model: 'opus',
   tools: [],
   limits: { timeoutMs: 300_000, maxTurns: 1 },
-  buildPrompt: ({ input, dna, spec }) => buildBuildPrompt(input, dna, spec),
+  buildPrompt: ({ input, spec }) => buildBuildPrompt(input, spec),
   validate: html,
 };
 
@@ -40,8 +37,8 @@ export const novaReviser: AgentDef<ReviseInput, string> = {
   role: 'UI Designer — revise the page against the fix list',
   model: 'opus',
   tools: ['Read'],
-  limits: { timeoutMs: 540_000, maxTurns: 14 },
-  buildPrompt: ({ input, dna, fixes, desktopPngs, mobilePngs, currentHtml }) =>
-    buildRevisePrompt(input, dna, fixes, desktopPngs, mobilePngs, currentHtml),
+  limits: { timeoutMs: 480_000, maxTurns: 10 },
+  buildPrompt: ({ input, fixes, desktopPngs, mobilePngs, currentHtml }) =>
+    buildRevisePrompt(input, fixes, desktopPngs, mobilePngs, currentHtml),
   validate: html,
 };
