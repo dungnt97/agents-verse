@@ -1,10 +1,14 @@
 /**
- * Idempotent seed: ports the mock AV singleton into Postgres and creates the founder
- * login. Safe to run repeatedly (every insert uses onConflictDoNothing) and as a step
- * in the Docker entrypoint (migrate → seed → start).
+ * Idempotent seed. Always seeds the PRODUCT CONFIG (rooms, agents, founder settings, founder login).
+ * Business/operational DATA (leads, audits, demos, deals, requests, escalations, activity, metrics) is
+ * NOT seeded by default — the running app should fill those from real subsystem runs (discovery →
+ * audit → demo → outreach → deals), so the dashboard reflects real operation, not mock fixtures.
+ *
+ * Set SEED_DEMO_DATA=true to also load the mock AV business data — used by the DB integration test
+ * suite (deterministic fixtures) and for a populated local showcase. Safe to run repeatedly
+ * (onConflictDoNothing) and as a Docker entrypoint step (migrate → seed → start).
  *
  * Run: `npm run db:seed` (needs DATABASE_URL + BETTER_AUTH_SECRET in .env.local).
- * Relative imports keep it resolvable under tsx.
  */
 import { count } from 'drizzle-orm';
 import { db, sql } from './client';
@@ -36,8 +40,11 @@ type DemoStatus = (typeof demoStatusEnum.enumValues)[number];
 type DealStage = (typeof dealStageEnum.enumValues)[number];
 type ReqStatus = (typeof reqStatusEnum.enumValues)[number];
 
-async function seedDomain() {
-  // Order respects FKs: rooms → agents, leads → demos/deals/audits.
+// Always-on: the product configuration. The 11 agents + 8 rooms are the agency's fixed org chart
+// (not "mock data" — there is no subsystem that invents agents); the settings singleton is the founder
+// control surface. Their vanity numbers (agent conf/quality/cost) are overlaid live where a real signal
+// exists; the rest is structural identity.
+async function seedConfig() {
   await db.insert(rooms).values(AV.rooms).onConflictDoNothing();
 
   await db
@@ -63,6 +70,21 @@ async function seedDomain() {
     )
     .onConflictDoNothing();
 
+  // Founder control surface (autonomy + guardrails + pricing). Real values once the founder edits them.
+  await db
+    .insert(settings)
+    .values({
+      id: 'default',
+      autonomyMode: 'guarded',
+      guardrails: { autoApproveLimit: 4000, dailyCostLimit: AV.metrics.costLimit, costPerRun: DEFAULT_COST_PER_RUN },
+      pricing: { landingPage: 900, businessWebsite: 2400 },
+    })
+    .onConflictDoNothing();
+}
+
+// Opt-in (SEED_DEMO_DATA=true): the mock AV business data. Off by default so the running app starts
+// with NO mock leads/audits/demos/deals/etc. — real runs populate them. Used by the DB test suite.
+async function seedDemoData() {
   await db
     .insert(leads)
     .values(
@@ -84,7 +106,6 @@ async function seedDomain() {
     .values(AV.deals.map((d) => ({ ...d, stage: d.stage as DealStage })))
     .onConflictDoNothing();
 
-  // Audit per lead — audit() materializes scores/problems/redesign for any lead.
   await db
     .insert(audits)
     .values(
@@ -104,11 +125,9 @@ async function seedDomain() {
 
   await db.insert(escalations).values(AV.escalations).onConflictDoNothing();
 
-  // ActivityItem has no id in the mock; assign a deterministic id + sequence so the
-  // ordering survives and re-seeding stays idempotent.
   await db
     .insert(activity)
-    .values(AV.activity.map((it, i) => ({ id: `act-${i}`, seq: i, ...it })))
+    .values(AV.activity.map((it, i) => ({ id: `act-${i}`, seq: AV.activity.length - i, ...it })))
     .onConflictDoNothing();
 
   await db
@@ -117,28 +136,12 @@ async function seedDomain() {
     .onConflictDoNothing();
 
   await db.insert(metrics).values({ id: 'current', ...AV.metrics }).onConflictDoNothing();
-
-  // Founder control surface. Defaults derived from the mock: $50/day cost ceiling and the
-  // $4,000 auto-approve limit referenced in the escalations copy; package prices from deals.
-  await db
-    .insert(settings)
-    .values({
-      id: 'default',
-      autonomyMode: 'guarded',
-      // costPerRun seeds the Ledger's blended per-run estimate (subscription has no per-token bill);
-      // founder-overridable. dailyCostLimit is the daily spend ceiling the cost meter compares against.
-      guardrails: { autoApproveLimit: 4000, dailyCostLimit: AV.metrics.costLimit, costPerRun: DEFAULT_COST_PER_RUN },
-      pricing: { landingPage: 900, businessWebsite: 2400 },
-    })
-    .onConflictDoNothing();
 }
 
 async function seedFounder() {
   const email = process.env.FOUNDER_EMAIL ?? 'founder@agentsverse.ai';
   const password = process.env.FOUNDER_PASSWORD ?? 'AgentsVerse!Demo2026';
 
-  // Hash through Better Auth's own context so the stored credential matches exactly what
-  // the runtime verifier expects (no scrypt-param drift between seed and login).
   const ctx = await auth.$context;
   const passwordHash = await ctx.password.hash(password);
 
@@ -169,11 +172,13 @@ async function main() {
     throw new Error('BETTER_AUTH_SECRET is required to seed the founder credential.');
   }
 
-  await seedDomain();
+  await seedConfig();
+  const demoData = process.env.SEED_DEMO_DATA === 'true';
+  if (demoData) await seedDemoData();
   const email = await seedFounder();
 
   const [{ value: leadCount }] = await db.select({ value: count() }).from(leads);
-  console.log(`Seed complete. leads=${leadCount}, founder=${email}`);
+  console.log(`Seed complete. config=on, demoData=${demoData}, leads=${leadCount}, founder=${email}`);
 
   await sql.end({ timeout: 5 });
 }

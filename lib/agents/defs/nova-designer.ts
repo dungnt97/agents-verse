@@ -26,10 +26,11 @@ export const novaBuilder: AgentDef<BuildInput, string> = {
   role: 'UI Designer — build the page from the spec',
   model: 'opus',
   tools: [],
-  // A full single-shot HTML build streams ~6+ min on opus (observed 276-390s through the gateway); 600s
-  // gives real headroom so a healthy build is never SIGKILLed mid-stream — the old 300s wall cut builds
-  // off near completion, failing all 3 retries and sinking the whole demo run.
-  limits: { timeoutMs: 600_000, maxTurns: 1 },
+  // A concept-driven build (a signature interactive page) is larger + more agentic than the old generic
+  // page: at maxTurns:1 the CLI's default tools let the model take a tool turn and hit `error_max_turns`
+  // before finishing. Give it a few turns + 15 min so a big build completes (the prompt also tells it to
+  // emit HTML directly without tools). 600s/1-turn previously SIGKILLed/erred big builds mid-stream.
+  limits: { timeoutMs: 900_000, maxTurns: 4 },
   buildPrompt: ({ input, spec }) => buildBuildPrompt(input, spec),
   validate: html,
 };

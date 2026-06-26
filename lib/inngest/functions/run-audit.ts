@@ -6,6 +6,7 @@ import { runPageSpeedAudit } from '../../audit/pagespeed-client';
 import { captureScreenshots } from '../../audit/screenshot';
 import { scoreScreenshots } from '../../audit/vision-scoring';
 import { mapAuditResult } from '../../audit/map-audit-result';
+import { recordActivity } from '../activity-log';
 
 // Durable audit pipeline (runs in the WORKER only). Relative imports + no `server-only` — this
 // chain executes under tsx. Steps are memoized so a retry resumes after the last completed step.
@@ -95,6 +96,10 @@ export const runAudit = inngest.createFunction(
         });
       }
 
+      await step.run('log-activity', async () => {
+        const [l] = await db.select({ company: leads.company }).from(leads).where(eq(leads.id, leadId)).limit(1);
+        await recordActivity({ agent: 'vega', room: 'audit', type: 'audit', text: `Audited ${l?.company ?? leadId}`, status: 'success' });
+      });
       return { leadId, status: 'done' as const };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

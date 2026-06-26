@@ -108,7 +108,7 @@ export async function runDiscovery(input: { industry?: string; city?: string }):
     .insert(activity)
     .values({
       id: 'act-discovery-' + Date.now(),
-      seq: 0,
+      seq: Math.floor(Date.now() / 1000),
       t: 'just now',
       agent: 'orion',
       room: 'research',

@@ -3,7 +3,7 @@
 // the rendered screenshots in parallel → Atlas synthesises a prioritized fix list → Nova revises.
 // Passes 3-5 are best-effort and fall back to the solid built page, so the result is never worse than a
 // single build. WORKER-ONLY (shells `claude`): relative imports, no `server-only`. Never import from web.
-import { atlasDirector, atlasSynthesizer } from '../defs/atlas-strategist';
+import { atlasConceptor, atlasDirector, atlasSynthesizer } from '../defs/atlas-strategist';
 import { novaBuilder, novaReviser } from '../defs/nova-designer';
 import { REVIEW_BOARD } from '../board';
 import { runAgent, runBoard } from '../runner';
@@ -20,6 +20,29 @@ export interface StepRunner {
   run(id: string, handler: () => Promise<string>): Promise<string>;
 }
 const inlineRunner: StepRunner = { run: (_id, fn) => fn() };
+
+// The conceptor outputs the 3 explored concepts, then a `<<<WINNER>>>` marker, then the full winning
+// brief. Hand the director the winner only; fall back to the whole output if the marker is absent.
+function extractWinner(concepts: string): string {
+  const marker = '<<<WINNER>>>';
+  const i = concepts.indexOf(marker);
+  return i === -1 ? concepts.trim() : concepts.slice(i + marker.length).trim();
+}
+
+// Per-run aesthetic lanes. One is picked at random each generation and fed to the concepting pass so
+// consecutive demos diverge in VISUAL LANGUAGE instead of all converging on the dark-glass AI default.
+// They're provocations the director adapts to the brand — not rigid templates.
+const STYLE_LANES: readonly string[] = [
+  'Maximalist editorial — oversized type, dense layered collage, magazine energy, bold colour, lots of personality (anti-minimal).',
+  'Neo-brutalist — raw exposed grid, hard borders, mono/grotesk, high contrast, intentional "unpolished" confidence.',
+  'Kinetic typography — TYPE is the hero: words scale/move/animate, imagery minimal, the message itself is the spectacle.',
+  'Warm organic / handcrafted — natural textures, irregular hand-made shapes, soft warmth, human imperfection over slick.',
+  'Swiss high-contrast minimal — strict grid, huge whitespace, ONE bold accent, ruthless restraint, confident emptiness.',
+  'Retro-future / Y2K reimagined — chrome, playful nostalgia, expressive gradients, fun energy tuned for 2026.',
+  'Spatial scroll-narrative — the page is a journey: section-snap or horizontal scroll, scene-based storytelling.',
+  'Tactile product-forward — giant full-bleed product imagery; the product IS the interface; gallery as centerpiece.',
+  'Dark immersive / neon — deep cinematic canvas, glowing spotlights on the product (only if the brand truly fits).',
+];
 
 // Each pass is its own checkpointed step so an Inngest retry / worker restart / reconnect RESUMES from
 // the last completed pass instead of re-spending the whole ~20-32 min run. The expensive ~6-min build
@@ -57,8 +80,27 @@ export async function generateDemoHtml(input: DemoGenInput, step: StepRunner = i
     }
   });
 
-  // Pass 1 — Atlas writes the creative-director spec from the research brief.
-  const spec = await step.run('director', () => runAgent(atlasDirector, { input, researchBrief }));
+  // Pass 0.5 — divergent concepting: explore 3 radically different big ideas + pick the boldest credible
+  // one. Its own checkpointed step. Best-effort: if it fails, the director falls back to inventing the
+  // direction (empty concept) so a concepting blip never sinks the run.
+  const winningConcept = await step.run('concept', async () => {
+    try {
+      // Pick a random aesthetic lane so consecutive demos diverge in style (Math.random is fine here —
+      // worker Node, not a replay-sensitive workflow script; a re-run intentionally varies anyway).
+      const lane = STYLE_LANES[Math.floor(Math.random() * STYLE_LANES.length)];
+      console.error('[demo-gen] style lane:', lane);
+      const concepts = await runAgent(atlasConceptor, { input, researchBrief, styleProvocation: lane });
+      const winner = extractWinner(concepts);
+      console.error('[demo-gen] winning concept:', winner.slice(0, 300).replace(/\n/g, ' '));
+      return winner;
+    } catch (e) {
+      console.error('[demo-gen] concept pass failed (best-effort, continuing):', e instanceof Error ? e.message : e);
+      return '';
+    }
+  });
+
+  // Pass 1 — Atlas expands the WINNING concept into the build spec (or invents the direction if empty).
+  const spec = await step.run('director', () => runAgent(atlasDirector, { input, researchBrief, concept: winningConcept }));
 
   // Pass 2 — Nova builds the page from the spec. The expensive pass; checkpointed so a later failure
   // or a worker restart never re-spends it.

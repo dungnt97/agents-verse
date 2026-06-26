@@ -109,7 +109,7 @@ services:
     volumes:
       - ninerouter_data:/app/data
     ports:
-      - "127.0.0.1:20128:20128"   # dashboard, localhost-only; the worker reaches it via service DNS
+      - "127.0.0.1:20129:20128"   # dashboard, localhost-only (host port 20129 to avoid clashing with another local 9router); the worker reaches it via service DNS on 20128
     restart: unless-stopped
     stop_grace_period: 15s
 
