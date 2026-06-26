@@ -18,7 +18,7 @@ function sseResponse(body: string): Response {
   return new Response(stream);
 }
 
-async function collect(gen: AsyncGenerator<string>): Promise<string> {
+async function collect(gen: AsyncGenerator<string>): Promise<string[]> {
   const out: string[] = [];
   for await (const t of gen) out.push(t);
   return out;

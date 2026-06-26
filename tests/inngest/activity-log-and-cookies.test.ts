@@ -8,8 +8,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // ---------------------------------------------------------------------------
 const { onConflictDoNothing, valuesSpy, insertSpy, ACTIVITY_TABLE } = vi.hoisted(() => {
   const onConflictDoNothing = vi.fn(() => Promise.resolve(undefined));
-  const valuesSpy = vi.fn(() => ({ onConflictDoNothing }));
-  const insertSpy = vi.fn(() => ({ values: valuesSpy }));
+  const valuesSpy = vi.fn((_row?: unknown) => ({ onConflictDoNothing }));
+  const insertSpy = vi.fn((..._args: unknown[]) => ({ values: valuesSpy }));
   return { onConflictDoNothing, valuesSpy, insertSpy, ACTIVITY_TABLE: { __table: 'activity' } };
 });
 vi.mock('@/lib/db/client', () => ({ db: { insert: (...args: unknown[]) => insertSpy(...args) } }));

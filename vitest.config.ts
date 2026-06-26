@@ -30,7 +30,6 @@ export default defineConfig({
       //  - app/** RSC pages/layouts/routes + components/** -> Playwright e2e (npm run test:e2e)
       //  - modules that shell `claude`, spawn Playwright, or call external APIs (PageSpeed/Gemini/
       //    Places/Resend/Inngest worker fns) — not meaningfully unit-testable.
-      all: true,
       include: ['lib/**/*.ts'],
       exclude: [
         'lib/db/**',
