@@ -55,10 +55,38 @@ export function buildResearchPrompt(input: DemoGenInput, oldSitePngs: string[]):
   ].join('\n');
 }
 
-// PASS 1 — Creative director. A tight, opinionated, reference-anchored spec that commits to ONE bold
-// art direction and solves the palette/type per-brand (no locked per-niche DNA — that made every demo
-// in a category identical and contradicted the modern direction).
-export function buildDirectorPrompt(input: DemoGenInput, researchBrief: string): string {
+// PASS 0.5 — DIVERGENT CONCEPTING. Before committing to a build, the director explores THREE radically
+// different big ideas for THIS brand — each centered on one ownable signature move — then picks the
+// boldest credible one. This is what makes a demo distinctive instead of a safe category template: the
+// page is built AROUND a concept, not assembled from default sections. Media is limited to vanilla
+// HTML/CSS/JS + Unsplash (no generated video/images on this plan), so signatures must live in that medium.
+export function buildConceptPrompt(input: DemoGenInput, researchBrief: string, styleProvocation = ''): string {
+  return [
+    `You are the creative director at an Awwwards-tier studio pitching ${input.company} (${input.industry}, ${input.city}). Brainstorm THREE genuinely DIFFERENT concepts for the redesign landing page — NOT three skins of the same layout, but three distinct big ideas, each with its OWN ownable signature move and page structure. Then pick the ONE that is boldest yet still credible + unmistakably THIS brand.`,
+    ``,
+    clientBlock(input),
+    ``,
+    researchBrief.trim() ? `=== RESEARCH BRIEF (real brand + references) ===\n${researchBrief.trim()}\n=== END ===` : ``,
+    ``,
+    styleProvocation
+      ? `AESTHETIC PROVOCATION for THIS pitch — deliberately push AWAY from the generic "dark canvas + mesh-gradient + glass cards" AI default and explore THIS visual lane (adapt it so it still fits ${input.company} + reads credible — never force an off-brand gimmick): ${styleProvocation}. Make the three concepts explore genuinely DIFFERENT visual languages, not three takes on one look.`
+      : ``,
+    ``,
+    `Each concept = { NAME · THE BIG IDEA (one vivid sentence) · THE SIGNATURE MOVE — the ONE thing a visitor remembers: a scroll-driven narrative, an interactive build/configurator tool, a kinetic or cursor-reactive hero, a horizontal-scroll gallery, a "live" simulated module · HOW IT'S BUILT in vanilla HTML/CSS/JS + Unsplash (NO video, NO generated images) · WHY it fits ${input.industry} customers specifically }.`,
+    `- The signature must spring from how a real ${input.industry} customer in ${input.city} actually browses + decides — domain-bespoke, not a generic web trick.`,
+    `- BOLDNESS FLOOR: EVERY concept must break the conventional stacked vertical-landing in at least one STRUCTURAL way (an interactive-canvas hero, section-snap or horizontal scroll, a spatial/non-grid layout, a kinetic-type centerpiece, or the product itself as the interface). A clever idea on a standard hero→cards→testimonials→footer stack is NOT bold enough — push the FORMAT, not just the content.`,
+    `- Differentiate HARD on BOTH idea AND visual language: if two concepts could share a layout or a look, they aren't different enough — push one further.`,
+    ``,
+    `Then choose the WINNER: the most ownable, memorable signature a ${input.industry} owner would be PROUD to show — bold over safe, but buildable + credible. Justify in 2 lines (why it wins; why it could only be ${input.company}).`,
+    ``,
+    `OUTPUT (markdown, no preamble): the 3 concepts briefly, then a line exactly "<<<WINNER>>>", then the FULL winning concept expanded for a builder — its signature move described precisely enough to implement (markup + the vanilla-JS interaction/motion mechanics), and a section-by-section blueprint built AROUND that signature, in the audit's section order, fixing the weakest dimensions.`,
+  ].join('\n');
+}
+
+// PASS 1 — Creative director. Expands the CHOSEN concept into a tight, reference-anchored build spec
+// (or, if no concept is supplied, invents the direction itself). Commits to ONE bold art direction and
+// solves palette/type per-brand (no locked per-niche DNA — that made every demo in a category identical).
+export function buildDirectorPrompt(input: DemoGenInput, researchBrief: string, concept = ''): string {
   return [
     `You are the creative director at a top studio (the bar of Linear, Stripe, Vercel, Aesop, Arc, an Awwwards Site of the Day). Write a TIGHT, opinionated design spec for a redesign landing page that wins this client. Be decisive — pick exact values, never offer options. ~250-350 words, markdown, no preamble. Output ONLY the spec.`,
     ``,
@@ -66,6 +94,10 @@ export function buildDirectorPrompt(input: DemoGenInput, researchBrief: string):
     ``,
     researchBrief.trim()
       ? `=== RESEARCH BRIEF (ground your design in this — REAL brand + REAL references, not invention) ===\n${researchBrief.trim()}\n=== END RESEARCH BRIEF ===\nCarry the client's REAL brand from the brief (its actual name, colours, assets, tone) and rival the named references; do NOT invent a generic company or a category-cliché palette.`
+      : ``,
+    ``,
+    concept.trim()
+      ? `=== CHOSEN CONCEPT — EXECUTE THIS (its signature move IS the page's identity; build the spec AROUND it, do NOT flatten it into a generic template) ===\n${concept.trim()}\n=== END CONCEPT ===`
       : ``,
     ``,
     `COMMIT TO ONE BOLD ART DIRECTION. Pick the ONE archetype that genuinely fits this brand and execute it without compromise — do NOT default to warm-cream/serif "editorial trust" (that look is itself a tired AI default; use it only for genuine prestige luxury and only if earned):`,
@@ -78,7 +110,7 @@ export function buildDirectorPrompt(input: DemoGenInput, researchBrief: string):
     `ANCHOR THE BAR: name 2-3 real references this should rival (e.g. "the surface depth of Vercel, the type contrast of Aesop, an Awwwards property site") and what credible looks like in THIS niche ("like Nest Seekers / The Agency, not a generic listings portal"). Make it unmistakably THIS brand, not a category template.`,
     ``,
     `Then lock these as exact, paste-ready decisions:`,
-    `1. ONE memorable idea — the bespoke hook a human designer would pitch for THIS brand (one sentence) + the ONE signature visual move that carries the page (a kinetic type treatment, a real mesh/grain atmosphere, an editorial overlap, a distinctive hero composition).`,
+    `1. THE SIGNATURE — if a CHOSEN CONCEPT is given above, realize ITS signature move as the ONE focal point and spec exactly how it's built (markup + the vanilla-JS interaction/motion mechanics); otherwise invent the bespoke hook + one signature visual move yourself (kinetic type, a real mesh/grain atmosphere, an editorial overlap, a distinctive hero composition). Either way it must be nameable from the hero alone.`,
     `2. Palette — SOLVE it per-brand; do NOT reach for the category cliché (property→brass/gold, tech→cobalt, health→teal). One near-neutral canvas + one deep anchor + exactly ONE accent, every value as hex; the accent is a less-expected but on-tone hue (justify in one line). The background is a DESIGNED surface (mesh / grain / layered tint), never a flat fill.`,
     `3. Type — TWO DIFFERENT Google Fonts: a characterful DISPLAY face (e.g. Bricolage Grotesque, Unbounded, Outfit, Sora, Familjen Grotesk, Fraunces) and a separate readable BODY face (e.g. Be Vietnam Pro, Plus Jakarta Sans, Lexend, Mulish). NEVER the same family for both; NEVER Inter / Roboto / Open Sans / Space Grotesk. Demand extreme contrast — display clamp() to ~clamp(2.6rem,6vw,5.5rem), body 16-18px, a big weight jump, tight display tracking. Both MUST render flawless Vietnamese diacritics; if the natural fit fails VN, pick the best VN-correct alternative and say so.`,
     `4. Spend boldness in ONE focal point (an oversized display headline, one full-bleed image, or one saturated accent moment); keep everything else quiet and restrained.`,
@@ -95,9 +127,10 @@ export function buildDirectorPrompt(input: DemoGenInput, researchBrief: string):
 // carry the same loud weight that anti-void rules used to monopolise, so the model stops shipping flat.
 function craftConstraints(input: DemoGenInput): string {
   return [
-    `OUTPUT: ONE complete self-contained HTML5 document (doctype → </html>), all CSS in a single <style>, all JS in one <script> before </body>. Only external resources: Google Fonts <link> and Unsplash images (https://images.unsplash.com/photo-...). Output ONLY raw HTML — no markdown fences, no commentary. Do not stop early.`,
-    `DEPTH IS MANDATORY (this is what makes it 2026, not 2021): the background MUST be a designed surface — a layered radial / mesh-gradient and/or a fixed low-opacity SVG feTurbulence grain overlay (pointer-events:none). A flat solid background is an automatic FAIL. Use tinted shadows that carry the background hue (never pure black), layered not single drop-shadows, and where the archetype calls for it true glassmorphism (backdrop-filter blur + 1px inset highlight). Vary border-radius by role.`,
+    `OUTPUT: ONE complete self-contained HTML5 document (doctype → </html>), all CSS in a single <style>, all JS in one <script> before </body>. Only external resources: Google Fonts <link> and Unsplash images (https://images.unsplash.com/photo-...). Output ONLY raw HTML — no markdown fences, no commentary. Respond with the HTML DIRECTLY in your message — do NOT call any tools and do NOT write files. Do not stop early; emit the whole document in one go.`,
+    `SURFACE & DEPTH (match the CHOSEN style — do NOT default every site to dark-canvas + mesh-gradient + glass): the background must be a DELIBERATE, designed surface fitting the concept's aesthetic — pick what the style demands: a layered radial/mesh-gradient, OR confident flat colour-blocking, OR editorial paper + film-grain, OR a printed/patterned canvas, OR raw brutalist fields, OR crisp high-contrast Swiss white. An ACCIDENTAL empty flat fill is a FAIL, but an INTENTIONAL bold flat colour is great. Use depth cues that suit the style (tinted layered shadows + grain for soft/modern; hard edges + heavy borders for brutalist; ink-on-paper contrast for editorial) — glassmorphism ONLY where the style truly calls for it, not by default. Vary border-radius by role.`,
     `SIGNATURE MUST BE VISIBLE: the spec's ONE signature move must be unmistakable in the first viewport — a reviewer should be able to name it from the hero screenshot alone. Do not dilute it into generic polish.`,
+    `STRUCTURE MANDATE (break the template — this is the #1 thing that makes demos look generic): the PRODUCT / MENU / listing section must NOT be a tidy row of equal cards. Present it an UNCONVENTIONAL way that fits the concept — a horizontal-scroll filmstrip, a single-focus interactive showcase (one large item that swaps via tabs/clicks), an editorial asymmetric list with oversized imagery, an overlapping/collage composition, or an interactive builder. The page MUST include at least ONE full-bleed or genuinely unconventional structural section (not just stacked centered bands). NEVER default to hero → row-of-3/4-equal-cards → testimonials → footer; if you catch yourself building that, redesign that section.`,
     `TYPE: load and actually use BOTH fonts — display face for headings only, body face for text. Extreme size/weight contrast, tight display tracking, text-wrap:balance on headings, a single H1, body line-height 1.4-1.6, WCAG-AA contrast. Never one family for everything. NAV & UI LABELS stay SMALL (~0.9-1rem) and use white-space:nowrap so nav links, buttons and badges NEVER break mid-phrase to a second line — the big clamp() display sizes are for HERO and section headings ONLY, never for nav/labels/inputs.`,
     `SPACING & LAYOUT: define a 4px-base spacing scale as CSS custom properties and use only those tokens (no ad-hoc pixels). Cap main content ~1200-1320px (full-bleed bands may bleed background/imagery but keep TEXT grid-aligned). Use flex/grid + gap; vary section rhythm. Intentional asymmetric whitespace is a FEATURE — keep it; just don't pad a thin section into an empty slab, strand a capped column alone in a wide track (size the track to its content, center it, or add a second real element), or ship a multi-item set whose cards have mismatched fields. The top header/nav is COMPACT and fits on ONE row at desktop — if its items won't fit, collapse to a menu/hamburger button rather than letting links wrap or overflow. No inline label, button, chip or nav item may wrap to two lines or spill past its container at any width. Real responsive layout, mobile-first, flawless at 375 / 768 / 1440px.`,
     `IMAGERY (curate, don't scatter): real Unsplash photos via <img src>, each with descriptive alt + width/height (or aspect-ratio) so nothing shifts, painting immediately. All photos share ONE consistent grade — apply a unifying brand-accent tint over each via mix-blend-mode or a brand-tinted ::after/gradient overlay so disparate stock reads as shot for one brand. Prefer few large images over many small. No emoji icons (use inline SVG); no placeholder boxes.`,
@@ -111,7 +144,7 @@ function craftConstraints(input: DemoGenInput): string {
 // PASS 2 — Build the page from the spec.
 export function buildBuildPrompt(input: DemoGenInput, spec: string): string {
   return [
-    `You are a world-class front-end engineer building exactly what your creative director specced. Follow the spec's direction, palette, the TWO distinct fonts, the focal point, and the ONE signature move — faithfully and boldly. Do not sand it toward a safe template.`,
+    `You are a world-class front-end engineer building exactly what your creative director specced. Follow the spec's direction, palette, the TWO distinct fonts, the focal point, and the ONE signature move — faithfully and boldly. Build the spec's bold STRUCTURE; do NOT quietly fall back to the generic hero → row-of-equal-cards → testimonials → footer template (that is the failure mode to avoid). The signature move + the concept's unconventional layout are the point — realise them, don't sand them toward a safe, conventional category landing.`,
     ``,
     `=== DESIGN SPEC ===`,
     spec,
@@ -145,12 +178,12 @@ export const REVIEW_PERSONAS: ReviewPersona[] = [
   {
     key: 'niche',
     brief: (input) =>
-      `You are a ${input.industry.toUpperCase()} DOMAIN EXPERT who has built product in this category and knows how ${input.city} customers actually decide. STATE the niche bar — the must-have functional modules, the trust/credibility signals specific to this category, the information buyers compare, the mobile/contact behaviours of this market. Then judge whether THIS page is credible and useful to a real customer, what category-essential elements are missing or wrong, and concrete fixes with severity. Also judge whether the typography + styling fit how a real ${input.industry} customer expects a credible brand to look (an off-niche typeface or styling that fights the category's conventions is a real defect).`,
+      `You are a ${input.industry.toUpperCase()} DOMAIN EXPERT who has built product in this category and knows how ${input.city} customers actually decide. STATE the niche bar — the must-have FUNCTIONAL modules, the trust/credibility signals, the information buyers compare, the mobile/contact behaviours of this market. Then judge whether THIS page is credible + useful to a real customer and what category-essential FUNCTIONAL elements are missing or wrong (concrete fixes + severity). CRITICAL — judge FUNCTION + TRUST + INFO ONLY: do NOT penalise a bold or unconventional VISUAL style for "not looking like a typical ${input.industry} site". A distinctive, surprising look that still surfaces the right information + actions is a WIN; this category does NOT need to look generic. NEVER recommend making the styling more conventional or more like competitors.`,
   },
   {
     key: 'art',
-    brief: () =>
-      `You are an ART DIRECTOR / brand lead. STATE your bar (bespoke & premium vs templated/AI-generated; one distinctive nameable idea; craft in the details; the "would this win the pitch" test). Then identify what reads as AI/templated/generic and the specific moves to make it award-worthy. Judge MODERNITY & DISTINCTIVENESS STRICTLY — treat these as BLOCKERS equal to any layout bug: a FLAT texture-less background (no mesh/grain/depth), a SINGLE font used for everything (no display↔body contrast), a category-cliché or default palette (property→brass, tech→blue-purple), or NO nameable signature move visible in the hero. If this page would look identical for a different brand in the same category, that is a blocker — say so with a concrete fix.`,
+    brief: (input) =>
+      `You are an ART DIRECTOR / brand lead. STATE your bar (bespoke & premium vs templated/AI-generated; one distinctive nameable idea; craft in the details; the "would this win the pitch" test). Then identify what reads as AI/templated/generic and the specific moves to make it award-worthy. THE #1 BLOCKER is REGRESSION TO A GENERIC CATEGORY TEMPLATE: a stacked hero → row-of-equal-cards → testimonials → footer layout, a plain 3/4-equal-card grid, a stock "could be any ${input.industry} brand" landing, no nameable signature move in the hero. Also blockers: a single font for everything, a cliché/default palette, an accidental flat texture-less fill. EVERY fix you give must push the page BOLDER + MORE distinctive / more unconventional — NEVER toward safer, calmer, or more conventional. If this page would look interchangeable with a different brand in the category, that is THE blocker — name it and give a concrete bold fix.`,
   },
 ];
 
@@ -189,7 +222,7 @@ export function buildReviewSynthesisPrompt(input: DemoGenInput, reviews: string[
     ``,
     ...reviews.map((r, i) => `=== REVIEW ${i + 1} ===\n${r}`),
     ``,
-    `Produce a SHORT numbered list — AT MOST 6 fixes — ordered by impact on how premium and modern the page feels. LEAD with any MODERNITY/DISTINCTIVENESS blocker (flat background, single font, cliché palette, no visible signature) or genuinely BROKEN-layout blocker; then the highest-leverage craft / content / niche fixes. Each fix is ONE concrete instruction tagged [severity · design|content|niche|brand]. Do NOT pad with minor nitpicks and do NOT flag intentional whitespace — a tight list of bold fixes beats a long list of safe ones. Output ONLY the fix list.`,
+    `Produce a SHORT numbered list — AT MOST 6 fixes — ordered by impact on how DISTINCTIVE + premium the page feels. LEAD with the biggest DISTINCTIVENESS blocker: if the page has regressed to a generic category template (a plain row of equal cards, a stock "could be any brand" landing, no nameable signature), the #1 fix is to push it back to a BOLD, unconventional, ownable design — then single-font/cliché-palette/broken-layout blockers, then high-leverage craft/content fixes. Each fix is ONE concrete instruction tagged [severity · design|content|niche|brand]. CRITICAL: every fix must move the page BOLDER + more distinctive — NEVER recommend making it safer, calmer, or more conventional/competitor-like. Don't pad with nitpicks; don't flag intentional whitespace. Output ONLY the fix list.`,
   ].join('\n');
 }
 
@@ -206,7 +239,7 @@ export function buildRevisePrompt(
   return [
     `You are a senior designer + front-end engineer revising the "${input.company}" (${input.industry}, ${input.city}) demo page. Use your Read tool to view the current render (tall pages come as ordered top→bottom slices — read them all): ${render('desktop', desktopPngs)}; ${render('mobile', mobilePngs)}.`,
     ``,
-    `Apply these expert-review fixes BOLDLY (blockers are mandatory) — do not sand the design toward a safe template:`,
+    `Apply these expert-review fixes BOLDLY (blockers are mandatory) — do not sand the design toward a safe template. If the current render reads like a GENERIC category template (a plain row of equal cards, a stock "could be any brand" landing, no nameable signature), treat THAT as the top regression to fix: push it toward a BOLDER, more unconventional, ownable design — make it MORE distinctive, NEVER safer or more conventional:`,
     fixes,
     ``,
     `Output ONE complete, polished, responsive HTML document.`,
