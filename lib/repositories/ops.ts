@@ -1,31 +1,103 @@
 import 'server-only';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, gte, ne, count, inArray, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/client';
 import {
-  metrics as metricsTable,
   escalations as escalationsTable,
   activity as activityTable,
   demoRequests as demoRequestsTable,
   settings as settingsTable,
+  leads as leadsTable,
+  deals as dealsTable,
+  audits as auditsTable,
+  generatedDemos as generatedDemosTable,
+  agents as agentsTable,
+  pipelineRuns as pipelineRunsTable,
 } from '@/lib/db/schema';
 import { AV } from '@/lib/data';
 import type { Metrics, Escalation, ActivityItem, DemoRequest } from '@/lib/data/types';
+import { computeCostMeter, DEFAULT_DAILY_CAP } from '@/lib/data/cost-meter';
+import { ACTIVE_RUN_STATUSES } from '@/lib/inngest/pipeline-machine';
 import { USE_DB } from './config';
 
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// Headline KPIs computed LIVE from the real tables (no static seeded row). Every number is a
+// COUNT/SUM/derive over leads/audits/demos/deals/escalations/pipeline_runs at request time, so the
+// dashboard reflects actual operation. Demo mode (no DB) still returns the mock AV snapshot.
 export async function getMetrics(): Promise<Metrics> {
   if (!USE_DB) return AV.metrics;
-  const [row] = await db.select().from(metricsTable).limit(1);
-  return row ?? AV.metrics;
+
+  const today = startOfToday();
+  const [
+    [{ v: scanned }],
+    [{ v: leadsN }],
+    [{ v: demosReady }],
+    [{ v: outreachSent }],
+    [{ v: repliesN }],
+    [{ v: wonN }],
+    [{ v: forecastRaw }],
+    [{ v: openEsc }],
+    [{ v: agentsN }],
+    [{ v: runsActive }],
+    [{ v: runsDone }],
+    [{ v: runsToday }],
+    [settingsRow],
+  ] = await Promise.all([
+    db.select({ v: count() }).from(auditsTable),
+    db.select({ v: count() }).from(leadsTable),
+    db.select({ v: count() }).from(generatedDemosTable).where(eq(generatedDemosTable.status, 'ready')),
+    db.select({ v: count() }).from(leadsTable).where(eq(leadsTable.demo, 'sent')),
+    db.select({ v: count() }).from(leadsTable).where(eq(leadsTable.stage, 'replied')),
+    db.select({ v: count() }).from(dealsTable).where(eq(dealsTable.stage, 'won')),
+    db
+      .select({ v: sql<number>`coalesce(sum(${dealsTable.value} * ${dealsTable.probability} / 100.0), 0)` })
+      .from(dealsTable)
+      .where(ne(dealsTable.stage, 'lost')),
+    db.select({ v: count() }).from(escalationsTable).where(eq(escalationsTable.status, 'open')),
+    db.select({ v: count() }).from(agentsTable),
+    db.select({ v: count() }).from(pipelineRunsTable).where(inArray(pipelineRunsTable.status, [...ACTIVE_RUN_STATUSES])),
+    db.select({ v: count() }).from(pipelineRunsTable).where(eq(pipelineRunsTable.status, 'done')),
+    db.select({ v: count() }).from(pipelineRunsTable).where(gte(pipelineRunsTable.startedAt, today)),
+    db.select().from(settingsTable).limit(1),
+  ]);
+
+  const guardrails = (settingsRow?.guardrails as Record<string, unknown> | null) ?? {};
+  const meter = computeCostMeter(Number(runsToday), { costPerRun: guardrails.costPerRun, dailyCap: guardrails.dailyCostLimit });
+  const costLimit = typeof guardrails.dailyCostLimit === 'number' ? guardrails.dailyCostLimit : DEFAULT_DAILY_CAP;
+
+  const forecast = Math.round(Number(forecastRaw));
+  const monthlyCost = Math.round(meter.estimatedCost * 30);
+  const netProfit = forecast - monthlyCost;
+  const margin = forecast > 0 ? Math.max(0, Math.round((netProfit / forecast) * 100)) : 0;
+
+  return {
+    scanned: Number(scanned),
+    leads: Number(leadsN),
+    demos: Number(demosReady),
+    outreach: Number(outreachSent),
+    replies: Number(repliesN),
+    won: Number(wonN),
+    forecast,
+    cost: meter.estimatedCost,
+    costLimit,
+    escalations: Number(openEsc),
+    online: Number(agentsN),
+    inProgress: Number(runsActive),
+    completed: Number(runsDone),
+    margin,
+    netProfit,
+  };
 }
 
 export async function getEscalations(): Promise<Escalation[]> {
   if (!USE_DB) return AV.escalations;
-  // Stable order (e1, e2, e3…) so DB-mode render order is deterministic.
   return db.select().from(escalationsTable).orderBy(asc(escalationsTable.id));
 }
 
-// Open (unresolved) escalations only — drives the ReviewCenter panel. Mock mode has no
-// resolution lifecycle, so all mock escalations are treated as open.
 export async function getOpenEscalations(): Promise<Escalation[]> {
   if (!USE_DB) return AV.escalations;
   return db
@@ -37,7 +109,6 @@ export async function getOpenEscalations(): Promise<Escalation[]> {
 
 export async function getActivity(): Promise<ActivityItem[]> {
   if (!USE_DB) return AV.activity;
-  // seq preserves the authored ordering the UI expects (newest first).
   return db.select().from(activityTable).orderBy(asc(activityTable.seq));
 }
 
@@ -48,8 +119,6 @@ export async function getDemoRequests(): Promise<DemoRequest[]> {
 
 export type WorkspaceSettings = typeof settingsTable.$inferSelect;
 
-// Founder settings singleton (row id 'default'). No mock equivalent — the prototype kept
-// autonomy mode in localStorage; Phase 6 wires writes. Returns null in mock mode.
 export async function getSettings(): Promise<WorkspaceSettings | null> {
   if (!USE_DB) return null;
   const [row] = await db.select().from(settingsTable).limit(1);
