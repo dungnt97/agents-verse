@@ -3,6 +3,7 @@ import { inngest, type DemoRequestedData } from '../client';
 import { db } from '../../db/client';
 import { leads, audits, generatedDemos } from '../../db/schema';
 import { generateDemoHtml } from '../../agents/pipelines/demo';
+import { recordActivity } from '../activity-log';
 
 // Durable demo-generation pipeline (runs in the WORKER only — it shells out to the `claude` CLI).
 // Relative imports + no `server-only` since this executes under tsx. Serialized per-lead so two
@@ -94,6 +95,10 @@ export const runDemoGen = inngest.createFunction(
         });
       }
 
+      await step.run('log-activity', async () => {
+        const [l] = await db.select({ company: leads.company }).from(leads).where(eq(leads.id, leadId)).limit(1);
+        await recordActivity({ agent: 'nova', room: 'design', type: 'demo', text: `Generated a redesign demo for ${l?.company ?? leadId}`, status: 'success' });
+      });
       return { leadId, status: 'ready' as const };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

@@ -127,7 +127,7 @@ async function seedDemoData() {
 
   await db
     .insert(activity)
-    .values(AV.activity.map((it, i) => ({ id: `act-${i}`, seq: i, ...it })))
+    .values(AV.activity.map((it, i) => ({ id: `act-${i}`, seq: AV.activity.length - i, ...it })))
     .onConflictDoNothing();
 
   await db

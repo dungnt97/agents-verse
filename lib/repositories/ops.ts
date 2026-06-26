@@ -1,5 +1,5 @@
 import 'server-only';
-import { asc, eq, gte, ne, count, inArray, sql } from 'drizzle-orm';
+import { asc, desc, eq, gte, ne, count, inArray, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/client';
 import {
   escalations as escalationsTable,
@@ -109,7 +109,7 @@ export async function getOpenEscalations(): Promise<Escalation[]> {
 
 export async function getActivity(): Promise<ActivityItem[]> {
   if (!USE_DB) return AV.activity;
-  return db.select().from(activityTable).orderBy(asc(activityTable.seq));
+  return db.select().from(activityTable).orderBy(desc(activityTable.seq));
 }
 
 export async function getDemoRequests(): Promise<DemoRequest[]> {
