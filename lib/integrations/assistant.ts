@@ -64,6 +64,7 @@ export async function* parseTextDeltas(res: Response): AsyncGenerator<string> {
     if (done) break;
     buf += decoder.decode(value, { stream: true });
     const lines = buf.split('\n');
+    /* v8 ignore next -- split() always yields >=1 element, so pop() is never undefined */
     buf = lines.pop() ?? ''; // keep the last (possibly partial) line
     for (const line of lines) {
       const s = line.trim();

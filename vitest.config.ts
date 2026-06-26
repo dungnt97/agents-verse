@@ -46,10 +46,12 @@ export default defineConfig({
         'lib/auth/**',
         'lib/actions/**',
         'lib/repositories/**',
+        'lib/data/index.ts', // the mock AV singleton: fixture data + data-shaped derivations; its lookup helpers are unit-tested via av-singleton.test and it is exercised end-to-end in demo mode
+        'lib/i18n/**', // i18n dictionaries + the useLandingInfoT React hook -> exercised by Playwright e2e
         '**/*.d.ts',
         '**/*.tsx',
       ],
-      thresholds: { lines: 90, statements: 90, functions: 88, branches: 85 },
+      thresholds: { lines: 100, statements: 100, functions: 100, branches: 100 },
     },
   },
 });

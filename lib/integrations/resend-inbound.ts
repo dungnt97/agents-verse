@@ -25,11 +25,13 @@ export function verifyResendSignature({ secret, id, timestamp, signature, payloa
     const [version, value] = part.split(',');
     if (version !== 'v1' || !value) continue;
     let given: Buffer;
+    /* v8 ignore start -- defensive: Buffer.from(_, base64) never throws on malformed input */
     try {
       given = Buffer.from(value, 'base64');
     } catch {
       continue;
     }
+    /* v8 ignore stop */
     if (given.length === expected.length && timingSafeEqual(given, expected)) return true;
   }
   return false;
