@@ -4,10 +4,12 @@
 // Passes 3-5 are best-effort and fall back to the solid built page, so the result is never worse than a
 // single build. WORKER-ONLY (shells `claude`): relative imports, no `server-only`. Never import from web.
 import { atlasConceptor, atlasDirector, atlasSynthesizer } from '../defs/atlas-strategist';
-import { novaBuilder, novaReviser } from '../defs/nova-designer';
+import { novaBuilder, novaReviser, novaLayoutFixer } from '../defs/nova-designer';
 import { REVIEW_BOARD } from '../board';
 import { runAgent, runBoard } from '../runner';
 import { renderHtmlToPng, DESKTOP_WIDTH, MOBILE_WIDTH } from '../../demo-gen/render';
+import { auditLayout } from '../../demo-gen/layout-audit';
+import { formatLayoutFixList } from '../../demo-gen/layout-defects';
 import { captureScreenshots, closeBrowser } from '../../audit/screenshot';
 import { vegaResearcher } from '../defs/vega-researcher';
 import { writeFile } from 'node:fs/promises';
@@ -108,7 +110,7 @@ export async function generateDemoHtml(input: DemoGenInput, step: StepRunner = i
 
   // Passes 3-5 — render, expert review board, synthesise, revise. Best-effort in one step: any failure
   // falls back to `built`, and the /tmp PNGs live only within this step.
-  return step.run('review-revise', async () => {
+  const reviewed = await step.run('review-revise', async () => {
     try {
       const id = `${process.pid}-${Date.now()}`;
       const desktopPngs = await renderHtmlToPng(built, `/tmp/demo-${id}-d.html`, `/tmp/demo-${id}-d.png`, DESKTOP_WIDTH);
@@ -127,4 +129,36 @@ export async function generateDemoHtml(input: DemoGenInput, step: StepRunner = i
       return built;
     }
   });
+
+  // Pass 6 — deterministic LAYOUT GUARD (its own checkpointed step; runs REGARDLESS of whether the vision
+  // board ran). A headless DOM audit measures real layout breakages the best-effort board can miss or skip
+  // — horizontal overflow, text past the viewport edge, a decorative spine crossing a centered heading,
+  // broken/zero-size images. If any are found, ONE surgical fix pass repairs them; the fix is kept only if
+  // it actually reduced the defect count, so the guard can never ship a page worse than the board produced.
+  return step.run('layout-guard', async () => {
+    try {
+      // Loop up to 2 fix passes, re-auditing each time and keeping ONLY an improvement, so the page can
+      // never ship worse than the board produced and a residual (e.g. the mobile spine after the desktop
+      // one is fixed) gets a second targeted pass.
+      let best = reviewed;
+      let defects = await auditLayout(best);
+      for (let pass = 1; pass <= 2 && defects.length > 0; pass++) {
+        console.error('[demo-gen] layout guard pass ' + pass + ': ' + defects.length + ' defect(s):', defects.slice(0, 4).map((d) => d.issue.slice(0, 60)).join(' | '));
+        const fixed = await runAgent(novaLayoutFixer, { input, fixList: formatLayoutFixList(defects), currentHtml: best });
+        const after = await auditLayout(fixed);
+        if (after.length >= defects.length) {
+          console.error('[demo-gen] layout guard: pass ' + pass + ' did not reduce defects (' + after.length + ') — keeping the previous page');
+          break;
+        }
+        console.error('[demo-gen] layout guard: ' + defects.length + ' -> ' + after.length + ' defect(s) after pass ' + pass);
+        best = fixed;
+        defects = after;
+      }
+      return best;
+    } catch (e) {
+      console.error('[demo-gen] layout guard failed (best-effort, continuing):', e instanceof Error ? e.message : e);
+      return reviewed;
+    }
+  });
 }
+

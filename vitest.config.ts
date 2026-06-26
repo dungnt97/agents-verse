@@ -43,6 +43,7 @@ export default defineConfig({
         'lib/agents/runner.ts',
         'lib/agents/pipelines/demo.ts',
         'lib/demo-gen/render.ts',
+        'lib/demo-gen/layout-audit.ts',
         'lib/auth/**',
         'lib/actions/**',
         'lib/repositories/**',

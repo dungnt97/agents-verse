@@ -1,0 +1,172 @@
+// Deterministic layout audit — renders the generated HTML headless and runs an in-page DOM check that
+// flags MECHANICAL layout breakages the vision board can miss or skip (it is best-effort): horizontal
+// overflow, VISIBLE text cut off by the viewport edge, wrapped nav/labels, a decorative vertical
+// rule/spine crossing a centered heading (incl. ::before/::after pseudo-elements), and broken/zero-size
+// images. WORKER-ONLY: playwright via dynamic import, no `server-only`, runs under tsx. In-page logic is a
+// STRING expression (not a closure) to dodge the esbuild `__name` transform — see render.ts.
+import { writeFile, unlink } from 'node:fs/promises';
+import type { LayoutDefect } from './layout-defects';
+
+interface PwPage {
+  goto(url: string, opts: { waitUntil: 'networkidle'; timeout: number }): Promise<unknown>;
+  evaluate<R>(expression: string): Promise<R>;
+  waitForTimeout(ms: number): Promise<void>;
+}
+interface PwContext { newPage(): Promise<PwPage>; close(): Promise<void> }
+interface PwBrowser { newContext(opts: Record<string, unknown>): Promise<PwContext>; close(): Promise<void> }
+
+const SCROLL_SCRIPT =
+  '(async () => { const s = (ms) => new Promise(r => setTimeout(r, ms));' +
+  ' for (let y = 0; y < document.body.scrollHeight; y += 600) { window.scrollTo(0, y); await s(120); }' +
+  ' window.scrollTo(0, 0); await s(200); })()';
+
+const PENDING_IMAGES = 'Array.from(document.images).filter(i => !i.complete || i.naturalWidth === 0).length';
+
+// In-page audit (no regex — string methods only — to keep the injected expression escape-safe). Returns a
+// JSON array of { severity, sel, issue }. Conservative + visibility-aware so a clean page yields [] and
+// hidden drawers/menus + padded one-line badges are NOT false-flagged.
+const AUDIT_SCRIPT = `(() => {
+  const W = window.innerWidth;
+  const out = [];
+  const spineSeen = {};
+  const add = (severity, sel, issue) => out.push({ severity, sel, issue });
+  const sig = (el) => {
+    const id = el.id ? '#' + el.id : '';
+    const cn = (el.className && el.className.toString) ? el.className.toString().trim() : '';
+    const cls = cn ? '.' + cn.split(' ').filter(Boolean).slice(0, 2).join('.') : '';
+    return (el.tagName || '').toLowerCase() + id + cls;
+  };
+  const txt = (el) => (el.textContent || '').trim().slice(0, 44);
+  // VISIBLE = not display:none/visibility:hidden/opacity:0 on the element OR any ancestor (catches a
+  // closed off-screen drawer whose links would otherwise look "past the edge").
+  const visible = (el) => {
+    let n = el, depth = 0;
+    while (n && n.nodeType === 1 && depth < 12) {
+      const cs = getComputedStyle(n);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0) return false;
+      n = n.parentElement; depth++;
+    }
+    return true;
+  };
+  const paints = (cs) =>
+    (cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent') ||
+    (cs.backgroundImage && cs.backgroundImage !== 'none') ||
+    parseFloat(cs.borderLeftWidth) > 0 || parseFloat(cs.borderRightWidth) > 0;
+
+  // 1) the whole page scrolls horizontally — something is wider than the screen
+  const sw = document.documentElement.scrollWidth;
+  if (sw > W + 2) add('major', 'document', 'the page scrolls horizontally (content is ' + (sw - W) + 'px wider than the ' + W + 'px viewport) — an element overflows the screen');
+
+  // 2) VISIBLE text that STRADDLES the viewport edge (partly on-screen, partly clipped) — genuinely cut off
+  const textEls = [].slice.call(document.querySelectorAll('h1,h2,h3,h4,p,a,button,span,li,td,th,label'));
+  for (let i = 0; i < textEls.length; i++) {
+    const el = textEls[i];
+    const t = txt(el);
+    if (t.length < 2 || !visible(el)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    const straddlesLeft = r.left < -2 && r.right > 6;
+    const straddlesRight = r.right > W + 2 && r.left < W - 6;
+    if (straddlesLeft || straddlesRight) add('major', sig(el), 'the text "' + t + '" is clipped by the viewport edge (left ' + Math.round(r.left) + 'px, right ' + Math.round(r.right) + 'px vs width ' + W + 'px)');
+  }
+
+  // 3) nav links / badges that wrapped to a 2nd line — measured on CONTENT height (padding/border removed)
+  const ctrls = [].slice.call(document.querySelectorAll('nav a, nav button, header a, header button, .btn, [class*="badge"], [class*="chip"], [class*="ticket"], [class*="eyebrow"], [class*="pill"]'));
+  for (let i = 0; i < ctrls.length; i++) {
+    const el = ctrls[i];
+    const t = txt(el);
+    if (t.length < 2 || !visible(el)) continue;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'block' || cs.display === 'flex' || cs.display === 'grid') continue;
+    const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.3 || 18;
+    const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    const contentH = el.getBoundingClientRect().height - pad;
+    if (contentH > lh * 1.7) add('minor', sig(el), 'the control/label "' + t + '" wraps onto two lines (content ' + Math.round(contentH) + 'px vs a ~' + Math.round(lh) + 'px line) — it should stay on one line (nowrap / smaller text / hamburger)');
+  }
+
+  // 4) a thin vertical decorative rule/spine (often a ::before/::after on an ancestor) crossing a centered heading
+  const heads = [].slice.call(document.querySelectorAll('h1,h2,h3'));
+  for (let i = 0; i < heads.length; i++) {
+    const h = heads[i];
+    if (txt(h).length < 3 || !visible(h)) continue;
+    const hr = h.getBoundingClientRect();
+    if (hr.width === 0) continue;
+    const hcx = hr.left + hr.width / 2;
+    let node = h.parentElement, depth = 0, flagged = false;
+    while (node && depth < 6 && !flagged) {
+      const nr = node.getBoundingClientRect();
+      const spansHeading = nr.top <= hr.top + 6 && nr.bottom >= hr.bottom - 6;
+      if (spansHeading) {
+        const probes = [['::before', getComputedStyle(node, '::before')], ['::after', getComputedStyle(node, '::after')]];
+        for (let p = 0; p < probes.length; p++) {
+          const pe = probes[p][0], pcs = probes[p][1];
+          if (!pcs || pcs.content === 'none' || pcs.content === 'normal' || pcs.content === '') continue;
+          if (pcs.position !== 'absolute' && pcs.position !== 'fixed') continue;
+          const pw = parseFloat(pcs.width), ph = parseFloat(pcs.height);
+          if (!(pw > 0 && pw <= 14 && ph >= 50 && paints(pcs))) continue;
+          const left = String(pcs.left || '');
+          const centered = left.indexOf('50%') >= 0 || Math.abs(nr.left + nr.width / 2 - hcx) < hr.width * 0.28;
+          if (centered) { const ssel = sig(node) + pe; if (!spineSeen[ssel]) { spineSeen[ssel] = 1; add('major', ssel, 'a thin vertical decorative rule/spine runs through the centered heading "' + txt(h) + '" (and likely other centered headings) — a decorative line must never cross or sit behind heading text; start a timeline spine BELOW the section heading, scoped to the steps only'); } flagged = true; break; }
+        }
+      }
+      node = node.parentElement; depth++;
+    }
+  }
+
+  // 5) broken / zero-size images (only VISIBLE ones)
+  const imgs = [].slice.call(document.images);
+  for (let i = 0; i < imgs.length; i++) {
+    const img = imgs[i];
+    if (!visible(img)) continue;
+    const r = img.getBoundingClientRect();
+    if (img.complete && img.naturalWidth === 0 && r.width > 4 && r.height > 4) add('major', sig(img), 'an image source is broken — it finished loading with no pixels (a dead/invalid URL: ' + String(img.currentSrc || img.src || '').slice(0, 60) + ') — add an onerror fallback or use a valid image');
+  }
+
+  return JSON.stringify(out.slice(0, 24));
+})()`;
+
+const VIEWPORTS: ReadonlyArray<{ vp: 'desktop' | 'mobile'; width: number; height: number }> = [
+  { vp: 'desktop', width: 1440, height: 900 },
+  { vp: 'mobile', width: 390, height: 844 },
+];
+
+// Render `html` at desktop + mobile and collect mechanical layout defects. Waits (capped) for lazy images
+// so a still-loading photo is not mis-flagged as broken. Best-effort + isolated: any failure yields no
+// defects for that viewport rather than sinking the run.
+export async function auditLayout(html: string): Promise<LayoutDefect[]> {
+  const { chromium } = (await import('playwright')) as unknown as {
+    chromium: { launch(opts: Record<string, unknown>): Promise<PwBrowser> };
+  };
+  const path = `/tmp/audit-${process.pid}-${Date.now()}.html`;
+  await writeFile(path, html, 'utf8');
+  const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  const defects: LayoutDefect[] = [];
+  try {
+    for (const { vp, width, height } of VIEWPORTS) {
+      try {
+        const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 700, deviceScaleFactor: 1 });
+        const page = await context.newPage();
+        await page.goto('file://' + path, { waitUntil: 'networkidle', timeout: 30000 });
+        await page.evaluate(SCROLL_SCRIPT);
+        for (let i = 0; i < 15; i++) {
+          const pending = await page.evaluate<number>(PENDING_IMAGES);
+          if (pending <= 1) break;
+          await page.waitForTimeout(400);
+        }
+        await page.waitForTimeout(300);
+        const raw = await page.evaluate<string>(AUDIT_SCRIPT);
+        const arr = JSON.parse(raw) as Array<{ severity: string; sel: string; issue: string }>;
+        for (const d of arr) {
+          defects.push({ viewport: vp, severity: d.severity === 'minor' ? 'minor' : 'major', selector: String(d.sel || ''), issue: String(d.issue || '') });
+        }
+        await context.close();
+      } catch {
+        // skip this viewport — never let the guard itself break a run
+      }
+    }
+  } finally {
+    await browser.close();
+    await unlink(path).catch(() => {});
+  }
+  return defects;
+}
