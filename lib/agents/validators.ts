@@ -51,6 +51,7 @@ export function makeJsonValidator<O>(schema: ZodType<O>): OutputValidator<O> {
     try {
       parsed = JSON.parse(s);
     } catch (e) {
+      /* v8 ignore next -- defensive: JSON.parse only throws an Error, so String(e) is unreachable */
       throw new Error(`agent output is not valid JSON: ${e instanceof Error ? e.message : String(e)}`);
     }
     return schema.parse(parsed);
