@@ -1,7 +1,7 @@
 // Nova — UI designer / front-end engineer. Two task defs (skills): the Pass-2 build from Atlas's spec
 // and the Pass-5 major revision against the board's fix list. Both wrap existing demo-gen builders
 // unchanged and emit one complete HTML document. tsx-safe: relative imports, no `server-only`.
-import { buildBuildPrompt, buildRevisePrompt, type DemoGenInput } from '../../demo-gen/prompt';
+import { buildBuildPrompt, buildRevisePrompt, buildLayoutFixPrompt, type DemoGenInput } from '../../demo-gen/prompt';
 import type { AgentDef } from '../types';
 import { makeHtmlValidator } from '../validators';
 
@@ -45,5 +45,24 @@ export const novaReviser: AgentDef<ReviseInput, string> = {
   limits: { timeoutMs: 600_000, maxTurns: 10 },
   buildPrompt: ({ input, fixes, desktopPngs, mobilePngs, currentHtml }) =>
     buildRevisePrompt(input, fixes, desktopPngs, mobilePngs, currentHtml),
+  validate: html,
+};
+
+export interface LayoutFixInput {
+  input: DemoGenInput;
+  fixList: string;
+  currentHtml: string;
+}
+
+// Deterministic-guard pass (runs after the vision board, on the audited HTML) — applies ONLY the
+// mechanically-measured layout fixes (overflow, text past the edge, a decorative spine crossing a
+// heading, broken images). Text-only: no screenshots needed since the defect list is already precise.
+export const novaLayoutFixer: AgentDef<LayoutFixInput, string> = {
+  id: 'nova',
+  role: 'UI Designer — surgical fix of measured layout defects',
+  model: 'opus',
+  tools: [],
+  limits: { timeoutMs: 600_000, maxTurns: 4 },
+  buildPrompt: ({ input, fixList, currentHtml }) => buildLayoutFixPrompt(input, fixList, currentHtml),
   validate: html,
 };
