@@ -17,7 +17,7 @@ import { useI18n } from '@/lib/i18n';
 import { useToast } from '@/lib/providers/toast-provider';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { fmt, statusMap } from '@/lib/data/format';
-import type { Escalation, ActivityItem } from '@/lib/data/types';
+import type { Escalation, ActivityItem, Metrics } from '@/lib/data/types';
 
 /* ---- MetricStat ---- */
 
@@ -190,9 +190,10 @@ export function RoomPeek({ roomId, onClose, onAction, goRoom }: RoomPeekProps) {
 export interface FloorOverviewProps {
   escalations: Escalation[];
   activity: ActivityItem[];
+  metrics: Metrics;
 }
 
-export function FloorOverview({ escalations, activity }: FloorOverviewProps) {
+export function FloorOverview({ escalations, activity, metrics }: FloorOverviewProps) {
   const { t } = useI18n();
   const router = useRouter();
   const onAction = useToast();
@@ -226,12 +227,13 @@ export function FloorOverview({ escalations, activity }: FloorOverviewProps) {
 
       {/* metric strip */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,minmax(0,1fr))', gap: 14, marginBottom: 24 }} className="metric-strip">
-        <MetricStat label={t('m.scanned')} value={148} icon="search" delta="+22 today" spark={[60, 72, 68, 90, 110, 128, 148]} accent="var(--info)" />
-        <MetricStat label={t('m.leads')} value={43} icon="leads" delta="+6" spark={[20, 24, 28, 30, 36, 40, 43]} accent="var(--primary)" />
-        <MetricStat label={t('m.demos')} value={12} icon="layers" delta="+4" spark={[3, 5, 6, 8, 9, 11, 12]} sparkColor="var(--violet)" accent="var(--violet)" />
-        <MetricStat label={t('m.replies')} value={7} icon="activity" delta="+3" spark={[1, 2, 2, 4, 5, 6, 7]} sparkColor="var(--success)" accent="var(--success)" />
-        <MetricStat label={t('m.forecast')} value={8.4} decimals={1} prefix="$" suffix="k" icon="dollar" delta="+$2.1k" spark={[3, 4, 4.5, 6, 6.8, 7.6, 8.4]} sparkColor="var(--success)" accent="var(--success)" />
-        <MetricStat label={t('m.cost')} value={42.8} decimals={2} prefix="$" icon="bolt" meter meterPct={86} accent="var(--warning)" />
+        {/* Live metrics from getMetrics() — real COUNT/SUM over the DB; no fake deltas/sparks (no history tracked). */}
+        <MetricStat label={t('m.scanned')} value={metrics.scanned} icon="search" accent="var(--info)" />
+        <MetricStat label={t('m.leads')} value={metrics.leads} icon="leads" accent="var(--primary)" />
+        <MetricStat label={t('m.demos')} value={metrics.demos} icon="layers" sparkColor="var(--violet)" accent="var(--violet)" />
+        <MetricStat label={t('m.replies')} value={metrics.replies} icon="activity" sparkColor="var(--success)" accent="var(--success)" />
+        <MetricStat label={t('m.forecast')} value={metrics.forecast / 1000} decimals={1} prefix="$" suffix="k" icon="dollar" sparkColor="var(--success)" accent="var(--success)" />
+        <MetricStat label={t('m.cost')} value={metrics.cost} decimals={2} prefix="$" icon="bolt" meter meterPct={metrics.costLimit > 0 ? Math.round((metrics.cost / metrics.costLimit) * 100) : 0} accent="var(--warning)" />
       </div>
 
       {/* main grid */}

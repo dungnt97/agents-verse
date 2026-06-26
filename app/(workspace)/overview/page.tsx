@@ -1,8 +1,7 @@
 import { FloorOverview } from '@/components/workspace/overview/floor-overview';
-import { getOpenEscalations } from '@/lib/repositories/ops';
-import { getActivity } from '@/lib/repositories/ops';
+import { getOpenEscalations, getActivity, getMetrics } from '@/lib/repositories/ops';
 
 export default async function OverviewPage() {
-  const [escalations, activity] = await Promise.all([getOpenEscalations(), getActivity()]);
-  return <FloorOverview escalations={escalations} activity={activity} />;
+  const [escalations, activity, metrics] = await Promise.all([getOpenEscalations(), getActivity(), getMetrics()]);
+  return <FloorOverview escalations={escalations} activity={activity} metrics={metrics} />;
 }
