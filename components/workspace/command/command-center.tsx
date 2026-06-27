@@ -32,13 +32,16 @@ import type { Escalation, Metrics } from '@/lib/data/types';
 
 /* ---- Revenue vs cost chart ---- */
 
-function RevenueCostChart() {
+function RevenueCostChart({ metrics }: { metrics: Metrics }) {
   const { t } = useI18n();
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const rev = [3.2, 4.1, 3.8, 5.4, 6.2, 7.1, 8.4];
-  const cost = [0.31, 0.38, 0.34, 0.42, 0.45, 0.4, 0.43];
-  const max = 9, W = 100, H = 56;
+  // No time-series telemetry exists yet, so we render a single honest "current" bar pair
+  // from live metrics (forecast pipeline value vs. AI cost) instead of a fabricated 7-day history.
+  const rev = metrics.forecast, cost = metrics.cost;
+  const peak = Math.max(rev, cost, 1);
+  const W = 100, H = 56;
   const bw = 9;
+  const cx = W / 2;
+  const rh = (rev / peak) * H, ch = (cost / peak) * H;
   return (
     <div>
       <div className="row between" style={{ marginBottom: 14 }}>
@@ -46,21 +49,15 @@ function RevenueCostChart() {
           <span className="row" style={{ gap: 6, fontSize: 12, color: 'var(--ink-2)' }}><span style={{ width: 9, height: 9, borderRadius: 3, background: 'var(--primary)' }} /> {t('dash.chartRevenue')}</span>
           <span className="row" style={{ gap: 6, fontSize: 12, color: 'var(--ink-2)' }}><span style={{ width: 9, height: 9, borderRadius: 3, background: 'var(--warning)' }} /> {t('dash.chartAiCost')}</span>
         </div>
-        <span className="badge badge-success">{t('dash.chartMargin')}</span>
+        <span className="badge badge-success">{t('dash.chartMargin').replace('{n}', String(metrics.margin))}</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H + 10}`} style={{ width: '100%', height: 120, overflow: 'visible' }}>
         {[0, 0.25, 0.5, 0.75, 1].map((g, i) => (<line key={i} x1="0" x2={W} y1={H - H * g} y2={H - H * g} stroke="var(--border-soft)" strokeWidth="0.4" />))}
-        {days.map((d, i) => {
-          const x = 6 + i * ((W - 8) / days.length);
-          const rh = (rev[i] / max) * H, ch = (cost[i] / max) * H * 8;
-          return (
-            <g key={i}>
-              <rect x={x} y={H - rh} width={bw} height={rh} rx="1.5" fill="var(--primary)" style={{ transformOrigin: `center ${H}px`, animation: `grow-bar .8s ${i * 0.07}s cubic-bezier(.2,.8,.2,1) both` }} />
-              <rect x={x + bw + 1.5} y={H - ch} width={bw} height={ch} rx="1.5" fill="var(--warning)" opacity="0.85" style={{ transformOrigin: `center ${H}px`, animation: `grow-bar .8s ${i * 0.07 + 0.1}s cubic-bezier(.2,.8,.2,1) both` }} />
-              <text x={x + bw} y={H + 8} fontSize="3.6" fill="var(--ink-3)" textAnchor="middle" fontFamily="var(--font-mono)">{d}</text>
-            </g>
-          );
-        })}
+        <g>
+          <rect x={cx - bw - 1} y={H - rh} width={bw} height={rh} rx="1.5" fill="var(--primary)" style={{ transformOrigin: `center ${H}px`, animation: 'grow-bar .8s cubic-bezier(.2,.8,.2,1) both' }} />
+          <rect x={cx + 1} y={H - ch} width={bw} height={ch} rx="1.5" fill="var(--warning)" opacity="0.85" style={{ transformOrigin: `center ${H}px`, animation: 'grow-bar .8s .1s cubic-bezier(.2,.8,.2,1) both' }} />
+          <text x={cx} y={H + 8} fontSize="3.6" fill="var(--ink-3)" textAnchor="middle" fontFamily="var(--font-mono)">{t('dash.chartNow')}</text>
+        </g>
       </svg>
     </div>
   );
@@ -270,13 +267,14 @@ export function CommandCenter({ escalations, metrics }: CommandCenterProps) {
     [t('dash.workReplies'),  metrics.replies, 'activity'],
   ];
 
-  /* System health rows — labels and notes are chrome */
+  /* System health rows — labels are chrome; notes are derived live from metrics (no baked numbers). */
+  const costPct = metrics.costLimit > 0 ? Math.round((metrics.cost / metrics.costLimit) * 100) : 0;
   const healthRows = [
-    { labelKey: 'dash.healthLeadFinder',     noteKey: 'dash.healthNoteScanned',    ok: true },
-    { labelKey: 'dash.healthDemoGenerator',  noteKey: 'dash.healthNoteDemos',      ok: true },
-    { labelKey: 'dash.healthOutreachSystem', noteKey: 'dash.healthNoteOutreach',   ok: true },
-    { labelKey: 'dash.healthDeployment',     noteKey: 'dash.healthNoteIdle',       ok: true },
-    { labelKey: 'dash.healthCostBudget',     noteKey: 'dash.healthNoteOverBudget', ok: false },
+    { labelKey: 'dash.healthLeadFinder',     note: t('dash.healthNoteScanned').replace('{n}', String(metrics.scanned)),     ok: true },
+    { labelKey: 'dash.healthDemoGenerator',  note: t('dash.healthNoteDemos').replace('{n}', String(metrics.demos)),         ok: true },
+    { labelKey: 'dash.healthOutreachSystem', note: t('dash.healthNoteOutreach').replace('{n}', String(metrics.outreach)),   ok: true },
+    { labelKey: 'dash.healthDeployment',     note: t('dash.healthNoteIdle'),                                                ok: true },
+    { labelKey: 'dash.healthCostBudget',     note: t('dash.healthNoteOverBudget').replace('{n}', String(costPct)),          ok: costPct < 80 },
   ];
 
   return (
@@ -359,14 +357,14 @@ export function CommandCenter({ escalations, metrics }: CommandCenterProps) {
           {/* revenue / cost */}
           <div className="card" style={{ padding: 18 }}>
             <h2 style={{ fontSize: 16, marginBottom: 14 }}>{t('cmd.revcost')}</h2>
-            <RevenueCostChart />
+            <RevenueCostChart metrics={metrics} />
           </div>
 
           {/* system health */}
           <div className="card" style={{ padding: 18 }}>
             <div className="row between" style={{ marginBottom: 6 }}><h2 style={{ fontSize: 16 }}>{t('cmd.health')}</h2><span className="badge badge-success">{t('cmd.operational')}</span></div>
             {healthRows.map(row => (
-              <HealthRow key={row.labelKey} label={t(row.labelKey)} ok={row.ok} note={t(row.noteKey)} />
+              <HealthRow key={row.labelKey} label={t(row.labelKey)} ok={row.ok} note={row.note} />
             ))}
           </div>
 

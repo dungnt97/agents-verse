@@ -118,7 +118,8 @@ export const en: Record<string, string> = {
   // ---- Revenue/cost chart legends ----
   'dash.chartRevenue': 'Revenue',
   'dash.chartAiCost': 'AI cost',
-  'dash.chartMargin': '81% margin',
+  'dash.chartMargin': '{n}% margin',
+  'dash.chartNow': 'Now',
 
   // ---- System health rows ----
   'dash.healthLeadFinder': 'Lead finder',
@@ -127,12 +128,12 @@ export const en: Record<string, string> = {
   'dash.healthDeployment': 'Deployment',
   'dash.healthCostBudget': 'Cost budget',
 
-  // ---- System health row notes (chrome, not data values) ----
-  'dash.healthNoteScanned': '148 scanned',
-  'dash.healthNoteDemos': '12 today',
-  'dash.healthNoteOutreach': '38 prepared',
+  // ---- System health row notes (templates; {n} filled live from metrics) ----
+  'dash.healthNoteScanned': '{n} scanned',
+  'dash.healthNoteDemos': '{n} today',
+  'dash.healthNoteOutreach': '{n} prepared',
   'dash.healthNoteIdle': 'idle',
-  'dash.healthNoteOverBudget': '86% used',
+  'dash.healthNoteOverBudget': '{n}% used',
 };
 
 export const vi: Record<string, string> = {
@@ -251,7 +252,8 @@ export const vi: Record<string, string> = {
   // ---- Revenue/cost chart legends ----
   'dash.chartRevenue': 'Doanh thu',
   'dash.chartAiCost': 'Chi phí AI',
-  'dash.chartMargin': 'Biên 81%',
+  'dash.chartMargin': 'Biên {n}%',
+  'dash.chartNow': 'Hiện tại',
 
   // ---- System health rows ----
   'dash.healthLeadFinder': 'Tìm Lead',
@@ -260,10 +262,10 @@ export const vi: Record<string, string> = {
   'dash.healthDeployment': 'Triển khai',
   'dash.healthCostBudget': 'Ngân sách chi phí',
 
-  // ---- System health row notes ----
-  'dash.healthNoteScanned': 'đã quét 148',
-  'dash.healthNoteDemos': '12 hôm nay',
-  'dash.healthNoteOutreach': 'đã chuẩn bị 38',
+  // ---- System health row notes (templates; {n} filled live from metrics) ----
+  'dash.healthNoteScanned': 'đã quét {n}',
+  'dash.healthNoteDemos': '{n} hôm nay',
+  'dash.healthNoteOutreach': 'đã chuẩn bị {n}',
   'dash.healthNoteIdle': 'rảnh',
-  'dash.healthNoteOverBudget': 'đã dùng 86%',
+  'dash.healthNoteOverBudget': 'đã dùng {n}%',
 };

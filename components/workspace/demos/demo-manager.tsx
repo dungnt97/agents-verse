@@ -359,6 +359,13 @@ export function DemoManager({ demos, initialLead }: DemoManagerProps) {
     won:    demos.filter(d => d.status==='won').length,
   };
 
+  // Average PageSpeed-style lift (after - before) across all demos.
+  const avgLift = demos.length
+    ? Math.round(demos.reduce((s, d) => s + (d.newScore - d.oldScore), 0) / demos.length)
+    : 0;
+  // Pipeline value (sum of estimated deal value), expressed in $k to match the band's prefix/suffix.
+  const pipelineK = Math.round(demos.reduce((s, d) => s + d.value, 0) / 1000 * 10) / 10;
+
   const openDemo = open ? demos.find(d => d.id === open) : null;
 
   return (
@@ -375,8 +382,8 @@ export function DemoManager({ demos, initialLead }: DemoManagerProps) {
         { label:t('demos.mReview'),   value:counts.review, icon:'alert',  accent:'var(--warning)' },
         { label:t('demos.mSent'),     value:counts.sent,   icon:'send',   accent:'var(--info)' },
         { label:t('demos.mWon'),      value:counts.won,    icon:'deals',  accent:'var(--success)' },
-        { label:t('demos.mAvgLift'),  value:51, suffix:' pts', icon:'arrowUR', accent:'var(--success)' },
-        { label:t('demos.mPipeline'), value:23.7, prefix:'$', suffix:'k', icon:'dollar' },
+        { label:t('demos.mAvgLift'),  value:avgLift, suffix:' pts', icon:'arrowUR', accent:'var(--success)' },
+        { label:t('demos.mPipeline'), value:pipelineK, prefix:'$', suffix:'k', icon:'dollar' },
       ]} />
 
       <div className="row wrap" style={{ gap:10, marginBottom:20 }}>

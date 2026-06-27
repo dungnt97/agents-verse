@@ -6,8 +6,6 @@ import {
   AV,
   ROOM_PROJECTS,
   PROJ_STATUS,
-  TIMELINE,
-  DEFAULT_TIMELINE,
   buildRoomMetrics,
 } from '@/lib/data';
 import type { Room, RoomProject, TimelineItem } from '@/lib/data/types';
@@ -58,18 +56,22 @@ export async function roomProjects(roomId: string): Promise<RoomProject[]> {
     .filter((p): p is RoomProject => p !== null);
 }
 
-// Static timeline overlay; only the room (for its fallback agent) comes from the DB.
+// There is no real per-room event log yet, so the timeline has no live source. Return an
+// empty list rather than seeded mock events; the UI shows an honest empty state.
 export async function roomTimeline(roomId: string): Promise<TimelineItem[]> {
-  const room = await getRoom(roomId);
-  const fallbackAgent = room ? room.agents[0] : null;
-  return (TIMELINE[roomId] || DEFAULT_TIMELINE).map((e) => ({
-    ...e,
-    agent: e.agent || fallbackAgent,
-  }));
+  void roomId;
+  return [];
 }
 
 export async function roomMetrics(roomId: string): Promise<[string, string | number][]> {
   if (!USE_DB) return AV.roomMetrics(roomId);
-  const room = await getRoom(roomId);
-  return room ? buildRoomMetrics(room) : [];
+  const [room, agents] = await Promise.all([getRoom(roomId), getAgents()]);
+  if (!room) return [];
+  // getRoom returns the seeded room row whose agents/running/status are static snapshots.
+  // Overlay them with LIVE agent activity (same derivation as getRooms) so the metrics strip
+  // reflects who is actually assigned/active right now. health/done have no real telemetry.
+  const inRoom = agents.filter((a) => a.room === room.id);
+  const running = inRoom.filter((a) => ACTIVE_AGENT.has(a.status)).length;
+  const status = running === 0 ? 'idle' : inRoom.some((a) => a.status === 'review') ? 'review' : 'active';
+  return buildRoomMetrics({ ...room, agents: inRoom.map((a) => a.id), running, active: running, status });
 }

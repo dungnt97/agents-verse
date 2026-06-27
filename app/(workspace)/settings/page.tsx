@@ -1,11 +1,13 @@
-'use client';
-
+/* =========================================================================
+   AGENTS VERSE — /settings route
+   Server Component: prefetches the founder settings singleton (guardrails,
+   pricing, autonomy) and passes it to the client SettingsScreen so the
+   persisted fields hydrate from the database instead of hardcoded defaults.
+   ========================================================================= */
+import { getSettings } from '@/lib/repositories/ops';
 import { SettingsScreen } from '@/components/workspace/settings/settings-screen';
-import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
-import { useToast } from '@/lib/providers/toast-provider';
 
-export default function SettingsPage() {
-  const { mode, setMode } = useWorkspaceState();
-  const onAction = useToast();
-  return <SettingsScreen mode={mode} setMode={setMode} onAction={onAction} />;
+export default async function SettingsPage() {
+  const settings = await getSettings();
+  return <SettingsScreen settings={settings} />;
 }
