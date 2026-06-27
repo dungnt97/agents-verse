@@ -194,7 +194,7 @@ export interface FloorOverviewProps {
 }
 
 export function FloorOverview({ escalations, activity, metrics }: FloorOverviewProps) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const router = useRouter();
   const onAction = useToast();
   const goCommand = () => router.push('/command');
@@ -217,11 +217,13 @@ export function FloorOverview({ escalations, activity, metrics }: FloorOverviewP
             <h1 style={{ fontSize: 28, letterSpacing: '-0.03em' }}>{greet}{t('ov.founder')}</h1>
             <span className="badge badge-success" style={{ height: 24 }}><span className="pulse" style={{ background: 'var(--success)' }} /> {t('ov.running')}</span>
           </div>
-          <p style={{ fontSize: 15, color: 'var(--ink-2)' }}>{t('ov.sub')}</p>
+          <p style={{ fontSize: 15, color: 'var(--ink-2)' }}>{lang === 'vi'
+            ? `${metrics.online} agent đang chạy · ${metrics.inProgress} tác vụ đang xử lý · ${metrics.completed} hoàn tất hôm nay`
+            : `${metrics.online} agents online · ${metrics.inProgress} tasks in progress · ${metrics.completed} completed today`}</p>
         </div>
         <div className="row" style={{ gap: 10 }}>
           <button className="btn btn-ghost" style={{ borderColor: 'var(--border)' }} onClick={() => onAction('Daily briefing requested')}><Icon name="doc" size={16} /> {t('ov.briefing')}</button>
-          <button className="btn btn-primary" onClick={goCommand}>{t('ov.review')} <Icon name="arrowR" size={16} /></button>
+          <button className="btn btn-primary" onClick={goCommand}>{lang === 'vi' ? `Duyệt ${escalations.length} việc cần xử lý` : `Review ${escalations.length} escalation${escalations.length === 1 ? '' : 's'}`} <Icon name="arrowR" size={16} /></button>
         </div>
       </div>
 

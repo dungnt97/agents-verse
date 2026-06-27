@@ -28,7 +28,7 @@ import {
   rejectSupportEscalation,
 } from '@/lib/actions/escalations';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
-import type { Escalation } from '@/lib/data/types';
+import type { Escalation, Metrics } from '@/lib/data/types';
 
 /* ---- Revenue vs cost chart ---- */
 
@@ -237,9 +237,10 @@ function MetricStat({ label, value, decimals = 0, prefix = '', suffix = '', icon
 
 export interface CommandCenterProps {
   escalations: Escalation[];
+  metrics: Metrics;
 }
 
-export function CommandCenter({ escalations }: CommandCenterProps) {
+export function CommandCenter({ escalations, metrics }: CommandCenterProps) {
   const { t } = useI18n();
   const onAction = useToast();
   const { agents } = useWorkspaceData();
@@ -263,10 +264,10 @@ export function CommandCenter({ escalations }: CommandCenterProps) {
 
   /* Today's AI work sub-labels */
   const workItems: [string, number, string][] = [
-    [t('dash.workScanned'),  148, 'search'],
-    [t('dash.workDemos'),     12, 'layers'],
-    [t('dash.workOutreach'),  38, 'send'],
-    [t('dash.workReplies'),    7, 'activity'],
+    [t('dash.workScanned'),  metrics.scanned, 'search'],
+    [t('dash.workDemos'),    metrics.demos, 'layers'],
+    [t('dash.workOutreach'), metrics.outreach, 'send'],
+    [t('dash.workReplies'),  metrics.replies, 'activity'],
   ];
 
   /* System health rows — labels and notes are chrome */
@@ -297,10 +298,11 @@ export function CommandCenter({ escalations }: CommandCenterProps) {
 
       {/* executive metrics */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 14, marginBottom: 24 }} className="metric-strip">
-        <MetricStat label={t('m.forecast')} value={8.4} decimals={1} prefix="$" suffix="k" icon="dollar" delta="+$2.1k" accent="var(--success)" spark={[3, 4, 4.5, 6, 6.8, 7.6, 8.4]} sparkColor="var(--success)" />
-        <MetricStat label={t('cmd.m2')} value={6940} prefix="$" icon="activity" delta="+31%" accent="var(--primary)" spark={[2, 3, 3.4, 4.6, 5.2, 6, 6.9]} />
-        <MetricStat label={t('cmd.m3')} value={2} icon="deals" delta="+1" accent="var(--violet)" spark={[0, 0, 1, 1, 1, 2, 2]} sparkColor="var(--violet)" />
-        <MetricStat label={t('m.cost')} value={42.8} decimals={2} prefix="$" icon="bolt" meter meterPct={86} accent="var(--warning)" />
+        {/* Live metrics — real COUNT/SUM/derive from getMetrics(); no fabricated deltas/sparklines. */}
+        <MetricStat label={t('m.forecast')} value={metrics.forecast / 1000} decimals={1} prefix="$" suffix="k" icon="dollar" accent="var(--success)" />
+        <MetricStat label={t('cmd.m2')} value={metrics.netProfit} prefix="$" icon="activity" accent="var(--primary)" />
+        <MetricStat label={t('cmd.m3')} value={metrics.won} icon="deals" accent="var(--violet)" />
+        <MetricStat label={t('m.cost')} value={metrics.cost} decimals={2} prefix="$" icon="bolt" meter meterPct={metrics.costLimit > 0 ? Math.round((metrics.cost / metrics.costLimit) * 100) : 0} accent="var(--warning)" />
       </div>
 
       {/* main grid */}

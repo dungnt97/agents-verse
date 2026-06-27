@@ -1,9 +1,8 @@
 import { CommandCenter } from '@/components/workspace/command/command-center';
-import { getOpenEscalations } from '@/lib/repositories/ops';
+import { getOpenEscalations, getMetrics } from '@/lib/repositories/ops';
 
-// Server Component — fetches the OPEN escalation queue (resolved/dismissed drop off) and
-// passes it to the client screen. Toast is wired inside CommandCenter via useToast.
+// Server Component — fetches the OPEN escalation queue + live metrics, passes them to the client screen.
 export default async function CommandPage() {
-  const escalations = await getOpenEscalations();
-  return <CommandCenter escalations={escalations} />;
+  const [escalations, metrics] = await Promise.all([getOpenEscalations(), getMetrics()]);
+  return <CommandCenter escalations={escalations} metrics={metrics} />;
 }
