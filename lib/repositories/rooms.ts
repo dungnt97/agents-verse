@@ -11,6 +11,7 @@ import {
   buildRoomMetrics,
 } from '@/lib/data';
 import type { Room, RoomProject, TimelineItem } from '@/lib/data/types';
+import { getAgents } from './agents';
 import { USE_DB } from './config';
 
 // DB rooms.pos is text|null; the Room type uses optional (string|undefined).
@@ -18,10 +19,22 @@ function toRoom(r: typeof roomsTable.$inferSelect): Room {
   return { ...r, pos: r.pos ?? undefined };
 }
 
+// Room rows are seeded config (name/purpose/position). Their live STATS — which agents are in the room,
+// how many are active right now, the room status + a short current-status line — are derived from the
+// live agent activity, not from the seeded mock counts. done/health have no real per-room telemetry, so
+// they report 0/100 honestly rather than a fabricated number.
+const ACTIVE_AGENT = new Set(['working', 'active']);
 export async function getRooms(): Promise<Room[]> {
   if (!USE_DB) return AV.rooms;
-  const rows = await db.select().from(roomsTable);
-  return rows.map(toRoom);
+  const [rows, agents] = await Promise.all([db.select().from(roomsTable), getAgents()]);
+  return rows.map((r) => {
+    const room = toRoom(r);
+    const inRoom = agents.filter((a) => a.room === room.id);
+    const running = inRoom.filter((a) => ACTIVE_AGENT.has(a.status)).length;
+    const status = running === 0 ? 'idle' : inRoom.some((a) => a.status === 'review') ? 'review' : 'active';
+    const mission = running > 0 ? `${running} active task${running === 1 ? '' : 's'} right now` : 'Idle — awaiting work';
+    return { ...room, agents: inRoom.map((a) => a.id), running, active: running, status, done: 0, health: 100, mission };
+  });
 }
 
 export async function getRoom(id: string): Promise<Room | undefined> {
