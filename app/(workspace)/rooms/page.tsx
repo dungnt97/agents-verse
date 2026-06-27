@@ -1,8 +1,9 @@
-/* Server Component — fetches rooms list, delegates navigation to the client wrapper inside RoomsIndex. */
+/* Server Component — fetches rooms list + live metrics; delegates navigation to RoomsIndex. */
 import { getRooms } from '@/lib/repositories/rooms';
+import { getMetrics } from '@/lib/repositories/ops';
 import { RoomsIndex } from '@/components/workspace/rooms/rooms-index';
 
 export default async function RoomsPage() {
-  const rooms = await getRooms();
-  return <RoomsIndex rooms={rooms} />;
+  const [rooms, metrics] = await Promise.all([getRooms(), getMetrics()]);
+  return <RoomsIndex rooms={rooms} metrics={metrics} />;
 }

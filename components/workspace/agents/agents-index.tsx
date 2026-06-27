@@ -170,6 +170,9 @@ export function AgentsIndex({ onOpen, onRoom }: AgentsIndexProps) {
 
   const avgConf = Math.round(agents.reduce((s, a) => s + a.conf, 0) / agents.length);
   const needReview = agents.filter(a => a.status === 'review' || a.status === 'escalate').length;
+  const activeNow = agents.filter(a => a.status === 'working' || a.status === 'active').length;
+  const tasksToday = agents.reduce((sum, a) => sum + (a.tasks ?? 0), 0);
+  const aiCost = Math.round(agents.reduce((sum, a) => sum + (a.cost ?? 0), 0) * 100) / 100;
 
   return (
     <div style={{ padding: '26px 28px 60px', maxWidth: 1480, margin: '0 auto' }}>
@@ -180,12 +183,12 @@ export function AgentsIndex({ onOpen, onRoom }: AgentsIndexProps) {
         </div>
       </div>
       <OverviewBand items={[
-        { label: t('agents.bandTotal'),      value: 11,        icon: 'agents' },
-        { label: t('agents.bandActiveNow'),  value: 6,         icon: 'activity', accent: 'var(--success)' },
+        { label: t('agents.bandTotal'),      value: agents.length,        icon: 'agents' },
+        { label: t('agents.bandActiveNow'),  value: activeNow,         icon: 'activity', accent: 'var(--success)' },
         { label: t('agents.bandNeedReview'), value: needReview, icon: 'alert',   accent: 'var(--warning)' },
         { label: t('agents.bandAvgConf'),    value: avgConf,   icon: 'shield',   suffix: '%' },
-        { label: t('agents.bandTasksToday'), value: 238,       icon: 'check' },
-        { label: t('agents.bandAiCost'),     value: 42.8,      icon: 'bolt',     accent: 'var(--warning)' },
+        { label: t('agents.bandTasksToday'), value: tasksToday,       icon: 'check' },
+        { label: t('agents.bandAiCost'),     value: aiCost,      icon: 'bolt',     accent: 'var(--warning)' },
       ]} />
 
       {/* filters */}
