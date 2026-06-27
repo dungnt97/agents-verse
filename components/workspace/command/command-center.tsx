@@ -9,12 +9,10 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { useToast } from '@/lib/providers/toast-provider';
-import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { ConfidenceRing } from '@/components/ui/confidence-ring';
 import { Sparkline } from '@/components/ui/sparkline';
 import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n';
-import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { fmt } from '@/lib/data/format';
 import {
   resolveEscalation,
@@ -173,17 +171,6 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
 
 /* ---- HealthRow ---- */
 
-function HealthRow({ label, ok = true, note }: { label: string; ok?: boolean; note: string }) {
-  return (
-    <div className="row between" style={{ padding: '10px 0', borderBottom: '1px solid var(--border-soft)' }}>
-      <span className="row" style={{ gap: 10 }}>
-        <span style={{ width: 8, height: 8, borderRadius: 99, background: ok ? 'var(--success)' : 'var(--warning)', boxShadow: `0 0 0 3px color-mix(in oklab, ${ok ? 'var(--success)' : 'var(--warning)'} 18%, transparent)` }} />
-        <span style={{ fontSize: 13.5, color: 'var(--ink)' }}>{label}</span>
-      </span>
-      <span style={{ fontSize: 12, color: ok ? 'var(--ink-3)' : 'var(--warning)', fontWeight: ok ? 400 : 600 }}>{note}</span>
-    </div>
-  );
-}
 
 /* ---- MetricStat (local, mirrors floor-overview version) ---- */
 
@@ -240,16 +227,8 @@ export interface CommandCenterProps {
 export function CommandCenter({ escalations, metrics }: CommandCenterProps) {
   const { t } = useI18n();
   const onAction = useToast();
-  const { agents } = useWorkspaceData();
   const [exp, setExp] = useState<string | null>('e1');
-  const topAgents = [...agents].sort((a, b) => b.quality - a.quality).slice(0, 4);
 
-  /* Recommended actions — titles, descriptions and action labels are chrome strings */
-  const recs = [
-    { ic: 'user',   titleKey: 'dash.recCallTitle',    descKey: 'dash.recCallDesc',    actKey: 'dash.recCallAct' },
-    { ic: 'deals',  titleKey: 'dash.recApproveTitle',  descKey: 'dash.recApproveDesc',  actKey: 'dash.recApproveAct' },
-    { ic: 'dollar', titleKey: 'dash.recBudgetTitle',   descKey: 'dash.recBudgetDesc',   actKey: 'dash.recBudgetAct' },
-  ];
 
   /* Filter chips — chrome labels */
   const filters = [
@@ -267,15 +246,6 @@ export function CommandCenter({ escalations, metrics }: CommandCenterProps) {
     [t('dash.workReplies'),  metrics.replies, 'activity'],
   ];
 
-  /* System health rows — labels are chrome; notes are derived live from metrics (no baked numbers). */
-  const costPct = metrics.costLimit > 0 ? Math.round((metrics.cost / metrics.costLimit) * 100) : 0;
-  const healthRows = [
-    { labelKey: 'dash.healthLeadFinder',     note: t('dash.healthNoteScanned').replace('{n}', String(metrics.scanned)),     ok: true },
-    { labelKey: 'dash.healthDemoGenerator',  note: t('dash.healthNoteDemos').replace('{n}', String(metrics.demos)),         ok: true },
-    { labelKey: 'dash.healthOutreachSystem', note: t('dash.healthNoteOutreach').replace('{n}', String(metrics.outreach)),   ok: true },
-    { labelKey: 'dash.healthDeployment',     note: t('dash.healthNoteIdle'),                                                ok: true },
-    { labelKey: 'dash.healthCostBudget',     note: t('dash.healthNoteOverBudget').replace('{n}', String(costPct)),          ok: costPct < 80 },
-  ];
 
   return (
     <div style={{ padding: '26px 28px 60px', maxWidth: 1480, margin: '0 auto' }}>
@@ -338,54 +308,12 @@ export function CommandCenter({ escalations, metrics }: CommandCenterProps) {
 
         {/* right rail */}
         <div className="col" style={{ gap: 20 }}>
-          {/* recommended actions */}
-          <div className="card" style={{ padding: 18 }}>
-            <h2 style={{ fontSize: 16, marginBottom: 14 }}>{t('cmd.recommended')}</h2>
-            <div className="col" style={{ gap: 10 }}>
-              {recs.map((r, i) => (
-                <div key={i} className="row between" style={{ padding: '12px 13px', borderRadius: 12, border: '1px solid var(--border)' }}>
-                  <span className="row" style={{ gap: 11, minWidth: 0 }}>
-                    <span style={{ width: 32, height: 32, borderRadius: 9, background: 'var(--primary-soft)', color: 'var(--primary)', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name={r.ic} size={16} /></span>
-                    <span style={{ minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 600 }}>{t(r.titleKey)}</div><div style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>{t(r.descKey)}</div></span>
-                  </span>
-                  <button className="btn btn-soft btn-sm" onClick={() => onAction(t(r.actKey) + ' · ' + t(r.titleKey), 'success')} style={{ flex: 'none' }}>{t(r.actKey)}</button>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* revenue / cost */}
           <div className="card" style={{ padding: 18 }}>
             <h2 style={{ fontSize: 16, marginBottom: 14 }}>{t('cmd.revcost')}</h2>
             <RevenueCostChart metrics={metrics} />
           </div>
 
-          {/* system health */}
-          <div className="card" style={{ padding: 18 }}>
-            <div className="row between" style={{ marginBottom: 6 }}><h2 style={{ fontSize: 16 }}>{t('cmd.health')}</h2><span className="badge badge-success">{t('cmd.operational')}</span></div>
-            {healthRows.map(row => (
-              <HealthRow key={row.labelKey} label={t(row.labelKey)} ok={row.ok} note={row.note} />
-            ))}
-          </div>
-
-          {/* agent performance */}
-          <div className="card" style={{ padding: 18 }}>
-            <h2 style={{ fontSize: 16, marginBottom: 14 }}>{t('cmd.topAgents')}</h2>
-            <div className="col" style={{ gap: 4 }}>
-              {topAgents.map((a, i) => (
-                <div key={a.id} className="row between" style={{ padding: '8px 0', borderBottom: i < topAgents.length - 1 ? '1px solid var(--border-soft)' : 'none' }}>
-                  <span className="row" style={{ gap: 11 }}>
-                    <AgentAvatar id={a.id} size={30} />
-                    <span><div style={{ fontSize: 13.5, fontWeight: 600 }}>{a.name}</div><div style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>{a.role.replace(' Agent', '')}</div></span>
-                  </span>
-                  <span className="row" style={{ gap: 10 }}>
-                    <span className="mono" style={{ fontSize: 12, color: 'var(--ink-2)' }}>{a.quality}</span>
-                    <div className="track" style={{ width: 54, height: 6 }}><i style={{ width: a.quality + '%' }} /></div>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>

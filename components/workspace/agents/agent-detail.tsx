@@ -1,9 +1,9 @@
 'use client';
 /* =========================================================================
-   AGENTS VERSE — AgentDetail + FounderChat
-   Agent detail view: current task, skills/tools, outputs, history,
-   performance panel, and the canned-reply FounderChat widget.
-   AgentDetail + FounderChat.
+   AGENTS VERSE — AgentDetail
+   Agent detail view: current task, purpose, skills + enabled tools.
+   (Fabricated quality/confidence, outputs gallery, task history, performance
+   tiles and the canned FounderChat were removed — no real data source.)
    ========================================================================= */
 
 import { useState, useEffect, useRef } from 'react';
