@@ -18,6 +18,7 @@ import { useToast } from '@/lib/providers/toast-provider';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { fmt, statusMap } from '@/lib/data/format';
 import type { Escalation, ActivityItem, Metrics } from '@/lib/data/types';
+import { relativeTime } from '@/lib/data/format';
 
 /* ---- MetricStat ---- */
 
@@ -79,7 +80,7 @@ function ActivityRow({ a }: { a: ActivityItem }) {
           <span style={{ width: 3, height: 3, borderRadius: 99, background: 'var(--border-strong)' }} />
           <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{roomById(a.room)?.short}</span>
           <span style={{ width: 3, height: 3, borderRadius: 99, background: 'var(--border-strong)' }} />
-          <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{a.t}</span>
+          <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{a.seq ? relativeTime(a.seq) : a.t}</span>
         </div>
       </div>
       <span style={{ width: 7, height: 7, borderRadius: 99, background: statusColor, marginTop: 5, flex: 'none' }} />
@@ -105,7 +106,6 @@ export function EscalationMini({ e, onAction }: EscalationMiniProps) {
           <span style={{ width: 30, height: 30, borderRadius: 9, background: 'var(--warning-soft)', color: 'var(--warning)', display: 'grid', placeItems: 'center', flex: 'none' }}><Icon name={kindIcon} size={16} /></span>
           <span className={'badge ' + sevCls} style={{ height: 20, fontSize: 11 }}>{e.sev} {t('dash.prioritySuffix')}</span>
         </span>
-        <span className="mono" style={{ fontSize: 10.5, color: 'var(--ink-3)' }}>{e.time}</span>
       </div>
       <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, lineHeight: 1.3 }}>{e.title}</div>
       <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 12 }}>{e.who}{e.value > 0 && ' · ' + fmt.money(e.value)}</div>

@@ -111,7 +111,7 @@ function RequestCard({ r, onAction, onConvert, onUpdate }: RequestCardProps) {
               {r.business}
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>
-              {r.industry} · {r.city} · {r.t}
+              {r.industry} · {r.city}
             </div>
           </span>
         </span>

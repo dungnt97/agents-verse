@@ -133,7 +133,7 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
               <span className="mono" style={{ fontSize: 10.5, color: 'var(--ink-3)' }}>{t(kindLabelKey)}</span>
             </span>
             <span style={{ fontSize: 15, fontWeight: 600, display: 'block', lineHeight: 1.25 }}>{e.title}</span>
-            <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{e.who}{e.value > 0 && ' · ' + fmt.money(e.value)} · {e.time}</span>
+            <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{e.who}{e.value > 0 && ' · ' + fmt.money(e.value)}</span>
           </span>
         </span>
         <span className="row" style={{ gap: 14, flex: 'none' }}>
