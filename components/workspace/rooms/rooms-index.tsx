@@ -12,7 +12,7 @@ import { AvatarStack } from '@/components/ui/agent-avatar';
 import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n';
 import { statusMap } from '@/lib/data/format';
-import type { Room } from '@/lib/data/types';
+import type { Room, Metrics } from '@/lib/data/types';
 import { ROOM_ICON } from '@/components/floor-map';
 // Side-effect import: merges rooms.* + agents.* keys into AV_DICT
 import '@/lib/i18n/keys/rooms-agents';
@@ -207,9 +207,10 @@ const SORT_I18N: Record<string, string> = {
    ------------------------------------------------------------------------- */
 export interface RoomsIndexProps {
   rooms: Room[];
+  metrics: Metrics;
 }
 
-export function RoomsIndex({ rooms: allRooms }: RoomsIndexProps) {
+export function RoomsIndex({ rooms: allRooms, metrics }: RoomsIndexProps) {
   const { t } = useI18n();
   const router = useRouter();
   const [q, setQ] = useState('');
@@ -234,12 +235,12 @@ export function RoomsIndex({ rooms: allRooms }: RoomsIndexProps) {
         </div>
       </div>
       <OverviewBand items={[
-        { label: t('rooms.bandTotal'),        value: 8,          icon: 'rooms' },
+        { label: t('rooms.bandTotal'),        value: allRooms.length,          icon: 'rooms' },
         { label: t('rooms.bandActive'),        value: activeCount, icon: 'activity', accent: 'var(--success)' },
         { label: t('rooms.bandNeedReview'),    value: attn,        icon: 'alert',    accent: 'var(--warning)' },
-        { label: t('rooms.bandAgentsOnline'),  value: 17,          icon: 'agents' },
-        { label: t('rooms.bandTasksRunning'),  value: 42,          icon: 'bolt' },
-        { label: t('rooms.bandDoneToday'),     value: 238,         icon: 'check' },
+        { label: t('rooms.bandAgentsOnline'),  value: metrics.online,          icon: 'agents' },
+        { label: t('rooms.bandTasksRunning'),  value: metrics.inProgress,          icon: 'bolt' },
+        { label: t('rooms.bandDoneToday'),     value: metrics.completed,         icon: 'check' },
       ]} />
       <FilterBar
         q={q} setQ={setQ}

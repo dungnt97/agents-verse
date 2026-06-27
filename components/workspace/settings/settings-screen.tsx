@@ -157,6 +157,8 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
   const { useDb } = useWorkspaceState();
   const [isSaving, startSave] = useTransition();
   const { agents } = useWorkspaceData();
+  // Live daily AI spend = sum of the agents' estimated cost today (no fabricated figure).
+  const spend = Math.round(agents.reduce((sum, a) => sum + (a.cost ?? 0), 0) * 100) / 100;
 
   const SECTIONS = [
     { id: 'brand',      label: t('set.sectionBrand'),      icon: 'spark'   },
@@ -503,10 +505,10 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
                   <span className="row" style={{ gap: 8, fontSize: 13, fontWeight: 600 }}>
                     <Icon name="bolt" size={15} style={{ color: 'var(--warning)' }} /> {t('set.todaySpend')}
                   </span>
-                  <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>$42.80 / ${daily}.00</span>
+                  <span className="mono" style={{ fontSize: 13, fontWeight: 600 }}>${spend.toFixed(2)} / ${daily}.00</span>
                 </div>
                 <div className="track" style={{ height: 7 }}>
-                  <i style={{ width: Math.min(100, 42.8 / daily * 100) + '%', background: 'var(--warning)' }} />
+                  <i style={{ width: Math.min(100, (spend / daily) * 100) + '%', background: 'var(--warning)' }} />
                 </div>
               </div>
               <SettingRow title={t('set.dailyBudget')}>
