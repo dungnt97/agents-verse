@@ -17,16 +17,16 @@ import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { AUTONOMY } from '@/components/workspace/autonomy-control';
 import { updateGuardrails, updatePricing } from '@/lib/actions/settings';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
-import type { ToastKind } from '@/lib/providers/toast-provider';
+import { useToast } from '@/lib/providers/toast-provider';
+import type { WorkspaceSettings } from '@/lib/repositories/ops';
 
 /* -------------------------------------------------------------------------
    Prop types
    ------------------------------------------------------------------------- */
 
 export interface SettingsScreenProps {
-  mode: string;
-  setMode: (mode: string) => void;
-  onAction: (msg: string, kind?: ToastKind) => void;
+  /** Founder settings singleton from the DB (null in demo / no-DB mode). */
+  settings: WorkspaceSettings | null;
 }
 
 /* -------------------------------------------------------------------------
@@ -151,11 +151,20 @@ interface AgentCfg {
    SettingsScreen
    ------------------------------------------------------------------------- */
 
-export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps) {
+export function SettingsScreen({ settings }: SettingsScreenProps) {
   const { t } = useI18n();
   const router = useRouter();
-  const { useDb } = useWorkspaceState();
+  const { mode, setMode, useDb } = useWorkspaceState();
+  const onAction = useToast();
   const [isSaving, startSave] = useTransition();
+
+  // Persisted founder controls hydrate from the DB settings singleton. Keys mirror
+  // the jsonb shape written by updateGuardrails / updatePricing; missing keys (and
+  // the whole row, in no-DB/demo mode) fall back to the original showcase defaults.
+  const gr = (settings?.guardrails ?? {}) as Record<string, unknown>;
+  const pr = (settings?.pricing ?? {}) as Record<string, unknown>;
+  const num = (v: unknown, fallback: number) =>
+    typeof v === 'number' && Number.isFinite(v) ? v : fallback;
   const { agents } = useWorkspaceData();
   // Live daily AI spend = sum of the agents' estimated cost today (no fabricated figure).
   const spend = Math.round(agents.reduce((sum, a) => sum + (a.cost ?? 0), 0) * 100) / 100;
@@ -187,12 +196,13 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
 
   // Pricing / quote rules
   const [autoQuote, setAutoQuote] = useState(true);
-  const [approveAbove, setApproveAbove] = useState(4000);
+  // Founder-approval-above threshold — persisted (guardrails.autoApproveLimit).
+  const [approveAbove, setApproveAbove] = useState(() => num(gr.autoApproveLimit, 4000));
   const [customEsc, setCustomEsc] = useState(true);
 
-  // AI cost limits
-  const [daily, setDaily] = useState(50);
-  const [costPerRun, setCostPerRun] = useState(0.4);
+  // AI cost limits — daily cap + per-run cost are persisted (guardrails.*).
+  const [daily, setDaily] = useState(() => num(gr.dailyCostLimit, 50));
+  const [costPerRun, setCostPerRun] = useState(() => num(gr.costPerRun, 0.4));
   const [monthly, setMonthly] = useState(1200);
   const [perDemo, setPerDemo] = useState(6);
   const [perOut, setPerOut] = useState(1);
@@ -204,8 +214,12 @@ export function SettingsScreen({ mode, setMode, onAction }: SettingsScreenProps)
     call: true, legal: true, custom: true, complaint: true, lowconf: true, discount: true,
   });
 
-  // Pricing values
-  const [prices, setPrices] = useState({ landing: 900, business: 2400, monthly: 240 });
+  // Pricing values — package prices are persisted (pricing.* in the settings row).
+  const [prices, setPrices] = useState(() => ({
+    landing: num(pr.landingPage, 900),
+    business: num(pr.businessWebsite, 2400),
+    monthly: num(pr.monthlyGrowthCare, 240),
+  }));
 
   // Per-agent config — initialised from workspace agents directory
   const [agentCfg, setAgentCfg] = useState<Record<string, AgentCfg>>(() =>

@@ -430,6 +430,11 @@ export function DealsScreen({ deals, initialLead }: DealsScreenProps) {
   const list = deals.filter(d => d.client.toLowerCase().includes(q.toLowerCase()) && matchS(d));
   const needYou = deals.filter(d => d.stage === 'call' || d.stage === 'approval').length;
   const weighted = Math.round(deals.reduce((s, d) => s + d.value * d.probability / 100, 0));
+  const wonCount = deals.filter(d => d.stage === 'won').length;
+  // No per-deal close timestamp exists, so this is the live total of won deals (not windowed to a week).
+  const avgProb = deals.length ? Math.round(deals.reduce((s, d) => s + d.probability, 0) / deals.length) : 0;
+  // A non-null production timeline marks a deal as actively in production.
+  const inProduction = deals.filter(d => d.production != null).length;
   const openDeal = open ? deals.find(d => d.id === open) : null;
 
   return (
@@ -445,9 +450,9 @@ export function DealsScreen({ deals, initialLead }: DealsScreenProps) {
         { label:t('deals.mOpen'),       value:deals.filter(d=>d.stage!=='lost').length, icon:'deals' },
         { label:t('deals.mApproval'),   value:needYou,  icon:'alert',    accent:'var(--warning)' },
         { label:t('deals.mWeighted'),   value:weighted, icon:'dollar',   accent:'var(--success)', prefix:'$' },
-        { label:t('deals.mWonWeek'),    value:1,        icon:'check',    accent:'var(--success)' },
-        { label:t('deals.mAvgProb'),    value:69,       icon:'activity', suffix:'%' },
-        { label:t('deals.mProduction'), value:1,        icon:'bolt',     accent:'var(--primary)' },
+        { label:t('deals.mWonWeek'),    value:wonCount,     icon:'check',    accent:'var(--success)' },
+        { label:t('deals.mAvgProb'),    value:avgProb,      icon:'activity', suffix:'%' },
+        { label:t('deals.mProduction'), value:inProduction, icon:'bolt',     accent:'var(--primary)' },
       ]} />
 
       <div className="row wrap" style={{ gap:8, marginBottom:20 }}>

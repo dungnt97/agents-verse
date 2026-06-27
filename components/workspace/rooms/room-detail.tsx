@@ -248,7 +248,9 @@ export function RoomDetail({ roomId, room: r, projects, timeline, metrics, onBac
               <h2 style={{ fontSize: 16 }}>{t('rooms.roomTimeline')}</h2>
               <span className="pulse" />
             </div>
-            <div>{timeline.map((e, i) => <TimelineItem key={i} e={e} last={i === timeline.length - 1} />)}</div>
+            {timeline.length === 0
+              ? <p style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.45, margin: '4px 0' }}>{t('rooms.nothingSub')}</p>
+              : <div>{timeline.map((e, i) => <TimelineItem key={i} e={e} last={i === timeline.length - 1} />)}</div>}
           </div>
         </div>
       </div>
