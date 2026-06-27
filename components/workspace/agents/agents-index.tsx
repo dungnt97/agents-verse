@@ -9,7 +9,6 @@ import { useState } from 'react';
 import { Icon } from '@/components/brand/icon';
 import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { ConfidenceRing } from '@/components/ui/confidence-ring';
 import { CountUp } from '@/components/ui/count-up';
 import { useI18n } from '@/lib/i18n';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
@@ -75,7 +74,6 @@ function AgentCard({ id, onOpen, onRoom }: AgentCardProps) {
             <div style={{ fontSize: 12.5, color: 'var(--ink-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.role}</div>
           </span>
         </span>
-        <ConfidenceRing value={a.conf} size={42} />
       </div>
       <div className="row" style={{ gap: 8, marginBottom: 13 }}>
         <StatusBadge status={a.status} sm />
@@ -94,7 +92,6 @@ function AgentCard({ id, onOpen, onRoom }: AgentCardProps) {
       <div className="row between" style={{ fontSize: 12 }}>
         {([
           [t('agents.cardTasksLabel'),   a.tasks],
-          [t('agents.cardQualityLabel'), a.quality],
           [t('agents.cardCostLabel'),    '$' + a.cost.toFixed(2)],
         ] as [string, string | number][]).map(([l, v], i) => (
           <span key={i} className="col" style={{ alignItems: i === 0 ? 'flex-start' : i === 2 ? 'flex-end' : 'center', flex: 1 }}>
@@ -122,10 +119,8 @@ const STAT: Record<string, (a: AgentData) => boolean> = {
   'Idle':         a => a.status === 'idle',
 };
 
-const SORT_KEYS = ['Top quality', 'Highest confidence', 'Most tasks', 'Highest cost'] as const;
+const SORT_KEYS = ['Most tasks', 'Highest cost'] as const;
 const SORT: Record<string, (a: AgentData, b: AgentData) => number> = {
-  'Top quality':        (a, b) => b.quality - a.quality,
-  'Highest confidence': (a, b) => b.conf - a.conf,
   'Most tasks':         (a, b) => b.tasks - a.tasks,
   'Highest cost':       (a, b) => b.cost - a.cost,
 };
@@ -140,8 +135,6 @@ const STAT_I18N: Record<string, string> = {
 };
 
 const SORT_I18N: Record<string, string> = {
-  'Top quality':        'agents.sortTopQuality',
-  'Highest confidence': 'agents.sortHighestConf',
   'Most tasks':         'agents.sortMostTasks',
   'Highest cost':       'agents.sortHighestCost',
 };
@@ -160,7 +153,7 @@ export function AgentsIndex({ onOpen, onRoom }: AgentsIndexProps) {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('All');
   const [roomF, setRoomF] = useState('All rooms');
-  const [sort, setSort] = useState('Top quality');
+  const [sort, setSort] = useState('Most tasks');
 
   let list = agents
     .filter(STAT[status])
@@ -168,7 +161,6 @@ export function AgentsIndex({ onOpen, onRoom }: AgentsIndexProps) {
     .filter(a => (a.name + a.role).toLowerCase().includes(q.toLowerCase()));
   list = [...list].sort(SORT[sort]);
 
-  const avgConf = Math.round(agents.reduce((s, a) => s + a.conf, 0) / agents.length);
   const needReview = agents.filter(a => a.status === 'review' || a.status === 'escalate').length;
   const activeNow = agents.filter(a => a.status === 'working' || a.status === 'active').length;
   const tasksToday = agents.reduce((sum, a) => sum + (a.tasks ?? 0), 0);
@@ -186,7 +178,6 @@ export function AgentsIndex({ onOpen, onRoom }: AgentsIndexProps) {
         { label: t('agents.bandTotal'),      value: agents.length,        icon: 'agents' },
         { label: t('agents.bandActiveNow'),  value: activeNow,         icon: 'activity', accent: 'var(--success)' },
         { label: t('agents.bandNeedReview'), value: needReview, icon: 'alert',   accent: 'var(--warning)' },
-        { label: t('agents.bandAvgConf'),    value: avgConf,   icon: 'shield',   suffix: '%' },
         { label: t('agents.bandTasksToday'), value: tasksToday,       icon: 'check' },
         { label: t('agents.bandAiCost'),     value: aiCost,      icon: 'bolt',     accent: 'var(--warning)' },
       ]} />

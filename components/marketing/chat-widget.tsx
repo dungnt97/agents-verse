@@ -14,15 +14,15 @@ import { Mark } from '@/components/brand/mark';
 export function chatReply(text: string): string {
   const t = text.toLowerCase();
   if (/approv|review|escalat|attention|need/.test(t))
-    return "3 things need you right now:\n• Nova Realty — client asked for a call ($6.4k)\n• Mekong Logistics — quote above your $4k limit ($5.2k)\n• AI cost at 86% of today’s budget\n\nWant me to open the Command Center?";
+    return "Open the Command Center — it lists everything waiting on your approval right now.";
   if (/demo/.test(t))
-    return "12 demos generated today. 1 needs your review (Atlas Dental, 34 → 88) and Lumi Spa is approved and ready to send. Shall I open the Demo Manager?";
+    return "Open the Demo Manager to review the demos that have been generated.";
   if (/pric|cost|budget|spend|margin/.test(t))
-    return "AI cost today is $42.80 of your $50 budget (86%). Revenue forecast is $8.4k at an 81% margin — net projected profit ≈ $6,940.";
+    return "Your AI cost, daily budget and package pricing all live in Settings and the Command Center.";
   if (/lead|pipeline|deal/.test(t))
-    return "43 high-potential leads · $26.6k open pipeline. Your warmest deal is Nova Realty ($6.4k) — it’s waiting on a founder call.";
+    return "Open Leads for the current pipeline, or Deals for what is in play.";
   if (/summary|today|status|going|how.*we/.test(t))
-    return "Today so far: 148 sites scanned, 12 demos generated, 38 outreach messages prepared, 7 client replies, 2 deals won. 3 items need your decision.";
+    return "Check the Overview for today\u2019s live activity and metrics.";
   if (/hi|hello|hey|help/.test(t))
     return "Hi! I’m your Verse assistant. I can summarize the day, surface what needs approval, and point you to leads, demos or deals. What would you like?";
   return "I can review escalations, check demos, track the pipeline, or summarize the day for you. Try one of the suggestions below, or ask me anything.";

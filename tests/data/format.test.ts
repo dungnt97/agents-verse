@@ -9,6 +9,7 @@ import {
   DEAL_STAGE,
   REQ_STATUS,
   hueFor,
+  relativeTime,
 } from '@/lib/data/format';
 
 // `lib/data/format.ts` is the single client-safe source of presentation constants
@@ -216,5 +217,24 @@ describe('hueFor', () => {
   it('varies across different known inputs (not a constant)', () => {
     const hues = new Set(['Healthcare', 'Wellness', 'Hospitality', 'Fitness'].map(hueFor));
     expect(hues.size).toBeGreaterThan(1);
+  });
+});
+
+
+describe('relativeTime', () => {
+  const now = Math.floor(Date.now() / 1000);
+  it('reports "just now" under a minute (and clamps future timestamps)', () => {
+    expect(relativeTime(now)).toBe('just now');
+    expect(relativeTime(now - 30)).toBe('just now');
+    expect(relativeTime(now + 100)).toBe('just now');
+  });
+  it('reports minutes between 1m and 1h', () => {
+    expect(relativeTime(now - 120)).toBe('2 min ago');
+  });
+  it('reports hours between 1h and 1d', () => {
+    expect(relativeTime(now - 2 * 3600)).toBe('2h ago');
+  });
+  it('reports days beyond 1d', () => {
+    expect(relativeTime(now - 3 * 86400)).toBe('3d ago');
   });
 });

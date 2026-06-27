@@ -15,6 +15,7 @@ import { useI18n } from '@/lib/i18n/i18n-provider';
 import { useToast } from '@/lib/providers/toast-provider';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import type { ActivityItem } from '@/lib/data/types';
+import { relativeTime } from '@/lib/data/format';
 
 /* -------------------------------------------------------------------------
    Prop types
@@ -162,7 +163,7 @@ export function ActivityScreen({ activity }: ActivityScreenProps) {
                   {/* Time + vertical rail */}
                   <div className="row" style={{ gap: 14, flex: 'none' }}>
                     <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-3)', width: 42, textAlign: 'right', paddingTop: 16 }}>
-                      {a.t}
+                      {a.seq ? relativeTime(a.seq) : a.t}
                     </span>
                     <div className="col center" style={{ width: 14 }}>
                       <span style={{ width: 3, height: 14, background: i === 0 ? 'transparent' : 'var(--border)' }} />

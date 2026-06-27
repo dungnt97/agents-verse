@@ -8,12 +8,11 @@
 
 import { useState, useEffect } from 'react';
 import { wrap } from './layout-constants';
-import { DifferenceSection, HowItWorks, Showcase, InsideCompany, WhyWins } from './sections-1';
+import { DifferenceSection, HowItWorks, InsideCompany, WhyWins } from './sections-1';
 import { Pricing, TrustSafety, FinalCTA, Footer } from './sections-2';
 import { Icon } from '@/components/brand/icon';
 import { Logo } from '@/components/brand/logo';
 import { Reveal } from '@/components/ui/reveal';
-import { CountUp } from '@/components/ui/count-up';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { FloorMap } from '@/components/floor-map';
 import { LangToggle, useI18n } from '@/lib/i18n';
@@ -92,12 +91,6 @@ export function FloatCard({ icon, iconColor, iconBg, title, sub, badge, badgeCls
 /* ---- Hero product visual — floor screen + floating cards ---- */
 export function HeroVisual() {
   const { t } = useLandingInfoT();
-  const metrics: [string, string][] = [
-    [t('land.metricScanned'), '148'],
-    [t('land.metricDemos'),   '12'],
-    [t('land.metricReplies'), '7'],
-    [t('land.metricForecast'),'$8.4k'],
-  ];
   return (
     <div style={{ position: 'relative', width: '100%', minHeight: 520 }}>
       {/* glow */}
@@ -115,18 +108,8 @@ export function HeroVisual() {
             <span style={{ width: 9, height: 9, borderRadius: 99, background: 'var(--border-strong)' }} />
           </div>
           <span className="row" style={{ gap: 7, fontSize: 12, color: 'var(--ink-3)' }}><Logo size={16} mono /> <span className="mono">{t('land.floorOverview')}</span></span>
-          <span className="row" style={{ gap: 6, fontSize: 11.5, color: 'var(--ink-3)' }}><span className="pulse" /> 17 {t('land.online')}</span>
         </div>
         <div style={{ padding: 16 }}>
-          {/* mini metric strip */}
-          <div className="row" style={{ gap: 8, marginBottom: 14 }}>
-            {metrics.map(([l, v], i) => (
-              <div key={i} style={{ flex: 1, padding: '8px 11px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 10, color: 'var(--ink-3)', marginBottom: 2 }}>{l}</div>
-                <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.02em' }} className="tabular">{v}</div>
-              </div>
-            ))}
-          </div>
           <FloorMap compact height={300} />
         </div>
       </div>
@@ -138,9 +121,6 @@ export function HeroVisual() {
       <FloatCard icon="activity" iconColor="var(--info)" iconBg="var(--info-soft)"
         title={t('land.cardReplyTitle')} sub={t('land.cardReplySub')} badge={t('land.cardNew')} badgeCls="badge-info"
         style={{ position: 'absolute', right: -22, top: 70, zIndex: 3, width: 250 }} delay={1.4} />
-      <FloatCard icon="user" iconColor="var(--warning)" iconBg="var(--warning-soft)"
-        title={t('land.cardFounderTitle')} sub={t('land.cardFounderSub')} badge="$5.2k" badgeCls="badge-warning"
-        style={{ position: 'absolute', right: 10, bottom: 18, zIndex: 3, width: 252 }} delay={2.6} />
     </div>
   );
 }
@@ -154,12 +134,6 @@ interface HeroProps {
 
 export function Hero({ onEnter: _onEnter, onRequestDemo, onContact }: HeroProps) {
   const { t } = useI18n();
-  const stats = [
-    { v:148, suffix:'', l:t('stat.scanned') },
-    { v:12, suffix:'', l:t('stat.demos') },
-    { v:7, suffix:'', l:t('stat.replies') },
-    { v:8.4, suffix:'k', prefix:'$', dec:1, l:t('stat.pipeline') },
-  ];
   return (
     <section style={{ position: 'relative', overflow: 'hidden' }}>
       <div className="grain" style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
@@ -195,18 +169,6 @@ export function Hero({ onEnter: _onEnter, onRequestDemo, onContact }: HeroProps)
                 <Icon name="shield" size={15} /> {t('hero.trust')}
               </div>
             </Reveal>
-            <Reveal delay={340}>
-              <div className="row wrap" style={{ gap: 0, borderTop: '1px solid var(--border)', paddingTop: 22 }}>
-                {stats.map((s, i) => (
-                  <div key={i} style={{ paddingRight: 26, marginRight: 26, borderRight: i<stats.length-1?'1px solid var(--border)':'none' }}>
-                    <div style={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.03em' }}>
-                      <CountUp end={s.v} decimals={s.dec||0} prefix={s.prefix||''} suffix={s.suffix||''} />
-                    </div>
-                    <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 2 }}>{s.l}</div>
-                  </div>
-                ))}
-              </div>
-            </Reveal>
           </div>
           <Reveal delay={200} className="hero-visual-wrap">
             <HeroVisual />
@@ -233,7 +195,6 @@ export function LandingPage({ onEnter, onRequestDemo, onNav }: LandingPageProps)
       <Hero onEnter={onEnter} onRequestDemo={rd} onContact={()=>onNav && onNav('contact')} />
       <DifferenceSection />
       <HowItWorks />
-      <Showcase />
       <InsideCompany />
       <WhyWins />
       <Pricing onRequestDemo={rd} />

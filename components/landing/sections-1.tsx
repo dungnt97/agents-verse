@@ -10,7 +10,6 @@ import { wrap } from './layout-constants';
 import { Icon } from '@/components/brand/icon';
 import { Logo } from '@/components/brand/logo';
 import { Reveal } from '@/components/ui/reveal';
-import { CountUp } from '@/components/ui/count-up';
 import { SiteMock } from '@/components/site-mock';
 import { FloorMap } from '@/components/floor-map';
 import { useI18n } from '@/lib/i18n';
@@ -132,76 +131,6 @@ export function HowItWorks() {
   );
 }
 
-/* ---- S4 · Before / after showcase ---- */
-export function Showcase() {
-  const { t } = useI18n();
-  const cases = [
-    { co:'Atlas Dental Clinic', ind:'Healthcare · Houston', hue:200, before:34, after:88, note:'Modern booking-first homepage with clear trust signals and a mobile-first layout.' },
-    { co:'Lumi Spa Studio',     ind:'Wellness · Singapore', hue:300, before:41, after:92, note:'Editorial spa brand with a calm visual system and a streamlined booking flow.' },
-    { co:'GreenBite Restaurant',ind:'Hospitality · Brooklyn',hue:140, before:38, after:90, note:'Appetite-driven hero, live menu and one-tap reservations on every screen.' },
-  ];
-  const [active, setActive] = useState(0);
-  const c = cases[active];
-  return (
-    <section style={{ ...wrap, padding: '110px 28px' }} id="showcase">
-      <SectionHead eyebrow={t('show.eyebrow')} title={t('show.title')}
-        sub={t('show.sub')} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.55fr) minmax(0,1fr)', gap: 30, alignItems: 'center' }} className="showcase-grid">
-        {/* big before/after */}
-        <Reveal>
-          <div className="card-elev" style={{ padding: 18, boxShadow: 'var(--sh-lg)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, alignItems: 'start' }}>
-              <div>
-                <div className="row between" style={{ marginBottom: 9 }}>
-                  <span className="eyebrow" style={{ color: 'var(--ink-3)' }}>{t('show.before')}</span>
-                  <span className="badge badge-danger">{c.before}/100</span>
-                </div>
-                <SiteMock variant="old" hue={c.hue} label={c.co.toLowerCase().replace(/[^a-z]/g,'').slice(0,9)+'.com'} />
-              </div>
-              <div>
-                <div className="row between" style={{ marginBottom: 9 }}>
-                  <span className="eyebrow" style={{ color: 'var(--primary)' }}>{t('show.after')}</span>
-                  <span className="badge badge-success">{c.after}/100</span>
-                </div>
-                <SiteMock variant="new" hue={c.hue} label="demo.agentsverse.ai" />
-              </div>
-            </div>
-          </div>
-        </Reveal>
-        {/* details + switcher */}
-        <div>
-          <Reveal delay={100}>
-            <div className="row" style={{ gap: 14, marginBottom: 6 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)' }} className="tabular">{c.before}</span>
-              <div className="track grow" style={{ height: 8 }}>
-                <i style={{ width: c.after + '%', background: 'linear-gradient(90deg, var(--primary), var(--success))' }} />
-              </div>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)' }} className="tabular">{c.after}</span>
-            </div>
-            <div className="eyebrow" style={{ marginBottom: 20, color: 'var(--ink-3)' }}>+{c.after - c.before} {t('show.lift')}</div>
-            <h3 style={{ fontSize: 24, marginBottom: 6 }}>{c.co}</h3>
-            <div style={{ fontSize: 13.5, color: 'var(--ink-3)', marginBottom: 16 }}>{c.ind}</div>
-            <p style={{ fontSize: 15.5, color: 'var(--ink-2)', lineHeight: 1.55, marginBottom: 22, textWrap: 'pretty' }}>{c.note}</p>
-            <button className="btn btn-ghost btn-sm" style={{ marginBottom: 26 }}>{t('show.view')} <Icon name="arrowUR" size={15} /></button>
-          </Reveal>
-          <div className="col" style={{ gap: 8 }}>
-            {cases.map((cc, i) => (
-              <button key={i} onClick={() => setActive(i)} className="row between focusable"
-                style={{ padding: '11px 13px', borderRadius: 11, textAlign: 'left', width: '100%',
-                  border: `1px solid ${active===i?'var(--primary)':'var(--border)'}`, background: active===i?'var(--primary-soft)':'var(--surface)', transition:'all .18s' }}>
-                <span className="row" style={{ gap: 11 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 99, background: `oklch(0.6 0.15 ${cc.hue})` }} />
-                  <span style={{ fontSize: 14, fontWeight: active===i?600:500, whiteSpace:'nowrap' }}>{cc.co}</span>
-                </span>
-                <span className="mono" style={{ fontSize: 12, color: active===i?'var(--primary)':'var(--ink-3)' }}>{cc.before}→{cc.after}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 /* ---- S5 · Inside the AI company ---- */
 export function InsideCompany() {
@@ -253,13 +182,6 @@ export function WhyWins() {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.15fr)', gap: 56, alignItems: 'start' }} className="why-grid">
         <div style={{ position: 'sticky', top: 100 }}>
           <SectionHead eyebrow={t('why.eyebrow')} title={t('why.title')} />
-          <Reveal delay={160}>
-            <div className="row" style={{ gap: 28, marginTop: 8 }}>
-              <div><div style={{ fontSize: 40, fontWeight: 600, letterSpacing: '-0.04em', color: 'var(--primary)' }}><CountUp end={3.4} decimals={1} suffix="×" /></div><div style={{ fontSize: 13, color: 'var(--ink-3)' }}>{t('why.reply')}</div></div>
-              <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch' }} />
-              <div><div style={{ fontSize: 40, fontWeight: 600, letterSpacing: '-0.04em', color: 'var(--primary)' }}><CountUp end={48} suffix="h" /></div><div style={{ fontSize: 13, color: 'var(--ink-3)' }}>{t('why.lead')}</div></div>
-            </div>
-          </Reveal>
         </div>
         <div className="col" style={{ gap: 0 }}>
           {points.map((p, i) => (

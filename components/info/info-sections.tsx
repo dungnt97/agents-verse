@@ -62,12 +62,6 @@ export interface AboutPageProps {
 
 export function AboutPage({ onRequestDemo }: AboutPageProps) {
   const { t } = useLandingInfoT();
-  const stats: [string, string][] = [
-    ['148', t('info.about.statSites')],
-    ['3.4×', t('info.about.statReply')],
-    ['48h', t('info.about.statLead')],
-    ['8', t('info.about.statDepts')],
-  ];
   const values = [
     { t: t('info.about.v1t'), d: t('info.about.v1d') },
     { t: t('info.about.v2t'), d: t('info.about.v2d') },
@@ -77,11 +71,6 @@ export function AboutPage({ onRequestDemo }: AboutPageProps) {
   return (
     <>
       <InfoHero eyebrow={t('info.about.eyebrow')} title={t('info.about.title')} sub={t('info.about.sub')} />
-      <div style={{ ...wrap, paddingBottom: 20 }}>
-        <Reveal><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 0, border: '1px solid var(--border)', borderRadius: 18, overflow: 'hidden', background: 'var(--surface)' }}>
-          {stats.map(([v, l], i) => (<div key={i} style={{ padding: '24px 22px', borderRight: i < stats.length - 1 ? '1px solid var(--border)' : 'none' }}><div style={{ fontSize: 34, fontWeight: 600, letterSpacing: '-0.03em', color: 'var(--primary)' }}>{v}</div><div style={{ fontSize: 13.5, color: 'var(--ink-3)', marginTop: 4 }}>{l}</div></div>))}
-        </div></Reveal>
-      </div>
       <div style={{ ...wrap, paddingTop: 40, paddingBottom: 20 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1.2fr)', gap: 56 }} className="why-grid">
           <Reveal><h2 style={{ fontSize: 'clamp(26px,3vw,36px)', letterSpacing: '-0.03em', lineHeight: 1.1 }}>{t('info.about.midTitle')}</h2></Reveal>
@@ -288,11 +277,8 @@ export interface CasesPageProps {
 
 export function CasesPage({ onRequestDemo }: CasesPageProps) {
   const { t } = useLandingInfoT();
-  const cases = [
-    { co: 'Atlas Dental Clinic',  ind: 'Healthcare · Houston',   hue: 200, before: 34, after: 88, result: t('info.cases.r1'), quote: t('info.cases.q1') },
-    { co: 'Lumi Spa Studio',      ind: 'Wellness · Singapore',   hue: 300, before: 41, after: 92, result: t('info.cases.r2'), quote: t('info.cases.q2') },
-    { co: 'GreenBite Restaurant', ind: 'Hospitality · Brooklyn', hue: 140, before: 38, after: 90, result: t('info.cases.r3'), quote: t('info.cases.q3') },
-  ];
+  // No published case studies yet — fabricated examples removed (no real source).
+  const cases: { co: string; ind: string; hue: number; result: string; quote: string }[] = [];
   return (
     <>
       <InfoHero eyebrow={t('info.cases.eyebrow')} title={t('info.cases.title')} sub={t('info.cases.sub')} />
@@ -304,8 +290,8 @@ export function CasesPage({ onRequestDemo }: CasesPageProps) {
                 here as showcase-grid only to keep the page pixel-identical to the original. */}
             <div className="showcase-grid" style={{ padding: 20, display: 'grid', gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr)', gap: 26, alignItems: 'center', boxShadow: 'var(--sh-md)' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div><div className="row between" style={{ marginBottom: 8 }}><span className="eyebrow" style={{ color: 'var(--ink-3)' }}>{t('info.cases.before')}</span><span className="badge badge-danger" style={{ height: 20 }}>{c.before}</span></div><SiteMock variant="old" hue={c.hue} chrome={false} ratio="66%" /></div>
-                <div><div className="row between" style={{ marginBottom: 8 }}><span className="eyebrow" style={{ color: 'var(--primary)' }}>{t('info.cases.after')}</span><span className="badge badge-success" style={{ height: 20 }}>{c.after}</span></div><SiteMock variant="new" hue={c.hue} chrome={false} ratio="66%" /></div>
+                <div><div className="row between" style={{ marginBottom: 8 }}><span className="eyebrow" style={{ color: 'var(--ink-3)' }}>{t('info.cases.before')}</span></div><SiteMock variant="old" hue={c.hue} chrome={false} ratio="66%" /></div>
+                <div><div className="row between" style={{ marginBottom: 8 }}><span className="eyebrow" style={{ color: 'var(--primary)' }}>{t('info.cases.after')}</span></div><SiteMock variant="new" hue={c.hue} chrome={false} ratio="66%" /></div>
               </div>
               <div>
                 <h3 style={{ fontSize: 22, marginBottom: 4 }}>{c.co}</h3>
@@ -373,10 +359,6 @@ export function StatusPage({ onRequestDemo }: StatusPageProps) {
     [t('info.status.comp5'), t('info.status.compStatus')],
     [t('info.status.comp6'), t('info.status.compStatus')],
   ];
-  const incidents = [
-    { d: 'May 28, 2026', t: t('info.status.inc1t'), s: t('info.status.inc1s'), dur: '42 min',      note: t('info.status.inc1note') },
-    { d: 'May 14, 2026', t: t('info.status.inc2t'), s: t('info.status.inc2s'), dur: '1 hr 10 min', note: t('info.status.inc2note') },
-  ];
   return (
     <>
       <InfoHero eyebrow={t('info.status.eyebrow')} title={t('info.status.title')} sub={t('info.status.sub')} max={620} />
@@ -385,7 +367,6 @@ export function StatusPage({ onRequestDemo }: StatusPageProps) {
           <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 20 }}>
             <div className="row between" style={{ padding: '18px 22px', background: 'var(--success-soft)', borderBottom: '1px solid var(--border)' }}>
               <span className="row" style={{ gap: 11, fontSize: 16, fontWeight: 600, color: 'var(--success)' }}><span className="pulse" style={{ background: 'var(--success)' }} /> {t('info.status.allOp')}</span>
-              <span className="mono" style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>{t('info.status.uptime')}</span>
             </div>
             <div style={{ padding: '6px 22px' }}>
               {comps.map(([n, s], i) => (<div key={i} className="row between" style={{ padding: '14px 0', borderBottom: i < comps.length - 1 ? '1px solid var(--border-soft)' : 'none' }}>
@@ -393,18 +374,6 @@ export function StatusPage({ onRequestDemo }: StatusPageProps) {
                 <span className="row" style={{ gap: 8, fontSize: 13, color: 'var(--success)', fontWeight: 600 }}><span style={{ width: 8, height: 8, borderRadius: 99, background: 'var(--success)' }} />{s}</span>
               </div>))}
             </div>
-          </div>
-        </Reveal>
-        <Reveal delay={80}>
-          <div className="eyebrow" style={{ margin: '14px 0 14px' }}>{t('info.status.incidentsEyebrow')}</div>
-          <div className="col" style={{ gap: 12 }}>
-            {incidents.map((inc, i) => (<div key={i} className="card" style={{ padding: '16px 20px' }}>
-              <div className="row between" style={{ marginBottom: 6, flexWrap: 'wrap', gap: 8 }}>
-                <span className="row" style={{ gap: 10 }}><span style={{ fontSize: 15, fontWeight: 600 }}>{inc.t}</span><span className="badge badge-success">{inc.s}</span></span>
-                <span className="mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>{inc.d} · {inc.dur}</span>
-              </div>
-              <p style={{ fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.45 }}>{inc.note}</p>
-            </div>))}
           </div>
         </Reveal>
       </div>

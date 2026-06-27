@@ -79,3 +79,12 @@ const INDUSTRY_HUE: Record<string, number> = {
 export function hueFor(ind: string): number {
   return INDUSTRY_HUE[ind] || 220;
 }
+
+// Relative-time label from a real unix-seconds timestamp (e.g. activity.seq). No fabricated values.
+export function relativeTime(epochSec: number): string {
+  const diff = Math.max(0, Math.floor(Date.now() / 1000) - epochSec);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}

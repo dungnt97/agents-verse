@@ -88,6 +88,8 @@ export interface Escalation {
 
 export interface ActivityItem {
   t: string;
+  /** Real event time (unix seconds) when DB-backed; absent in demo-mode mock. */
+  seq?: number;
   agent: string;
   room: string;
   type: string;
