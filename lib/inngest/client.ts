@@ -58,6 +58,11 @@ export interface ReplyReceivedData {
 
 // Outreach (Echo): requested = compose + (gate or send) the demo-offer email for a lead; approved =
 // the founder okayed a gated draft, send it; sent = the fact emitted once the email actually went out.
+export interface ProposalRequestedData {
+  dealId: string;
+  runId?: string;
+}
+
 export interface OutreachRequestedData {
   leadId: string;
   runId?: string;

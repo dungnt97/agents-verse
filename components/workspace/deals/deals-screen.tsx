@@ -13,6 +13,7 @@ import { useI18n } from '@/lib/i18n/i18n-provider';
 import { fmt, hueFor, DEAL_STAGE } from '@/lib/data/format';
 import { useToast } from '@/lib/providers/toast-provider';
 import { updateDealStage, setProductionStage, toggleProductionAsset } from '@/lib/actions/deals';
+import { emailProposal } from '@/lib/actions/email-proposal';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { Deal, Production } from '@/lib/data/types';
 
@@ -251,6 +252,9 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
           <div className="row" style={{ gap: 8 }}>
             <button className="btn btn-soft btn-sm focusable" onClick={() => window.open('/deals/' + d.id + '/proposal', '_blank')}>
               <Icon name="dollar" size={14} /> Proposal
+            </button>
+            <button className="btn btn-soft btn-sm focusable" disabled={pending} onClick={() => startTransition(async () => { const r = await emailProposal(d.id); onAction(r.message, r.ok ? 'success' : 'warning'); })}>
+              <Icon name="send" size={14} /> {pending ? 'Sending…' : 'Email'}
             </button>
             <button className="btn btn-icon btn-ghost focusable" onClick={onClose} style={{ borderColor:'var(--border)' }}>
               <Icon name="x" size={17} />
