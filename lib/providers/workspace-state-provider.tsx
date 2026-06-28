@@ -203,7 +203,9 @@ export function WorkspaceStateProvider({
 
   const newReqCount = requests.filter((r) => r.status === 'new').length;
   const badges: Badges = {
-    command: 3,
+    // The Command Center badge is the live open-escalations count, passed into the Sidebar from the
+    // server layout; this provider value is unused for it (kept 0 so nothing fabricated leaks).
+    command: 0,
     requests: newReqCount || undefined,
   };
 

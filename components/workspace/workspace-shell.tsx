@@ -74,7 +74,7 @@ export function WorkspaceShell({
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
-      <Sidebar mobileOpen={mobileNav} onClose={() => setMobileNav(false)} />
+      <Sidebar mobileOpen={mobileNav} onClose={() => setMobileNav(false)} commandBadge={escalations.length} />
 
       {/* Mobile backdrop — only visible when sidebar is open on small screens */}
       {mobileNav && (

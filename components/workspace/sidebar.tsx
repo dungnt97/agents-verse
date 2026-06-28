@@ -31,7 +31,7 @@ interface NavGroup {
 const NAV: NavGroup[] = [
   { group: null, items: [
     { id: 'overview', label: 'Overview',       icon: 'overview', live: true },
-    { id: 'command',  label: 'Command Center', icon: 'command',  live: true, badge: 3 },
+    { id: 'command',  label: 'Command Center', icon: 'command',  live: true },
   ]},
   { group: 'Workspace', items: [
     { id: 'rooms',  label: 'Rooms',  icon: 'rooms' },
@@ -62,9 +62,11 @@ function activeRouteFromPathname(pathname: string): string {
 interface SidebarProps {
   mobileOpen: boolean;
   onClose: () => void;
+  /** Live open-escalations count for the Command Center badge (0 hides it). */
+  commandBadge?: number;
 }
 
-export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
+export function Sidebar({ mobileOpen, onClose, commandBadge }: SidebarProps) {
   const { t } = useI18n();
   const { user, logout } = useAuth();
   const { badges } = useWorkspaceState();
@@ -101,9 +103,11 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
             <div className="col" style={{ gap: 1 }}>
               {g.items.map(it => {
                 const active = activeRoute === it.id;
-                const badge = badges[it.id as keyof typeof badges] != null
-                  ? badges[it.id as keyof typeof badges]
-                  : it.badge;
+                const badge = it.id === 'command'
+                  ? (commandBadge || undefined)
+                  : badges[it.id as keyof typeof badges] != null
+                    ? badges[it.id as keyof typeof badges]
+                    : it.badge;
                 return (
                   <button key={it.id} onClick={() => onNav(it.id)} className="row between focusable" style={{
                     padding: '8px 10px', borderRadius: 9, textAlign: 'left', width: '100%', position: 'relative',
