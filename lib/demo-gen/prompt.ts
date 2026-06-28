@@ -211,7 +211,15 @@ export function buildPersonaReviewPrompt(
     ``,
     persona.brief(input),
     ``,
-    `Be honest and demanding — this is a pitch and the deliverable IS the quality. Output your standards then a clear, concrete list of findings with severities. No HTML.`,
+    `Be honest and demanding — this is a pitch and the deliverable IS the quality.`,
+    ``,
+    `CONFIDENCE GATE: raise only what a senior reviewer would be over 80% sure is a real problem. If you are not certain an issue is real, leave it out — a noisy review drags the page toward sanded-down nitpicks. Mark anything you cannot verify on the slices as UNREVIEWED rather than guessing.`,
+    ``,
+    `State your standards, then write each finding in this exact form (the WHY makes the revise pass fix the right thing, not just the symptom):`,
+    `- Expected: <the standard from your bar that applies> · Gap: <element + which viewport/slice + what is wrong> · Fix: <one concrete change> · Severity: blocker | major | minor`,
+    `Severity scale (use blocker sparingly so the synthesis can rank across lenses): blocker = a real customer bounces or the pitch is lost; major = noticeably cheapens it; minor = polish.`,
+    ``,
+    `End with ONE line — "VERDICT: PASS" or "VERDICT: HOLD" + the single highest-leverage change. If PASS, still name the one move that would make it stronger; empty praise ("looks good") is not an acceptable review. No HTML.`,
   ].join('\n');
 }
 

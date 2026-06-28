@@ -14,9 +14,22 @@ describe('agentPromptPreview', () => {
     const set = new Set(['vega', 'atlas', 'nova'].map((id) => agentPromptPreview(id)));
     expect(set.size).toBe(3);
   });
-  it('returns null for deterministic / non-renderable agents and unknown ids', () => {
+  it('renders the verbatim prompt for the ops + review-board agents too', () => {
+    for (const id of ['orion', 'echo', 'closer', 'cipher', 'mira', 'iris', 'kira']) {
+      const p = agentPromptPreview(id);
+      expect(p, id).toBeTruthy();
+      expect(p, id).toContain('Highlands Coffee'); // the sample job flows into every real builder
+    }
+  });
+  it('the review-board previews carry the shared finding contract (confidence gate + verdict)', () => {
+    for (const id of ['iris', 'kira']) {
+      const p = agentPromptPreview(id)!;
+      expect(p).toContain('CONFIDENCE GATE');
+      expect(p).toContain('VERDICT: PASS');
+    }
+  });
+  it('returns null only for deterministic agents (ledger) and unknown ids', () => {
     expect(agentPromptPreview('ledger')).toBeNull();
-    expect(agentPromptPreview('orion')).toBeNull();
     expect(agentPromptPreview('nope')).toBeNull();
   });
 });

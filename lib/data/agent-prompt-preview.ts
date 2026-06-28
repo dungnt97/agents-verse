@@ -1,15 +1,22 @@
-// Renders the VERBATIM runtime prompt for the demo-gen agents against a representative sample job, so
-// the founder can read the real instructions on the agent detail screen. Pure (imports only the prompt
-// builders, which are themselves pure). Returns null for agents whose work isn't a single renderable
-// prompt (deterministic agents like ledger, or web-action agents documented in the brief instead).
+// Renders the VERBATIM runtime prompt for each agent against a representative sample job, so the founder
+// can read the real instructions on the agent detail screen. Pure: it only calls the (pure) prompt
+// builders + the agent defs' buildPrompt. Returns null for agents with no single renderable prompt
+// (ledger is a deterministic cost-meter, not an LLM agent).
 import {
   buildResearchPrompt,
   buildDirectorPrompt,
   buildBuildPrompt,
+  buildPersonaReviewPrompt,
+  REVIEW_PERSONAS,
   type DemoGenInput,
 } from '@/lib/demo-gen/prompt';
+import { echoOutreach } from '@/lib/agents/defs/echo-outreach';
+import { closerSales } from '@/lib/agents/defs/closer-sales';
+import { cipherCoder } from '@/lib/agents/defs/cipher-coder';
+import { miraSupport } from '@/lib/agents/defs/mira-support';
+import { buildOrionPrompt } from '@/lib/discovery/orion-qualify';
 
-// A representative job (illustrative values) — the point is to show the prompt's real STRUCTURE and
+// A representative job (illustrative values) — the point is to show each prompt's real STRUCTURE and
 // instructions, not real audit numbers.
 const SAMPLE: DemoGenInput = {
   company: 'Highlands Coffee',
@@ -30,6 +37,17 @@ const SAMPLE: DemoGenInput = {
   summary: 'A well-known brand let down by a dated, low-converting site — strong redesign upside.',
 };
 
+const SAMPLE_PKG = 'Business Website redesign';
+// A representative client reply (Vietnamese) for the closer preview.
+const SAMPLE_REPLY = 'Bên mình quan tâm, nhưng giá hơi cao so với ngân sách. Có gói nào gọn hơn không?';
+
+// 'uiux' and 'art' are always present in REVIEW_PERSONAS (asserted by the board tests), so this never
+// returns null — the non-null assertion keeps the branch out of coverage.
+function reviewPreview(key: string): string {
+  const p = REVIEW_PERSONAS.find((x) => x.key === key)!;
+  return buildPersonaReviewPrompt(p, SAMPLE, ['<desktop top→bottom slices>'], ['<mobile top→bottom slices>'], 1280, 390);
+}
+
 export function agentPromptPreview(id: string): string | null {
   switch (id) {
     case 'vega':
@@ -38,6 +56,31 @@ export function agentPromptPreview(id: string): string | null {
       return buildDirectorPrompt(SAMPLE, "<Vega's research brief>", '<the winning concept>');
     case 'nova':
       return buildBuildPrompt(SAMPLE, "<Atlas's creative-director spec>");
+    case 'iris':
+      return reviewPreview('uiux');
+    case 'kira':
+      return reviewPreview('art');
+    case 'orion':
+      return buildOrionPrompt([
+        { company: SAMPLE.company, industry: SAMPLE.industry, city: SAMPLE.city, websiteUri: SAMPLE.url, siteScore: 38 },
+      ]);
+    case 'echo':
+      return echoOutreach.buildPrompt({
+        company: SAMPLE.company, industry: SAMPLE.industry, city: SAMPLE.city,
+        cta: SAMPLE.redesign.cta, summary: SAMPLE.summary,
+      });
+    case 'closer':
+      return closerSales.buildPrompt({
+        deal: { client: SAMPLE.company, industry: SAMPLE.industry, city: SAMPLE.city, pkg: SAMPLE_PKG, value: 2400, stage: 'quoted' },
+        legalNextStages: ['approval', 'call', 'won', 'lost'],
+        text: SAMPLE_REPLY,
+      });
+    case 'cipher':
+      return cipherCoder.buildPrompt({
+        company: SAMPLE.company, industry: SAMPLE.industry, city: SAMPLE.city, summary: SAMPLE.summary,
+      });
+    case 'mira':
+      return miraSupport.buildPrompt({ client: SAMPLE.company, industry: SAMPLE.industry, city: SAMPLE.city, pkg: SAMPLE_PKG });
     default:
       return null;
   }
