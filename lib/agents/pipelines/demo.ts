@@ -10,6 +10,8 @@ import { runAgent, runBoard } from '../runner';
 import { renderHtmlToPng, DESKTOP_WIDTH, MOBILE_WIDTH } from '../../demo-gen/render';
 import { auditLayout } from '../../demo-gen/layout-audit';
 import { formatLayoutFixList } from '../../demo-gen/layout-defects';
+import { runWebappQa } from '../../demo-gen/webapp-qa';
+import { formatQaReport, hasBlockingQa, majorQaCount } from '../../demo-gen/qa-findings';
 import { captureScreenshots, closeBrowser } from '../../audit/screenshot';
 import { vegaResearcher } from '../defs/vega-researcher';
 import { writeFile } from 'node:fs/promises';
@@ -153,6 +155,22 @@ export async function generateDemoHtml(input: DemoGenInput, step: StepRunner = i
         console.error('[demo-gen] layout guard: ' + defects.length + ' -> ' + after.length + ' defect(s) after pass ' + pass);
         best = fixed;
         defects = after;
+      }
+
+      // Web-app QA — console/JS errors, broken assets, basic a11y (complements the LAYOUT audit above).
+      try {
+        const qa = await runWebappQa(best);
+        if (qa.length > 0) console.error('[demo-gen] webapp QA: ' + qa.length + ' finding(s): ' + formatQaReport(qa).slice(0, 240));
+        if (hasBlockingQa(qa)) {
+          const fixed = await runAgent(novaLayoutFixer, { input, fixList: formatQaReport(qa), currentHtml: best });
+          // Keep the QA fix ONLY if it did not regress layout AND reduced blocking findings.
+          if ((await auditLayout(fixed)).length <= defects.length && majorQaCount(await runWebappQa(fixed)) < majorQaCount(qa)) {
+            console.error('[demo-gen] webapp QA: applied a fix pass (' + majorQaCount(qa) + ' major finding(s) before)');
+            best = fixed;
+          }
+        }
+      } catch (e) {
+        console.error('[demo-gen] webapp QA failed (best-effort, continuing):', e instanceof Error ? e.message : e);
       }
       return best;
     } catch (e) {
