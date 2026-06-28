@@ -74,6 +74,29 @@ export async function getMetrics(): Promise<Metrics> {
   const netProfit = forecast - monthlyCost;
   const margin = forecast > 0 ? Math.max(0, Math.round((netProfit / forecast) * 100)) : 0;
 
+  // Live bottleneck: the department holding the most non-terminal leads (>=2). Replaces the old hardcoded
+  // "Sales" badge — null when nothing is genuinely piling up, so the UI shows no false bottleneck.
+  const STAGE_DEPT: Record<string, string> = {
+    found: 'Lead Research',
+    audited: 'Website Audit',
+    demo: 'Design Studio',
+    contacted: 'Sales',
+    replied: 'Sales',
+  };
+  const stageCounts = await db
+    .select({ stage: leadsTable.stage, v: count() })
+    .from(leadsTable)
+    .groupBy(leadsTable.stage);
+  let bottleneck: string | null = null;
+  let bMax = 1; // require at least 2 leads piled before calling it a bottleneck
+  for (const r of stageCounts) {
+    const dept = STAGE_DEPT[r.stage as string];
+    if (dept && Number(r.v) > bMax) {
+      bMax = Number(r.v);
+      bottleneck = dept;
+    }
+  }
+
   return {
     scanned: Number(scanned),
     leads: Number(leadsN),
@@ -90,6 +113,7 @@ export async function getMetrics(): Promise<Metrics> {
     completed: Number(runsDone),
     margin,
     netProfit,
+    bottleneck,
   };
 }
 
