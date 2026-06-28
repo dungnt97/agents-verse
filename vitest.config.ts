@@ -44,6 +44,7 @@ export default defineConfig({
         'lib/agents/pipelines/demo.ts',
         'lib/demo-gen/render.ts',
         'lib/demo-gen/layout-audit.ts',
+        'lib/demo-gen/webapp-qa.ts',
         'lib/auth/**',
         'lib/actions/**',
         'lib/repositories/**',
