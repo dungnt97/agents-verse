@@ -1,0 +1,110 @@
+// =========================================================================
+// ORION — Lead Hunter (the research-room agent's brain).
+//
+// Discovery's deterministic layer (Places search + bad-website heuristic) finds real businesses;
+// Orion is the *qualification* judgment on top: for each candidate it estimates a realistic
+// redesign engagement value, a priority, and a one-line rationale. It calls the same gateway the
+// rest of the agents use (sonnet via 9router) and ALWAYS degrades to a deterministic estimate when
+// the gateway is off or the call fails — so discovery never breaks and no value is fabricated.
+// =========================================================================
+import { assistantConfigured, completeText } from '@/lib/integrations/assistant';
+
+export interface QualifyInput {
+  company: string;
+  industry: string;
+  city: string;
+  websiteUri: string | null;
+  /** Heuristic current-site quality 0-100 (higher = better site); null when there is no site. */
+  siteScore: number | null;
+}
+
+export interface Qualified {
+  /** Estimated value (USD) of a redesign + care engagement for this prospect. */
+  value: number;
+  priority: 'hot' | 'warm' | 'cold';
+  rationale: string;
+}
+
+const MIN_VALUE = 500;
+const MAX_VALUE = 20000;
+
+// Deterministic estimate used when the gateway is unavailable or the LLM answer is unusable.
+// Worse current site (or none) = bigger redesign upside = higher value + hotter priority.
+// A derived estimate from the real heuristic score — never a fixed fabricated number.
+export function fallbackQualify(item: QualifyInput): Qualified {
+  const s = item.siteScore ?? (item.websiteUri ? 50 : 20); // no website at all = strongest signal
+  const value = Math.round(Math.min(6000, Math.max(1500, (100 - s) * 55)) / 100) * 100;
+  const priority: Qualified['priority'] = s < 40 ? 'hot' : s < 70 ? 'warm' : 'cold';
+  const rationale = item.websiteUri
+    ? `Current site scores ${s}/100 — clear redesign upside.`
+    : 'No website found — prime greenfield prospect.';
+  return { value, priority, rationale };
+}
+
+// Orion's specialty prompt — qualify a batch of prospects as a lead hunter would.
+export function buildOrionPrompt(items: QualifyInput[]): string {
+  const list = items
+    .map(
+      (it, i) =>
+        `${i + 1}. ${it.company} — ${it.industry} in ${it.city}; ` +
+        (it.websiteUri ? `site ${it.websiteUri} (quality ${it.siteScore ?? '?'}/100)` : 'NO website'),
+    )
+    .join('\n');
+  return [
+    'You are Orion, the Lead Hunter for an autonomous AI web-design agency. Judge each business below',
+    'as a website-redesign prospect. Return ONLY a STRICT JSON array — same order and same length as the',
+    'list — of objects: {"value": <integer USD a redesign + monthly-care engagement is realistically',
+    'worth to this business>, "priority": "hot" | "warm" | "cold", "rationale": "<= 12 words, concrete>"}.',
+    'Lower current-site quality (or no website) means bigger upside and hotter priority. Be realistic',
+    'about small-business budgets (typically $900–$6000). No prose, no code fences — just the JSON array.',
+    '',
+    list,
+  ].join('\n');
+}
+
+// Parse the model's JSON array; returns null if it isn't a clean array of the expected length.
+export function parseQualified(text: string, n: number): Qualified[] | null {
+  const m = text.match(/\[[\s\S]*\]/);
+  if (!m) return null;
+  let arr: unknown;
+  try {
+    arr = JSON.parse(m[0]);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(arr) || arr.length !== n) return null;
+  const out: Qualified[] = [];
+  for (const r of arr) {
+    if (!r || typeof r !== 'object') return null;
+    const o = r as Record<string, unknown>;
+    const value = typeof o.value === 'number' ? o.value : Number(o.value);
+    if (!Number.isFinite(value)) return null;
+    const priority: Qualified['priority'] =
+      o.priority === 'hot' || o.priority === 'cold' ? o.priority : 'warm';
+    out.push({
+      value: Math.round(value),
+      priority,
+      rationale: typeof o.rationale === 'string' ? o.rationale : '',
+    });
+  }
+  return out;
+}
+
+// Qualify a batch. Always resolves (never throws): LLM judgment when the gateway is configured,
+// deterministic fallback otherwise. Values are clamped to a sane SMB range.
+export async function orionQualify(items: QualifyInput[]): Promise<Qualified[]> {
+  if (!items.length) return [];
+  if (!assistantConfigured()) return items.map(fallbackQualify);
+  try {
+    const text = await completeText(buildOrionPrompt(items), { maxTokens: 700 });
+    const parsed = parseQualified(text, items.length);
+    if (!parsed) return items.map(fallbackQualify);
+    return parsed.map((q, i) => ({
+      priority: q.priority,
+      value: Math.min(MAX_VALUE, Math.max(MIN_VALUE, q.value)),
+      rationale: q.rationale || fallbackQualify(items[i]).rationale,
+    }));
+  } catch {
+    return items.map(fallbackQualify);
+  }
+}

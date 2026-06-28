@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import {
   assistantConfigured,
   connectAssistant,
+  completeText,
   parseTextDeltas,
   type ChatTurn,
 } from '@/lib/integrations/assistant';
@@ -311,5 +312,77 @@ describe('parseTextDeltas', () => {
       },
     });
     expect(await collect(parseTextDeltas(new Response(stream)))).toEqual([]);
+  });
+});
+
+// ---- completeText (non-streaming) -----------------------------------------
+
+describe('completeText', () => {
+  let saved: Record<string, string | undefined>;
+  const realFetch = global.fetch;
+  beforeEach(() => {
+    saved = snapshotEnv();
+    process.env.ANTHROPIC_BASE_URL = 'https://gw.example.com/';
+    process.env.ANTHROPIC_AUTH_TOKEN = 'secret-token';
+    process.env.AGENT_MODEL_SONNET = 'claude-sonnet-test';
+  });
+  afterEach(() => {
+    restoreEnv(saved);
+    global.fetch = realFetch;
+    vi.restoreAllMocks();
+  });
+
+  function jsonRes(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  }
+
+  it('concatenates only the text content blocks and sends a correct non-streaming request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonRes({ content: [{ type: 'text', text: 'Hel' }, { type: 'tool_use' }, { type: 'text', text: 'lo' }] }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const out = await completeText('Rank these leads');
+    expect(out).toBe('Hello');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://gw.example.com/v1/messages');
+    const sent = JSON.parse((init as RequestInit).body as string) as { stream?: boolean; max_tokens: number; messages: unknown[]; system?: string };
+    expect(sent.stream).toBeUndefined(); // non-streaming
+    expect(sent.max_tokens).toBe(600); // default
+    expect(sent.messages).toEqual([{ role: 'user', content: 'Rank these leads' }]);
+    expect(sent.system).toBeUndefined(); // omitted when no system passed
+  });
+
+  it('honors maxTokens and system options', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonRes({ content: [{ type: 'text', text: 'ok' }] }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await completeText('p', { maxTokens: 1234, system: 'You are Orion' });
+    const sent = JSON.parse(fetchMock.mock.calls[0][1].body as string) as { max_tokens: number; system?: string };
+    expect(sent.max_tokens).toBe(1234);
+    expect(sent.system).toBe('You are Orion');
+  });
+
+  it('returns an empty string when content is missing or has no text', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonRes({}))
+      .mockResolvedValueOnce(jsonRes({ content: [{ type: 'text' }] }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    expect(await completeText('p')).toBe('');
+    expect(await completeText('p')).toBe('');
+  });
+
+  it('throws with status and truncated detail on a non-ok response', async () => {
+    const detail = 'y'.repeat(500);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(detail, { status: 500 }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await expect(completeText('p')).rejects.toThrow(/assistant complete 500:/);
+  });
+
+  it('tolerates res.text() rejecting on a non-ok response', async () => {
+    const flaky = { ok: false, status: 503, text: vi.fn().mockRejectedValue(new Error('read fail')) } as unknown as Response;
+    const fetchMock = vi.fn().mockResolvedValue(flaky);
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await expect(completeText('p')).rejects.toThrow('assistant complete 503: ');
   });
 });
