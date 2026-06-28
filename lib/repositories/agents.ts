@@ -18,7 +18,10 @@ export async function getAgents(): Promise<Agent[]> {
   if (!USE_DB) return AV.agents;
   // Overlay live status/task/today-count from real subsystem jobs onto the seeded roster.
   const [rows, activity] = await Promise.all([db.select().from(agentsTable), getAgentActivity()]);
-  return rows.map((r) => ({ ...toAgent(r), ...(activity[r.id] ?? {}) }));
+  // Display status reflects REAL activity only: default every agent to idle, then let the live overlay
+  // (active runs / demos / audits / escalations) flip the ones actually working. This stops the seeded
+  // base status from showing a fabricated "working" room when nothing is actually running.
+  return rows.map((r) => ({ ...toAgent(r), status: 'idle', task: 'Idle — awaiting work', tasks: 0, cost: 0, ...(activity[r.id] ?? {}) }));
 }
 
 export async function getAgent(id: string): Promise<Agent | undefined> {

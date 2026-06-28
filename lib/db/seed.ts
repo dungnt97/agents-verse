@@ -54,6 +54,11 @@ async function seedConfig() {
         const d = AV.agentDetail(a.id)!;
         return {
           ...a,
+          // Activity fields start neutral — real status/counts come from live subsystem jobs, not the seed.
+          status: 'idle',
+          task: 'Idle — awaiting work',
+          tasks: 0,
+          cost: 0,
           detail: {
             purpose: d.purpose,
             skills: d.skills,
