@@ -6,10 +6,10 @@ import {
   AV,
   ROOM_PROJECTS,
   PROJ_STATUS,
-  buildRoomMetrics,
 } from '@/lib/data';
 import type { Room, RoomProject, TimelineItem } from '@/lib/data/types';
 import { getAgents } from './agents';
+import { getMetrics, getSettings } from './ops';
 import { USE_DB } from './config';
 
 // DB rooms.pos is text|null; the Room type uses optional (string|undefined).
@@ -63,15 +63,39 @@ export async function roomTimeline(roomId: string): Promise<TimelineItem[]> {
   return [];
 }
 
+const money = (n: number): string =>
+  (n < 0 ? '-$' : '$') + (Math.abs(n) >= 1000 ? (Math.abs(n) / 1000).toFixed(1) + 'k' : String(Math.round(Math.abs(n))));
+
+// Per-room metric strip — derived LIVE from getMetrics + the room's live agent activity. Each room shows
+// the real figures relevant to its function; the money figures (forecast/net profit/cost) come straight
+// from getMetrics. No fabricated business numbers (replaces the old hardcoded per-room tuples).
 export async function roomMetrics(roomId: string): Promise<[string, string | number][]> {
   if (!USE_DB) return AV.roomMetrics(roomId);
-  const [room, agents] = await Promise.all([getRoom(roomId), getAgents()]);
+  const [room, agents, m, settingsRow] = await Promise.all([getRoom(roomId), getAgents(), getMetrics(), getSettings()]);
   if (!room) return [];
-  // getRoom returns the seeded room row whose agents/running/status are static snapshots.
-  // Overlay them with LIVE agent activity (same derivation as getRooms) so the metrics strip
-  // reflects who is actually assigned/active right now. health/done have no real telemetry.
   const inRoom = agents.filter((a) => a.room === room.id);
   const running = inRoom.filter((a) => ACTIVE_AGENT.has(a.status)).length;
   const status = running === 0 ? 'idle' : inRoom.some((a) => a.status === 'review') ? 'review' : 'active';
-  return buildRoomMetrics({ ...room, agents: inRoom.map((a) => a.id), running, active: running, status });
+  const statusLabel = status === 'active' ? 'Active' : status === 'review' ? 'Needs review' : 'Idle';
+  const mode = (settingsRow?.autonomyMode as string | undefined) ?? 'guarded';
+  const autonomy = mode.charAt(0).toUpperCase() + mode.slice(1);
+  const active: [string, string | number] = ['Active now', running];
+  const agentCount: [string, string | number] = ['Agents', inRoom.length];
+  const st: [string, string | number] = ['Status', statusLabel];
+  switch (roomId) {
+    case 'ceo':
+      return [['Open escalations', m.escalations], ['Autonomy', autonomy], ['Net profit', money(m.netProfit)], active];
+    case 'research':
+      return [['Leads', m.leads], ['Sites scanned', m.scanned], active, agentCount];
+    case 'audit':
+      return [['Sites scanned', m.scanned], ['Leads', m.leads], active, st];
+    case 'design':
+      return [['Demos ready', m.demos], active, agentCount, st];
+    case 'sales':
+      return [['Client replies', m.replies], ['Deals won', m.won], ['Forecast', money(m.forecast)], active];
+    case 'finance':
+      return [['AI cost today', '$' + m.cost.toFixed(2)], ['Net profit', money(m.netProfit)], ['Forecast', money(m.forecast)], st];
+    default:
+      return [active, agentCount, st, ['Health', '100%']];
+  }
 }
