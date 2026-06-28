@@ -248,9 +248,14 @@ function DealDrawer({ deal, onClose, onAction }: { deal: Deal; onClose: () => vo
             </div>
             <div style={{ fontSize:12.5, color:'var(--ink-3)', marginTop:3 }}>{d.industry} · {d.city}</div>
           </div>
-          <button className="btn btn-icon btn-ghost focusable" onClick={onClose} style={{ borderColor:'var(--border)' }}>
-            <Icon name="x" size={17} />
-          </button>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn btn-soft btn-sm focusable" onClick={() => window.open('/deals/' + d.id + '/proposal', '_blank')}>
+              <Icon name="dollar" size={14} /> Proposal
+            </button>
+            <button className="btn btn-icon btn-ghost focusable" onClick={onClose} style={{ borderColor:'var(--border)' }}>
+              <Icon name="x" size={17} />
+            </button>
+          </div>
         </div>
 
         <div style={{ flex:1, overflowY:'auto', padding:20 }}>

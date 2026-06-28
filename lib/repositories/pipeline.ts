@@ -22,6 +22,12 @@ export async function getDeals(): Promise<Deal[]> {
   return db.select().from(dealsTable).orderBy(asc(dealsTable.id));
 }
 
+export async function getDeal(id: string): Promise<Deal | undefined> {
+  if (!USE_DB) return AV.deals.find((d) => d.id === id);
+  const [row] = await db.select().from(dealsTable).where(eq(dealsTable.id, id)).limit(1);
+  return row ?? undefined;
+}
+
 export async function dealByLead(leadId: string): Promise<Deal | undefined> {
   if (!USE_DB) return AV.dealByLead(leadId);
   const [row] = await db.select().from(dealsTable).where(eq(dealsTable.leadId, leadId)).limit(1);
