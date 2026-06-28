@@ -249,7 +249,9 @@ export function FloorOverview({ escalations, activity, metrics }: FloorOverviewP
             </div>
             <div className="row" style={{ gap: 14 }}>
               <span className="row" style={{ gap: 7, fontSize: 12, color: 'var(--ink-2)' }}><span style={{ width: 18, height: 3, borderRadius: 2, background: 'var(--primary)' }} /> {t('dash.workflow')}</span>
-              <span className="row" style={{ gap: 7, fontSize: 12, color: 'var(--warning)' }}><Icon name="alert" size={14} /> {t('ov.bottleneck')}</span>
+              {metrics.bottleneck && (
+                <span className="row" style={{ gap: 7, fontSize: 12, color: 'var(--warning)' }}><Icon name="alert" size={14} /> {(lang === 'vi' ? 'Tắc ở: ' : 'Bottleneck: ') + metrics.bottleneck}</span>
+              )}
             </div>
           </div>
           <div style={{ padding: 18 }}>

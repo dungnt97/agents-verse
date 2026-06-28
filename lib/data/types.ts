@@ -65,6 +65,8 @@ export interface Metrics {
   completed: number;
   margin: number;
   netProfit: number;
+  /** Department where non-terminal leads pile up most (>=2); null when nothing is bottlenecked. */
+  bottleneck?: string | null;
 }
 
 export interface Escalation {
