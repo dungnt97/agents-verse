@@ -85,3 +85,33 @@ export async function renderHtmlToPng(html: string, htmlPath: string, pngPath: s
     await browser.close();
   }
 }
+
+// Render `html` to a print-quality A4 PDF (used for the deal proposal/quote the worker emails). Same
+// worker-only playwright path as the PNG renderer; Chromium's page.pdf() needs no extra deps.
+export async function renderHtmlToPdf(html: string, htmlPath: string, pdfPath: string): Promise<void> {
+  await writeFile(htmlPath, html, 'utf8');
+  const { chromium } = (await import('playwright')) as unknown as {
+    chromium: {
+      launch(opts: Record<string, unknown>): Promise<{
+        newContext(o: Record<string, unknown>): Promise<{
+          newPage(): Promise<{
+            goto(u: string, o: { waitUntil: 'networkidle'; timeout: number }): Promise<unknown>;
+            pdf(o: Record<string, unknown>): Promise<Buffer>;
+          }>;
+          close(): Promise<void>;
+        }>;
+        close(): Promise<void>;
+      }>;
+    };
+  };
+  const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  try {
+    const context = await browser.newContext({});
+    const page = await context.newPage();
+    await page.goto('file://' + htmlPath, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.pdf({ path: pdfPath, format: 'A4', printBackground: true, margin: { top: '14mm', bottom: '14mm', left: '12mm', right: '12mm' } });
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+}

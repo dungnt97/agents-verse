@@ -91,6 +91,16 @@ describe('sendEmail', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('includes attachments in the request body when provided', async () => {
+    vi.stubEnv('RESEND_API_KEY', 're_secret');
+    vi.stubEnv('OUTREACH_FROM', 'Agents Verse <hello@x.com>');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(fakeResponse({ ok: true, json: { id: 'e1' } }));
+    await sendEmail({ to: 'c@x.com', subject: 'Proposal', html: '<p>x</p>', attachments: [{ filename: 'p.pdf', content: 'QkFTRTY0' }] });
+    const init = fetchSpy.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(init.body as string) as { attachments?: unknown };
+    expect(body.attachments).toEqual([{ filename: 'p.pdf', content: 'QkFTRTY0' }]);
+  });
+
   it('posts to the Resend endpoint with a Bearer auth header and returns the id on success', async () => {
     vi.stubEnv('RESEND_API_KEY', 're_secret');
     vi.stubEnv('OUTREACH_FROM', 'Agents Verse <hello@x.com>');

@@ -18,6 +18,8 @@ export interface SendEmailInput {
   unsubscribe?: string;
   // Stable key so a worker retry / duplicate trigger can't send the same email twice (Resend dedupes).
   idempotencyKey?: string;
+  // File attachments (e.g. a proposal PDF). `content` is base64; Resend accepts it directly.
+  attachments?: { filename: string; content: string; contentType?: string }[];
 }
 
 export interface SendEmailResult {
@@ -51,6 +53,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
         reply_to: replyTo,
         subject: input.subject,
         html: input.html,
+        ...(input.attachments && input.attachments.length ? { attachments: input.attachments } : {}),
         // CAN-SPAM one-click unsubscribe — only for commercial mail (transactional onboarding omits it).
         ...(input.unsubscribe
           ? {
