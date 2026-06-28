@@ -255,7 +255,7 @@ export function FloorOverview({ escalations, activity, metrics }: FloorOverviewP
             </div>
           </div>
           <div style={{ padding: 18 }}>
-            <FloorMap selected={peek ?? undefined} onRoom={setPeek} height={540} />
+            <FloorMap selected={peek ?? undefined} onRoom={setPeek} height={700} />
           </div>
         </div>
 

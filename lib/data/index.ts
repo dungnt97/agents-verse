@@ -17,7 +17,7 @@ import { fmt, statusMap, stages, SCORE_LABELS, DEMO_STATUS, DEAL_STAGE, REQ_STAT
    ========================================================================= */
 
 const rooms: Room[] = [
-  { id:'ceo',     name:'CEO Control Room',   short:'Control',  purpose:'Founder oversight, approvals & autonomy control.', status:'review',  agents:['ledger'], active:1, running:3,  done:11, health:96, mission:'3 escalations awaiting your decision', x:50, y:6,  pos:'top' },
+  { id:'ceo',     name:'CEO Control Room',   short:'Control',  purpose:'Founder oversight, approvals & autonomy control.', status:'review',  agents:['ledger'], active:1, running:3,  done:11, health:96, mission:'3 escalations awaiting your decision', x:50, y:11, pos:'top' },
   { id:'research',name:'Lead Research Room',  short:'Research', purpose:'Finds businesses with outdated or missing websites.', status:'active', agents:['orion'], active:1, running:6,  done:148,health:99, mission:'Scanning dental & hospitality in 3 cities', x:14, y:31 },
   { id:'audit',   name:'Website Audit Room',  short:'Audit',    purpose:'Scores current sites & finds redesign opportunities.', status:'active', agents:['vega'], active:1, running:4,  done:39, health:94, mission:'Auditing 4 high-potential leads', x:35, y:31 },
   { id:'design',  name:'Design Studio',       short:'Design',   purpose:'Creates website demo concepts & visual systems.', status:'active', agents:['atlas','nova','iris','kira'], active:3, running:4, done:12, health:91, mission:'4 demos in production, 2 awaiting review', x:50, y:57, pos:'hub' },
