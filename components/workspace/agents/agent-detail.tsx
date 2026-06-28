@@ -13,6 +13,7 @@ import { useI18n } from '@/lib/i18n';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { ROOM_ICON } from '@/components/floor-map';
 import type { Agent, AgentDetail as AgentDetailData } from '@/lib/data/types';
+import { AGENT_BRIEFS } from '@/lib/data/agent-briefs';
 import type { ToastKind } from '@/lib/providers/toast-provider';
 // Side-effect import: merges rooms.* + agents.* keys into AV_DICT
 import '@/lib/i18n/keys/rooms-agents';
@@ -26,18 +27,21 @@ type OnAction = (msg: string, kind?: ToastKind) => void;
 export interface AgentDetailProps {
   agentId: string;
   detail: AgentDetailData | null;
+  /** The agent's verbatim runtime prompt rendered against a sample job (null when not renderable). */
+  realPrompt?: string | null;
   onBack: () => void;
   onRoom: (id: string) => void;
   onAction: OnAction;
 }
 
-export function AgentDetail({ agentId, detail, onBack, onRoom, onAction }: AgentDetailProps) {
+export function AgentDetail({ agentId, detail, realPrompt, onBack, onRoom, onAction }: AgentDetailProps) {
   const { t } = useI18n();
   const { agentById, roomById } = useWorkspaceData();
   // Mirror original fallback: unknown id → 'nova'
   const a = (agentById(agentId) || agentById('nova'))!;
   const d = detail;
   const room = roomById(a.room)!;
+  const brief = AGENT_BRIEFS[a.id];
 
   return (
     <div style={{ padding: '26px 28px 60px', maxWidth: 1480, margin: '0 auto' }}>
@@ -113,6 +117,34 @@ export function AgentDetail({ agentId, detail, onBack, onRoom, onAction }: Agent
               </div>
             </div>
           </div>
+
+          {/* prompt & specialty — bilingual (EN + VI), with the verbatim runtime prompt when renderable */}
+          {brief && (
+            <div className="card" style={{ padding: 18 }}>
+              <div className="row between" style={{ marginBottom: 14 }}>
+                <h2 style={{ fontSize: 16 }}>Prompt &amp; specialty</h2>
+                <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{brief.source}</span>
+              </div>
+              <div className="col" style={{ gap: 16 }}>
+                <div>
+                  <div className="eyebrow" style={{ marginBottom: 6 }}>EN · {brief.role}</div>
+                  <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.6, textWrap: 'pretty' }}>{brief.en}</p>
+                </div>
+                <div>
+                  <div className="eyebrow" style={{ marginBottom: 6 }}>VI · Tiếng Việt</div>
+                  <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.6, textWrap: 'pretty' }}>{brief.vi}</p>
+                </div>
+                {realPrompt && (
+                  <details>
+                    <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--primary)', fontWeight: 600 }}>
+                      View the real prompt (rendered against a sample job)
+                    </summary>
+                    <pre style={{ marginTop: 10, padding: 14, borderRadius: 10, background: 'var(--surface-muted)', fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowX: 'auto', color: 'var(--ink-2)', maxHeight: 460 }}>{realPrompt}</pre>
+                  </details>
+                )}
+              </div>
+            </div>
+          )}
 
 
         </div>
