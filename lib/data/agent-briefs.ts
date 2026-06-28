@@ -17,8 +17,8 @@ export interface AgentBrief {
 export const AGENT_BRIEFS: Record<string, AgentBrief> = {
   orion: {
     role: 'Lead Hunter',
-    en: 'Hunts real businesses with weak or missing websites via Google Places, then qualifies each as a redesign prospect — estimating a realistic engagement value, a priority (hot / warm / cold) and a one-line rationale. Lower current-site quality (or no site at all) means bigger upside and a hotter priority.',
-    vi: 'Săn doanh nghiệp thật có website kém hoặc chưa có (qua Google Places), rồi đánh giá từng cái như một cơ hội redesign — ước lượng giá trị hợp đồng thực tế, mức ưu tiên (nóng / ấm / nguội) và một dòng lý do. Site hiện tại càng kém (hoặc chưa có) thì tiềm năng càng lớn, ưu tiên càng nóng.',
+    en: 'Hunts real businesses with weak or missing websites via Google Places, then qualifies each like a B2B analyst: scores FIT (industry/size/locality) + SIGNAL (how weak the current site is), sets priority on a ladder (no site or score <40 = hot, 40-69 = warm, 70+ = cold), estimates a realistic redesign+care value ($900-$6000), and gives a one-line rationale citing the specific signal.',
+    vi: 'Săn doanh nghiệp web kém/chưa có (Google Places) rồi đánh giá như một analyst B2B: chấm FIT (ngành/quy mô/địa phương) + SIGNAL (site hiện tại yếu cỡ nào), xếp ưu tiên theo thang (không site hoặc <40 = nóng, 40-69 = ấm, 70+ = nguội), ước lượng giá redesign+chăm sóc thực tế ($900-$6000), và nêu một dòng lý do dẫn đúng tín hiệu chính.',
     source: 'lib/discovery/orion-qualify.ts → buildOrionPrompt',
   },
   vega: {
@@ -52,28 +52,28 @@ export const AGENT_BRIEFS: Record<string, AgentBrief> = {
     source: "lib/agents/defs/kira-qa.ts → buildPersonaReviewPrompt('qa')",
   },
   cipher: {
-    role: 'Frontend Coder',
-    en: 'Converts an approved demo into a clean, production frontend build.',
-    vi: 'Chuyển bản demo đã duyệt thành một bản build frontend sạch, sẵn sàng production.',
-    source: 'lib/agents/defs/cipher-coder.ts',
+    role: 'Delivery / Technical SEO',
+    en: 'After a deal is won, prepares the redesigned homepage to go live by writing production search + social metadata: an SEO title, meta description, Open-Graph title/description and a focused keyword set — tuned to how real local customers search and to render cleanly as a share card. Structured JSON only (no re-rendered page), so it sidesteps the large-HTML reliability ceiling.',
+    vi: 'Sau khi chốt deal, chuẩn bị trang chủ redesign để go-live bằng cách viết metadata search + social cho production: SEO title, meta description, Open-Graph title/description và bộ từ khoá tập trung — tinh chỉnh theo cách khách địa phương thật sự tìm kiếm và để hiển thị đẹp như thẻ share. Chỉ trả JSON có cấu trúc (không render lại trang), nên tránh được trần độ tin cậy của HTML lớn.',
+    source: 'lib/agents/defs/cipher-coder.ts → buildCipherPrompt',
   },
   echo: {
     role: 'Outreach',
-    en: 'Drafts a personalised outreach email to a lead — referencing their audited site and the generated demo, with a clear call to action. Always gated behind founder approval before anything sends.',
-    vi: 'Soạn email tiếp cận cá nhân hoá cho từng lead — dẫn chiếu site đã audit và bản demo đã tạo, kèm CTA rõ ràng. Luôn phải qua phê duyệt của founder trước khi gửi.',
-    source: 'lib/agents/defs/echo-outreach.ts',
+    en: 'Writes a short Vietnamese cold-outreach email offering the free redesign demo. Opens with one specific, verifiable observation about THIS business (signal-first), picks the angle (lead-with-pain PAS or before→after BAB), keeps it warm and human — under 100 words, exactly one soft CTA, no hype/clichés. The system appends the demo link; sending is approval-gated.',
+    vi: 'Viết email tiếp cận lạnh (tiếng Việt) mời xem bản demo redesign miễn phí. Mở đầu bằng MỘT quan sát cụ thể, kiểm chứng được về chính doanh nghiệp đó (signal-first), chọn góc (nêu nỗi đau PAS hoặc trước→sau BAB), giữ giọng ấm và người thật — dưới 100 từ, đúng một CTA nhẹ, không sáo rỗng. Hệ thống tự gắn link demo; gửi phải qua duyệt.',
+    source: 'lib/agents/defs/echo-outreach.ts → buildEchoPrompt',
   },
   closer: {
     role: 'Sales Closer',
-    en: "Interprets a client's reply, decides the deal's next step — advance, send a quote, or escalate to the founder — and explains the reasoning behind the call.",
-    vi: 'Hiểu phản hồi của khách, quyết bước tiếp theo của deal — đẩy tới, gửi báo giá, hay chuyển founder duyệt — và giải thích lý do cho quyết định đó.',
-    source: 'lib/agents/defs/closer-sales.ts',
+    en: 'Interprets a client\'s reply (treated strictly as untrusted data, injection-guarded). Works in two steps: classify the intent, then choose the next move on a ranked ladder — ready-to-buy → advance (conf 80+); price question → quote; objection/stall/ambiguous → conf below 70 so a human reviews; not interested → lost. Drafts an acknowledge-then-reframe Vietnamese reply grounded only in approved facts (never invents a price or commitment).',
+    vi: 'Hiểu phản hồi của khách (coi là dữ liệu không tin cậy, chặn prompt-injection). Làm hai bước: phân loại ý định, rồi chọn bước tiếp theo theo thang ưu tiên — sẵn sàng mua → đẩy tới (conf 80+); hỏi giá → báo giá; phản đối/chần chừ/mơ hồ → conf dưới 70 để người duyệt; không quan tâm → mất. Soạn câu trả lời \'ghi nhận rồi tái định khung\' chỉ dựa trên dữ kiện đã duyệt (không bịa giá/cam kết).',
+    source: 'lib/agents/defs/closer-sales.ts → buildCloserPrompt',
   },
   mira: {
-    role: 'Support',
-    en: 'Handles client feedback, revision requests and monthly care for live clients.',
-    vi: 'Xử lý phản hồi của khách, các yêu cầu chỉnh sửa và chăm sóc hàng tháng cho khách đang chạy.',
-    source: 'lib/agents/defs/mira-support.ts',
+    role: 'Client Onboarding',
+    en: 'After a deal is won, writes a short warm Vietnamese onboarding email: thanks the client, sets a confident tone, and asks — as a scannable checklist — for the assets needed to start production (logo, brand colours, photos, copy, hours, domain). Human prose, no AI tells, answers only from known facts (never invents a price, date, name, or portal).',
+    vi: 'Sau khi chốt deal, viết email onboarding ngắn, ấm (tiếng Việt): cảm ơn khách, tạo giọng tự tin, và xin — dưới dạng checklist dễ đọc — các tài sản cần để bắt đầu sản xuất (logo, màu thương hiệu, ảnh, nội dung, giờ mở cửa, domain). Văn người thật, không \'mùi AI\', chỉ trả lời từ dữ kiện đã biết (không bịa giá, ngày, tên, hay portal).',
+    source: 'lib/agents/defs/mira-support.ts → buildMiraPrompt',
   },
   ledger: {
     role: 'Finance',
