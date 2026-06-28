@@ -15,8 +15,10 @@ export function mapPlaceToLead(args: {
   assessment: SiteAssessment | null;
   email: string | null;
   industry: string;
+  /** Orion's qualification (value estimate); optional so manual/test callers can omit it. */
+  qualified?: { value: number };
 }): DiscoveredLeadInsert {
-  const { place, enrichment, assessment, email, industry } = args;
+  const { place, enrichment, assessment, email, industry, qualified } = args;
 
   // "123 Main St, Austin, TX 78701, USA" → "Austin" (2nd-from-last comma segment); fall back to
   // the full address when the shape is unexpected.
@@ -30,10 +32,10 @@ export function mapPlaceToLead(args: {
     city: city || '—',
     url: enrichment.websiteUri ?? '(no site yet)',
     site: assessment?.score ?? 38,
-    score: 84,
-    value: 2400,
-    agent: 'vega',
-    stage: 'audited',
+    score: Math.min(95, (assessment?.score ?? 38) + 40),
+    value: qualified?.value ?? 2400,
+    agent: 'orion',
+    stage: 'found',
     demo: 'draft',
     placeId: place.id,
     websiteUri: enrichment.websiteUri,

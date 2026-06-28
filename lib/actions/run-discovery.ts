@@ -7,6 +7,7 @@ import { assessWebsite } from '@/lib/discovery/bad-website-heuristic';
 import { scrapeEmail } from '@/lib/discovery/email-scraper';
 import { dedupePlaces } from '@/lib/discovery/dedup';
 import { mapPlaceToLead, type DiscoveredLeadInsert } from '@/lib/discovery/map-place-to-lead';
+import { orionQualify } from '@/lib/discovery/orion-qualify';
 import { upsertDiscoveredLeads } from '@/lib/repositories/leads';
 import { USE_DB } from '@/lib/repositories/config';
 import { getCurrentUser } from '@/lib/auth/session';
@@ -64,13 +65,33 @@ export async function runDiscovery(input: { industry?: string; city?: string }):
   const places = dedupePlaces(await searchBusinesses({ industry, city }));
   const top = places.slice(0, ENRICH_TOP_N);
 
-  const rows: DiscoveredLeadInsert[] = [];
+  const enriched: { place: (typeof top)[number]; enrichment: Awaited<ReturnType<typeof enrichPlace>>; assessment: Awaited<ReturnType<typeof assessWebsite>> | null; email: string | null }[] = [];
   for (const place of top) {
     const enrichment = await enrichPlace(place.id);
     const assessment = enrichment.websiteUri ? await assessWebsite(enrichment.websiteUri) : null;
     const email = enrichment.websiteUri ? await scrapeEmail(enrichment.websiteUri) : null;
-    rows.push(mapPlaceToLead({ place, enrichment, assessment, email, industry }));
+    enriched.push({ place, enrichment, assessment, email });
   }
+
+  // Orion (Lead Hunter) qualifies the enriched batch: real per-lead value/priority/rationale via the
+  // gateway, deterministic fallback when it's off. Replaces the old fixed $2,400 placeholder.
+  const cityOf = (addr: string) => {
+    const parts = addr.split(',').map((p) => p.trim());
+    return (parts.length >= 3 ? parts[parts.length - 3] : addr) || city;
+  };
+  const qualified = await orionQualify(
+    enriched.map(({ place, enrichment, assessment }) => ({
+      company: place.displayName || '(unknown)',
+      industry,
+      city: cityOf(place.formattedAddress),
+      websiteUri: enrichment.websiteUri,
+      siteScore: assessment?.score ?? null,
+    })),
+  );
+  const hot = qualified.filter((q) => q.priority === 'hot').length;
+  const rows: DiscoveredLeadInsert[] = enriched.map((e, i) =>
+    mapPlaceToLead({ ...e, industry, qualified: qualified[i] }),
+  );
 
   const upserted = await upsertDiscoveredLeads(rows);
 
@@ -113,7 +134,7 @@ export async function runDiscovery(input: { industry?: string; city?: string }):
       agent: 'orion',
       room: 'research',
       type: 'lead',
-      text: `Discovered ${upserted} ${industry} lead${upserted === 1 ? '' : 's'} in ${city}`,
+      text: `Discovered ${upserted} ${industry} lead${upserted === 1 ? '' : 's'} in ${city}${hot > 0 ? ` · ${hot} hot` : ''}`,
       status: 'info',
     })
     .onConflictDoNothing();

@@ -6,7 +6,7 @@ import type { SiteAssessment } from '@/lib/discovery/bad-website-heuristic';
 
 // mapPlaceToLead turns a (Places place + enrichment + optional site assessment) into a `leads`
 // insert object, filling in the same pipeline defaults the manual addLead path uses. These tests
-// pin the exact field mapping, the constant defaults (score/value/agent/stage/demo), the
+// pin the exact field mapping, the pre-audit defaults (value/agent=orion/stage=found/demo) + derived score, the
 // assessment-driven `site`/`websiteScore` derivation, and the city-from-address parsing —
 // including its fallbacks — so a behavior change here surfaces immediately.
 
@@ -57,10 +57,10 @@ describe('mapPlaceToLead', () => {
       city: 'Austin',
       url: 'https://acmeplumbing.example',
       site: 48,
-      score: 84,
+      score: 88,
       value: 2400,
-      agent: 'vega',
-      stage: 'audited',
+      agent: 'orion',
+      stage: 'found',
       demo: 'draft',
       placeId: 'ChIJ123',
       websiteUri: 'https://acmeplumbing.example',
@@ -87,7 +87,7 @@ describe('mapPlaceToLead', () => {
     expect(result.placeId).toBe('XYZ-987');
   });
 
-  it('applies the constant pipeline defaults regardless of input', () => {
+  it('applies the pipeline defaults (orion-owned, pre-audit) regardless of input', () => {
     const result = mapPlaceToLead({
       place: makePlace(),
       enrichment: makeEnrichment(),
@@ -95,10 +95,11 @@ describe('mapPlaceToLead', () => {
       email: null,
       industry: 'Dental',
     });
-    expect(result.score).toBe(84);
+    // score is now derived from the heuristic site score: min(95, site+40). site=5 -> 45.
+    expect(result.score).toBe(45);
     expect(result.value).toBe(2400);
-    expect(result.agent).toBe('vega');
-    expect(result.stage).toBe('audited');
+    expect(result.agent).toBe('orion');
+    expect(result.stage).toBe('found');
     expect(result.demo).toBe('draft');
   });
 
@@ -272,6 +273,31 @@ describe('mapPlaceToLead', () => {
       expect(result.phone).toBeNull();
       expect(result.email).toBeNull();
       expect(result.formattedAddress).toBe('123 Main St, Austin, TX 78701, USA');
+    });
+  });
+
+  describe('orion qualification + derived score', () => {
+    it('uses the qualified value when Orion provides one (instead of the $2,400 default)', () => {
+      const result = mapPlaceToLead({
+        place: makePlace(),
+        enrichment: makeEnrichment(),
+        assessment: makeAssessment({ score: 30 }),
+        email: null,
+        industry: 'Plumbing',
+        qualified: { value: 5200 },
+      });
+      expect(result.value).toBe(5200);
+      expect(result.agent).toBe('orion');
+      expect(result.stage).toBe('found');
+    });
+
+    it('derives score = min(95, site + 40) and caps it at 95', () => {
+      const low = mapPlaceToLead({ place: makePlace(), enrichment: makeEnrichment(), assessment: makeAssessment({ score: 10 }), email: null, industry: 'Plumbing' });
+      expect(low.score).toBe(50); // 10 + 40
+      const noSite = mapPlaceToLead({ place: makePlace(), enrichment: makeEnrichment(), assessment: null, email: null, industry: 'Plumbing' });
+      expect(noSite.score).toBe(78); // 38 default + 40
+      const high = mapPlaceToLead({ place: makePlace(), enrichment: makeEnrichment(), assessment: makeAssessment({ score: 90 }), email: null, industry: 'Plumbing' });
+      expect(high.score).toBe(95); // min(95, 130)
     });
   });
 });

@@ -53,6 +53,32 @@ export async function connectAssistant(messages: ChatTurn[], signal?: AbortSigna
   return res;
 }
 
+// Non-streaming completion against the same gateway — for server-side agents (e.g. Orion's lead
+// qualifier) that need ONE structured answer, not a token stream. Throws on a non-OK response so the
+// caller can fall back. Returns the concatenated text content of the reply.
+export async function completeText(prompt: string, opts?: { maxTokens?: number; system?: string }): Promise<string> {
+  const res = await fetch(`${base()}/v1/messages`, {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.ANTHROPIC_AUTH_TOKEN as string,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: process.env.AGENT_MODEL_SONNET,
+      max_tokens: opts?.maxTokens ?? 600,
+      ...(opts?.system ? { system: opts.system } : {}),
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`assistant complete ${res.status}: ${detail.slice(0, 200)}`);
+  }
+  const j = (await res.json()) as { content?: Array<{ type?: string; text?: string }> };
+  return (j.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('');
+}
+
 // Parse an Anthropic-style SSE stream, yielding only the assistant's text deltas. Tolerant of keepalives,
 // non-text events, and a trailing partial line. Exported for unit testing the parser in isolation.
 export async function* parseTextDeltas(res: Response): AsyncGenerator<string> {
