@@ -17,6 +17,7 @@ import {
   agents,
   leads,
   demos,
+  generatedDemos,
   deals,
   audits,
   escalations,
@@ -104,6 +105,21 @@ async function seedDemoData() {
   await db
     .insert(demos)
     .values(AV.demos.map((d) => ({ ...d, status: d.status as DemoStatus })))
+    .onConflictDoNothing();
+
+  // getDemos()/demoByLead() (DB mode) derive the Demos screen from generated_demos joined with lead+audit,
+  // so seed a ready generated_demo for each demo'd lead — keeps DB-mode reads in parity with the mock.
+  await db
+    .insert(generatedDemos)
+    .values(
+      AV.demos.map((d) => ({
+        leadId: d.leadId,
+        html: '<!doctype html><meta charset="utf-8"><title>' + d.business + ' — demo</title>',
+        status: 'ready' as const,
+        error: null,
+        updatedAt: new Date(),
+      })),
+    )
     .onConflictDoNothing();
 
   await db
