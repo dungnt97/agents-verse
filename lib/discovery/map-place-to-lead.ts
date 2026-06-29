@@ -5,8 +5,9 @@ import type { SiteAssessment } from './bad-website-heuristic';
 export type DiscoveredLeadInsert = typeof leads.$inferInsert;
 
 // Places gives company/address/location but not the pipeline fields the UI needs
-// (site/score/value/agent/stage/demo) — derive the same defaults the manual addLead uses,
-// overriding `site` with the heuristic score when the website was assessed. The DB id is
+// (site/score/agent/stage/demo). site/score come from the real bad-website heuristic (0 when the site
+// wasn't assessed — no fabricated default); value comes from Orion's qualifier. The audit later writes the
+// real scores. The DB id is
 // derived from the (stable enough) placeId so re-runs map to the same row; placeId itself is the
 // unique upsert key.
 export function mapPlaceToLead(args: {
@@ -31,9 +32,9 @@ export function mapPlaceToLead(args: {
     industry,
     city: city || '—',
     url: enrichment.websiteUri ?? '(no site yet)',
-    site: assessment?.score ?? 38,
-    score: Math.min(95, (assessment?.score ?? 38) + 40),
-    value: qualified?.value ?? 2400,
+    site: assessment?.score ?? 0,
+    score: assessment?.score ?? 0,
+    value: qualified?.value ?? 0,
     agent: 'orion',
     stage: 'found',
     demo: 'draft',
