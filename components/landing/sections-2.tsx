@@ -10,6 +10,8 @@ import { Icon } from '@/components/brand/icon';
 import { Logo } from '@/components/brand/logo';
 import { Mark } from '@/components/brand/mark';
 import { Reveal } from '@/components/ui/reveal';
+import { DEAL_CONF_FLOOR } from '@/lib/data/deal-stage-machine';
+import { DEFAULT_DAILY_CAP } from '@/lib/data/cost-meter';
 import { useI18n } from '@/lib/i18n';
 import { useLandingInfoT } from '@/lib/i18n/keys/landing-info';
 
@@ -81,8 +83,8 @@ export function TrustSafety() {
     { ic:'send',    t:t('trust.t1'), d:t('trust.d1'), meta:'40 / day max' },
     { ic:'user',    t:t('trust.t2'), d:t('trust.d2'), meta:'Always on' },
     { ic:'shield',  t:t('trust.t3'), d:t('trust.d3'), meta:'Enforced' },
-    { ic:'check',   t:t('trust.t4'), d:t('trust.d4'), meta:'85% confidence' },
-    { ic:'dollar',  t:t('trust.t5'), d:t('trust.d5'), meta:'$50 / day' },
+    { ic:'check',   t:t('trust.t4'), d:t('trust.d4'), meta:`${DEAL_CONF_FLOOR}% confidence` },
+    { ic:'dollar',  t:t('trust.t5'), d:t('trust.d5'), meta:`$${DEFAULT_DAILY_CAP} / day` },
     { ic:'x',       t:t('trust.t6'), d:t('trust.d6'), meta:'Instant' },
   ];
   return (

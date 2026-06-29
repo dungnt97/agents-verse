@@ -60,12 +60,13 @@ function buildCrumbs(pathname: string, t: (k: string) => string, dir: CrumbDirec
 }
 
 interface TopBarProps {
+  hasAlerts?: boolean;
   onSearch: () => void;
   onReview: () => void;
   onMenu: () => void;
 }
 
-export function TopBar({ onSearch, onReview, onMenu }: TopBarProps) {
+export function TopBar({ onSearch, onReview, onMenu, hasAlerts }: TopBarProps) {
   const { t } = useI18n();
   const { mode } = useWorkspaceState();
   const { roomById, agentById } = useWorkspaceData();
@@ -97,7 +98,7 @@ export function TopBar({ onSearch, onReview, onMenu }: TopBarProps) {
         <LangToggle />
         <button onClick={onReview} className="btn btn-icon btn-ghost focusable" style={{ borderColor: 'var(--border)', position: 'relative' }} aria-label="Reviews">
           <Icon name="bell" size={17} />
-          <span style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 99, background: 'var(--warning)', border: '2px solid var(--surface)' }} />
+          {hasAlerts && <span style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 99, background: 'var(--warning)', border: '2px solid var(--surface)' }} />}
         </button>
         <ThemeToggle />
       </div>
