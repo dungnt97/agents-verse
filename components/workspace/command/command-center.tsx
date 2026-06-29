@@ -159,7 +159,10 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
             {/* For deal escalations, the primary Approve button advances the deal to won (no separate
                 cosmetic "Mark won" button — it would not actually close the deal). */}
             {e.kind === 'cost' && <button className="btn btn-ghost btn-sm" onClick={() => onAction('Adjust the daily AI budget in Settings → Guardrails', 'success')} style={{ borderColor: 'var(--border)' }}>{t('dash.raiseBudget')}</button>}
-            <button className="btn btn-ghost btn-sm" onClick={() => onAction('You took over · ' + e.who)} style={{ borderColor: 'var(--border)' }}>{t('dash.takeOver')}</button>
+            <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => {
+              if (!useDb) { onAction('You took over · ' + e.who, 'success'); return; }
+              startTransition(async () => { const r = await resolveEscalation(e.id, 'resolved'); if (r.ok) { router.refresh(); onAction('You took over · ' + e.who, 'success'); } else onAction(r.message ?? 'Could not take over', 'warning'); });
+            }} style={{ borderColor: 'var(--border)' }}>{t('dash.takeOver')}</button>
             <button className="btn btn-ghost btn-sm" onClick={() => onAction('Summary requested')} style={{ borderColor: 'var(--border)' }}>{t('dash.askAiSummary')}</button>
             <button className="btn btn-soft btn-sm" disabled={isPending} onClick={() => handleResolve('dismissed')} style={{ marginLeft: 'auto' }}>{t('dash.reject')}</button>
           </div>
