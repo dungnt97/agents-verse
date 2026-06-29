@@ -74,7 +74,7 @@ export function WorkspaceShell({
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
-      <Sidebar mobileOpen={mobileNav} onClose={() => setMobileNav(false)} commandBadge={escalations.length} />
+      <Sidebar mobileOpen={mobileNav} onClose={() => setMobileNav(false)} />
 
       {/* Mobile backdrop — only visible when sidebar is open on small screens */}
       {mobileNav && (
@@ -90,6 +90,7 @@ export function WorkspaceShell({
           onSearch={() => setPalette(true)}
           onReview={() => setReview(true)}
           onMenu={() => setMobileNav((m) => !m)}
+          hasAlerts={escalations.length > 0}
         />
         <main id="app-scroll" style={{ flex: 1, minWidth: 0 }}>
           {children}

@@ -64,7 +64,7 @@ export const en: Record<string, string> = {
   'deals.mOpen':        'Open deals',
   'deals.mApproval':    'Need your approval',
   'deals.mWeighted':    'Weighted value',
-  'deals.mWonWeek':     'Won this week',
+  'deals.mWonWeek':     'Deals won',
   'deals.mAvgProb':     'Avg win prob.',
   'deals.mProduction':  'In production',
 
@@ -185,7 +185,7 @@ export const vi: Record<string, string> = {
   'deals.mOpen':       'Deal đang mở',
   'deals.mApproval':   'Cần bạn duyệt',
   'deals.mWeighted':   'Giá trị trọng số',
-  'deals.mWonWeek':    'Thắng tuần này',
+  'deals.mWonWeek':    'Đã chốt',
   'deals.mAvgProb':    'Xác suất thắng TB',
   'deals.mProduction': 'Đang sản xuất',
 

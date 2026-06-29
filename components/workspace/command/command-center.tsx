@@ -158,7 +158,7 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
             {e.kind === 'human' && <button className="btn btn-ghost btn-sm" onClick={() => onAction('Founder call scheduled with ' + e.who, 'success')} style={{ borderColor: 'var(--border)' }}><Icon name="clock" size={15} /> {t('dash.scheduleCall')}</button>}
             {/* For deal escalations, the primary Approve button advances the deal to won (no separate
                 cosmetic "Mark won" button — it would not actually close the deal). */}
-            {e.kind === 'cost' && <button className="btn btn-ghost btn-sm" onClick={() => onAction("Today's budget raised by $20", 'success')} style={{ borderColor: 'var(--border)' }}>{t('dash.raiseBudget')}</button>}
+            {e.kind === 'cost' && <button className="btn btn-ghost btn-sm" onClick={() => onAction('Adjust the daily AI budget in Settings → Guardrails', 'success')} style={{ borderColor: 'var(--border)' }}>{t('dash.raiseBudget')}</button>}
             <button className="btn btn-ghost btn-sm" onClick={() => onAction('You took over · ' + e.who)} style={{ borderColor: 'var(--border)' }}>{t('dash.takeOver')}</button>
             <button className="btn btn-ghost btn-sm" onClick={() => onAction('Summary requested')} style={{ borderColor: 'var(--border)' }}>{t('dash.askAiSummary')}</button>
             <button className="btn btn-soft btn-sm" disabled={isPending} onClick={() => handleResolve('dismissed')} style={{ marginLeft: 'auto' }}>{t('dash.reject')}</button>
@@ -254,7 +254,7 @@ export function CommandCenter({ escalations, metrics }: CommandCenterProps) {
         <div>
           <div className="row" style={{ gap: 11, marginBottom: 7 }}>
             <h1 style={{ fontSize: 28, letterSpacing: '-0.03em' }}>{t('cmd.title')}</h1>
-            <span className="badge badge-warning" style={{ height: 24 }}><Icon name="alert" size={13} /> {t('cmd.decisions')}</span>
+            {metrics.escalations > 0 && <span className="badge badge-warning" style={{ height: 24 }}><Icon name="alert" size={13} /> {t('cmd.decisions').replace('{n}', String(metrics.escalations))}</span>}
           </div>
           <p style={{ fontSize: 15, color: 'var(--ink-2)' }}>{t('cmd.sub')}</p>
         </div>

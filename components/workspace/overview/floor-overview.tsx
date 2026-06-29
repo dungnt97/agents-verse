@@ -151,17 +151,11 @@ export function RoomPeek({ roomId, onClose, onAction, goRoom }: RoomPeekProps) {
             <div className="eyebrow" style={{ color: 'var(--primary)', marginBottom: 6 }}>{t('dash.currentMission')}</div>
             <div style={{ fontSize: 14, fontWeight: 500 }}>{r.mission}</div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 22 }}>
-            {([
-              [t('dash.running'),   r.running],
-              [t('dash.doneToday'), r.done],
-              [t('dash.health'),    r.health + '%'],
-            ] as [string, string | number][]).map(([l, v], i) => (
-              <div key={i} style={{ padding: '12px', borderRadius: 11, border: '1px solid var(--border)', textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }} className="tabular">{v}</div>
-                <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 3 }}>{l}</div>
-              </div>
-            ))}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginBottom: 22 }}>
+            <div style={{ padding: '12px', borderRadius: 11, border: '1px solid var(--border)', textAlign: 'center' }}>
+              <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em' }} className="tabular">{r.running}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 3 }}>{t('dash.running')}</div>
+            </div>
           </div>
           <div className="eyebrow" style={{ marginBottom: 12 }}>{t('dash.agentsInRoom')} · {roomAgents.length}</div>
           <div className="col" style={{ gap: 8, marginBottom: 8 }}>

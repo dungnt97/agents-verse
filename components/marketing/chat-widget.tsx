@@ -35,7 +35,7 @@ interface Message {
 
 export function ChatWidget() {
   const [open, setOpen] = useState(false);
-  const [msgs, setMsgs] = useState<Message[]>([{ role:'bot', text:"Hi — I’m your Verse assistant. Your agency is running smoothly. Want a quick summary, or shall I show you what needs your attention?" }]);
+  const [msgs, setMsgs] = useState<Message[]>([{ role:'bot', text:"Hi — I’m your Verse assistant. Want a quick summary, or shall I show you what needs your attention?" }]);
   const [val, setVal] = useState('');
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);

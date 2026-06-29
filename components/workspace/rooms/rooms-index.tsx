@@ -148,10 +148,6 @@ function RoomCard({ room, onOpen, onAgent }: RoomCardProps) {
           <AvatarStack ids={room.agents} size={24} max={4} />
           <div className="row" style={{ gap: 14 }}>
             <span title="Running"><span className="mono" style={{ fontSize: 12, color: 'var(--ink-2)' }}>{room.running}</span><span style={{ fontSize: 10.5, color: 'var(--ink-3)', marginLeft: 4 }}>{t('rooms.cardRunningLabel')}</span></span>
-            <span title="Health" className="row" style={{ gap: 5 }}>
-              <span style={{ width: 7, height: 7, borderRadius: 99, background: room.health >= 90 ? 'var(--success)' : room.health >= 85 ? 'var(--warning)' : 'var(--danger)' }} />
-              <span className="mono" style={{ fontSize: 12, color: 'var(--ink-2)' }}>{room.health}</span>
-            </span>
           </div>
         </div>
       </div>
@@ -176,12 +172,10 @@ const FILT: Record<string, (r: Room) => boolean> = {
   'Idle':         r => r.status === 'idle',
 };
 
-const SORT_KEYS = ['Needs attention', 'Most active', 'Highest output', 'Lowest health'] as const;
+const SORT_KEYS = ['Needs attention', 'Most active'] as const;
 const SORT: Record<string, (a: Room, b: Room) => number> = {
   'Needs attention': (a, b) => attRank(b) - attRank(a),
   'Most active':     (a, b) => b.running - a.running,
-  'Highest output':  (a, b) => b.done - a.done,
-  'Lowest health':   (a, b) => a.health - b.health,
 };
 
 // Maps internal English key → i18n translation key
@@ -196,8 +190,6 @@ const FILT_I18N: Record<string, string> = {
 const SORT_I18N: Record<string, string> = {
   'Needs attention': 'rooms.sortNeedsAttention',
   'Most active':     'rooms.sortMostActive',
-  'Highest output':  'rooms.sortHighestOutput',
-  'Lowest health':   'rooms.sortLowestHealth',
 };
 
 /* -------------------------------------------------------------------------
