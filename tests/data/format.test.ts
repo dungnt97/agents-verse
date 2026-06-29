@@ -10,6 +10,7 @@ import {
   REQ_STATUS,
   hueFor,
   relativeTime,
+  humanizeAuditError,
 } from '@/lib/data/format';
 
 // `lib/data/format.ts` is the single client-safe source of presentation constants
@@ -236,5 +237,30 @@ describe('relativeTime', () => {
   });
   it('reports days beyond 1d', () => {
     expect(relativeTime(now - 3 * 86400)).toBe('3d ago');
+  });
+});
+
+
+describe('fmt.humanizeAuditError', () => {
+  it('explains an unreachable site (PageSpeed/Lighthouse load failure)', () => {
+    expect(humanizeAuditError('PageSpeed 400: {"error":{"message":"Lighthouse returned error: FAILED_DOCUMENT_REQUEST. Lighthouse was unable to reliably load the page (net::ERR_CONNECTION_FAILED)"}}'))
+      .toBe("Couldn't load the site — the URL may be unreachable, offline, or not a real domain.");
+  });
+  it('explains rate limiting', () => {
+    expect(humanizeAuditError('PageSpeed 429: quota exceeded')).toMatch(/rate-limited/);
+  });
+  it('explains an auth / config failure', () => {
+    expect(humanizeAuditError('PageSpeed 403: API key not valid')).toMatch(/API key|configuration/);
+  });
+  it('explains a timeout', () => {
+    expect(humanizeAuditError('Error: ETIMEDOUT loading site')).toMatch(/timed out/);
+  });
+  it('falls back to a generic message for empty / null errors', () => {
+    expect(humanizeAuditError('')).toBe('The audit could not complete.');
+    expect(humanizeAuditError(null)).toBe('The audit could not complete.');
+    expect(humanizeAuditError('!!')).toBe('The audit could not complete.');
+  });
+  it('trims a noisy first line for an unrecognized error', () => {
+    expect(humanizeAuditError('Something odd happened {bigjson...}')).toBe('Something odd happened');
   });
 });

@@ -88,3 +88,17 @@ export function relativeTime(epochSec: number): string {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
+
+
+// Turn a raw audit-worker error (often a large PageSpeed/Lighthouse JSON blob) into one human sentence.
+export function humanizeAuditError(raw: string | null | undefined): string {
+  const s = (raw ?? '').toString();
+  if (!s.trim()) return 'The audit could not complete.';
+  if (/FAILED_DOCUMENT_REQUEST|ERR_CONNECTION|unable to reliably load|ERR_NAME_NOT_RESOLVED|ENOTFOUND|getaddrinfo/i.test(s))
+    return "Couldn't load the site — the URL may be unreachable, offline, or not a real domain.";
+  if (/\b429\b|quota|rate.?limit/i.test(s)) return 'The audit service is rate-limited right now — try again shortly.';
+  if (/\b40[13]\b|api key|forbidden|unauthor/i.test(s)) return 'The audit service rejected the request — check the API key / configuration.';
+  if (/timeout|timed out|ETIMEDOUT/i.test(s)) return 'The audit timed out while loading the site.';
+  const firstLine = s.split('\n')[0].replace(/\{.*$/, '').trim();
+  return firstLine.length > 4 ? firstLine.slice(0, 120) : 'The audit could not complete.';
+}

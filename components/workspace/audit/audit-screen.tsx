@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { ConfidenceRing } from '@/components/ui/confidence-ring';
 import { SiteMock } from '@/components/site-mock';
-import { hueFor, SCORE_LABELS } from '@/lib/data/format';
+import { hueFor, SCORE_LABELS, humanizeAuditError } from '@/lib/data/format';
 import { useToast } from '@/lib/providers/toast-provider';
 import { usePipelineAuditT } from '@/lib/i18n/keys/pipeline-audit';
 import { requestAudit } from '@/lib/actions/run-audit';
@@ -106,6 +106,15 @@ export function AuditScreen({ audited, auditMap, demoLeadIds, generatedDemoLeadI
     }
   }, [initialLead, audited]);
 
+  // While a queued/running audit is in flight on the worker, poll so the status badge + scores update
+  // live (no manual refresh). Stops as soon as the job reaches a terminal state (done/failed).
+  const jobStatus = jobMap[sel]?.status;
+  useEffect(() => {
+    if (jobStatus !== 'queued' && jobStatus !== 'running') return;
+    const id = setInterval(() => router.refresh(), 3000);
+    return () => clearInterval(id);
+  }, [jobStatus, router]);
+
   const a = auditMap[sel] ?? audited[0] as AuditResult | undefined;
   if (!a) return null;
   const hue = hueFor(a.industry);
@@ -180,11 +189,14 @@ export function AuditScreen({ audited, auditMap, demoLeadIds, generatedDemoLeadI
               {jobStatusLabel && (
                 <span
                   className={'badge ' + (job?.status === 'failed' ? 'badge-danger' : job?.status === 'running' ? 'badge-info' : 'badge-warning')}
-                  title={job?.status === 'failed' && job.error ? job.error : undefined}
+                  title={job?.status === 'failed' && job.error ? humanizeAuditError(job.error) : undefined}
                 >
                   {job?.status === 'running' && <span className="pulse" style={{ background: 'var(--info)' }} />}
                   {jobStatusLabel}
                 </span>
+              )}
+              {job?.status === 'failed' && job.error && (
+                <span style={{ fontSize:12, color:'var(--danger)', flexBasis:'100%' }}>{humanizeAuditError(job.error)}</span>
               )}
               <button className="btn btn-ghost btn-sm" style={{borderColor:'var(--border)'}}
                 onClick={() => onRunAudit(sel)} disabled={jobActive}>
