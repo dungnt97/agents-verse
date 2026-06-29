@@ -188,7 +188,7 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
             <span className="row" style={{ gap:8, fontSize:13, color:'var(--ink)', fontWeight:600 }}>
               <Icon name="arrowUR" size={15} style={{color:'var(--success)'}}/> +{d.newScore-d.oldScore} {t('demos.liftSuffix')}
             </span>
-            <button className="btn btn-soft btn-sm" onClick={() => onAction('Opened live demo · '+d.business)}>
+            <button className="btn btn-soft btn-sm" onClick={() => window.open('/demo/' + d.leadId, '_blank', 'noopener')}>
               {t('demos.btnOpenDemo')} <Icon name="external" size={13}/>
             </button>
           </div>
@@ -275,8 +275,8 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
           <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Improvement requested')}>
             <Icon name="spark" size={15}/> {t('demos.btnImproveAI')}
           </button>
-          {/* Copy link: cosmetic only — clipboard action */}
-          <button disabled={pending} className="btn btn-soft" onClick={() => onAction('Demo link copied','success')}>{t('demos.btnCopyLink')}</button>
+          {/* Copy the real public demo URL to the clipboard. */}
+          <button disabled={pending} className="btn btn-soft" onClick={() => { void navigator.clipboard?.writeText(window.location.origin + '/demo/' + d.leadId); onAction('Demo link copied','success'); }}>{t('demos.btnCopyLink')}</button>
         </div>
       </div>
     </>
