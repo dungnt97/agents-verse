@@ -1,7 +1,7 @@
 import 'server-only';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/lib/db/client';
-import { leads as leadsTable, audits as auditsTable } from '@/lib/db/schema';
+import { leads as leadsTable, audits as auditsTable, auditScreenshots } from '@/lib/db/schema';
 import { AV, buildAuditFor } from '@/lib/data';
 import type { Lead, AuditResult } from '@/lib/data/types';
 import { USE_DB } from './config';
@@ -29,17 +29,8 @@ export async function getAudit(leadId: string): Promise<AuditResult> {
   const [lead] = await db.select().from(leadsTable).where(eq(leadsTable.id, leadId)).limit(1);
   const [a] = await db.select().from(auditsTable).where(eq(auditsTable.leadId, leadId)).limit(1);
   if (!lead) return AV.audit(leadId);
-  // No stored audit (e.g. a seeded lead that never ran the worker). Don't fabricate a finished AI audit:
-  // keep the heuristic sub-scores derived from the real site score, but replace the generic problem list
-  // and the templated narrative with an honest "not audited yet / these are estimates" message.
-  if (!a) {
-    const est = buildAuditFor(lead);
-    return {
-      ...est,
-      problems: [`Not audited yet — the scores below are estimated from the current site (${lead.site}/100). Run an audit for the full AI breakdown.`],
-      summary: `${lead.company} has not been through a full audit yet, so these figures are estimated from its current site score (${lead.site}/100). Run an audit to get the real AI analysis.`,
-    };
-  }
+  // No stored audit (e.g. a discovery-sourced lead) → derive from THIS lead, not a mock placeholder.
+  if (!a) return buildAuditFor(lead);
   return {
     ...lead,
     scores: a.scores,
@@ -48,6 +39,14 @@ export async function getAudit(leadId: string): Promise<AuditResult> {
     confidence: a.confidence,
     summary: a.summary,
   };
+}
+
+// The cached desktop screenshot (base64 PNG) of a lead's audited site, or null. Served by the
+// /audit-shot/[leadId] route as the real "current website" preview.
+export async function getAuditScreenshot(leadId: string): Promise<string | null> {
+  if (!USE_DB) return null;
+  const [row] = await db.select({ png: auditScreenshots.png }).from(auditScreenshots).where(eq(auditScreenshots.leadId, leadId)).limit(1);
+  return row?.png ?? null;
 }
 
 // Upsert discovery-sourced leads keyed by the unique placeId — re-running discovery refreshes

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { inngest, type AuditRequestedData } from '../client';
 import { db } from '../../db/client';
-import { audits, auditJobs, leads } from '../../db/schema';
+import { audits, auditJobs, auditScreenshots, leads } from '../../db/schema';
 import { runPageSpeedAudit } from '../../audit/pagespeed-client';
 import { captureScreenshots } from '../../audit/screenshot';
 import { scoreScreenshots } from '../../audit/vision-scoring';
@@ -60,6 +60,13 @@ export const runAudit = inngest.createFunction(
       // boundary (which would bloat/serialize-fail); only the small VisionScore JSON is returned.
       const vision = await step.run('screenshot-and-score', async () => {
         const shots = await captureScreenshots(lead.url);
+        // Cache the desktop screenshot (base64) as the real "current website" preview. Stored INSIDE this
+        // step so the PNG Buffer never crosses a step boundary; only the small score JSON is returned.
+        const png = shots.desktop.toString('base64');
+        await db
+          .insert(auditScreenshots)
+          .values({ leadId, png })
+          .onConflictDoUpdate({ target: auditScreenshots.leadId, set: { png, updatedAt: new Date() } });
         return scoreScreenshots({ shots, company: lead.company, industry: lead.industry });
       });
 
