@@ -57,6 +57,13 @@
       "when": 1782306148790,
       "tag": "0007_spooky_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782713073044,
+      "tag": "0008_parched_squadron_supreme",
+      "breakpoints": true
     }
   ]
 }

@@ -23,6 +23,16 @@ export const audits = pgTable('audits', {
   summary: text('summary').notNull(),
 });
 
+// Cached homepage screenshot (desktop, base64 PNG) of the audited site — shown as the real "current
+// website" preview. Kept in its own table so the large image never bloats the audits row / its columns.
+export const auditScreenshots = pgTable('audit_screenshots', {
+  leadId: text('lead_id')
+    .primaryKey()
+    .references(() => leads.id, { onDelete: 'cascade' }),
+  png: text('png').notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 export const demos = pgTable('demos', {
   id: text('id').primaryKey(),
   leadId: text('lead_id')

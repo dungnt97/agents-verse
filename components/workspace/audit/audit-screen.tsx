@@ -66,6 +66,25 @@ export interface AuditScreenProps {
   initialLead?: string | null;
 }
 
+// "Current website" preview: the REAL cached audit screenshot (served by /audit-shot/[leadId]); falls
+// back to the stylised SiteMock when no screenshot exists yet (un-audited lead / demo mode).
+function AuditPreview({ leadId, url, hue }: { leadId: string; url: string; hue: number }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <SiteMock variant="old" hue={hue} label={url} />;
+  return (
+    <div style={{ borderRadius:12, overflow:'hidden', border:'1px solid var(--border)', boxShadow:'var(--sh-sm)' }}>
+      <div style={{ display:'flex', gap:5, alignItems:'center', padding:'8px 10px', background:'var(--surface-muted)', borderBottom:'1px solid var(--border-soft)' }}>
+        <span style={{ width:8, height:8, borderRadius:99, background:'#e0564a' }} />
+        <span style={{ width:8, height:8, borderRadius:99, background:'#e8b13a' }} />
+        <span style={{ width:8, height:8, borderRadius:99, background:'#54b84a' }} />
+        <span style={{ marginLeft:8, fontSize:11, color:'var(--ink-3)', fontFamily:'var(--font-mono)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{url}</span>
+      </div>
+      <img src={'/audit-shot/' + leadId} alt={'Current homepage of ' + url} onError={() => setFailed(true)}
+        style={{ display:'block', width:'100%', height:240, objectFit:'cover', objectPosition:'top', background:'#fff' }} />
+    </div>
+  );
+}
+
 export function AuditScreen({ audited, auditMap, demoLeadIds, generatedDemoLeadIds, jobMap, initialLead }: AuditScreenProps) {
   // Build Set once for O(1) has() — demoLeadIds is a stable server-prefetched array
   const demoLeadSet = new Set(demoLeadIds);
@@ -189,7 +208,7 @@ export function AuditScreen({ audited, auditMap, demoLeadIds, generatedDemoLeadI
               {jobStatusLabel && (
                 <span
                   className={'badge ' + (job?.status === 'failed' ? 'badge-danger' : job?.status === 'running' ? 'badge-info' : 'badge-warning')}
-                  title={job?.status === 'failed' && job.error ? humanizeAuditError(job.error) : undefined}
+                  title={job?.status === 'failed' && job.error ? job.error : undefined}
                 >
                   {job?.status === 'running' && <span className="pulse" style={{ background: 'var(--info)' }} />}
                   {jobStatusLabel}
@@ -224,7 +243,7 @@ export function AuditScreen({ audited, auditMap, demoLeadIds, generatedDemoLeadI
                 <span className="eyebrow" style={{color:'var(--ink-3)'}}>{t('audits.currentWebsite')}</span>
                 <span className="badge badge-danger">{a.site}/100</span>
               </div>
-              <SiteMock variant="old" hue={hue} label={a.url} />
+              <AuditPreview key={sel} leadId={sel} url={a.url} hue={hue} />
             </div>
             <div className="card" style={{ padding:18, display:'flex', flexDirection:'column' }}>
               <div className="row" style={{ gap:18, marginBottom:14 }}>
