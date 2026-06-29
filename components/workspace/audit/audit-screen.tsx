@@ -222,7 +222,7 @@ export function AuditScreen({ audited, auditMap, demoLeadIds, generatedDemoLeadI
                 <Icon name="search" size={14} /> {jobActive ? t('audits.auditing') : t('audits.runAudit')}
               </button>
               <button className="btn btn-ghost btn-sm" style={{borderColor:'var(--border)'}}
-                onClick={() => onAction('Assigned to Design Studio · '+a.company, 'success')}>
+                onClick={() => onGenerateDemo(sel)} disabled={pending}>
                 {t('audits.assignToDesign')}
               </button>
               <button className="btn btn-ghost btn-sm" style={{borderColor:'var(--border)'}}
