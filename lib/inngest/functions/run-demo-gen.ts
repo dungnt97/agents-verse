@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { inngest, type DemoRequestedData } from '../client';
 import { db } from '../../db/client';
 import { leads, audits, generatedDemos } from '../../db/schema';
@@ -82,6 +82,9 @@ export const runDemoGen = inngest.createFunction(
             target: generatedDemos.leadId,
             set: { html, status: 'ready', error: null, updatedAt: new Date() },
           });
+        // A freshly-built demo enters founder-review so it surfaces (as "Needs review") on the Demos
+        // screen; never downgrade a lead already further along (sent/approved/won).
+        await db.update(leads).set({ demo: 'review' }).where(and(eq(leads.id, leadId), inArray(leads.demo, ['none', 'draft'])));
       });
 
       // Tell the orchestrator the demo step succeeded so it can close the run (or, in later phases,
