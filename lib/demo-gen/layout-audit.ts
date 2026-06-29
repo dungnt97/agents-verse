@@ -122,6 +122,28 @@ const AUDIT_SCRIPT = `(() => {
     if (img.complete && img.naturalWidth === 0 && r.width > 4 && r.height > 4) add('major', sig(img), 'an image source is broken — it finished loading with no pixels (a dead/invalid URL: ' + String(img.currentSrc || img.src || '').slice(0, 60) + ') — add an onerror fallback or use a valid image');
   }
 
+  // Card groups must use grid/flex, not CSS multi-column (columns/column-count): multi-column reflows by
+  // height and orphans cards (e.g. 4 testimonials in a 3-col masonry strands the 4th). Flag a visible
+  // container in column mode holding >=3 block-level card-like children (own bg/border + padding). Prose /
+  // tag-clouds (text/inline children) are legitimately multi-column and are NOT flagged. String methods only.
+  const colConts = [].slice.call(document.querySelectorAll('*'));
+  for (let ci = 0; ci < colConts.length; ci++) {
+    const c = colConts[ci];
+    const ccs = getComputedStyle(c);
+    const colN = parseInt(ccs.columnCount, 10);
+    if (!(colN >= 2 || (ccs.columnCount === 'auto' && ccs.columnWidth !== 'auto'))) continue;
+    if (!visible(c)) continue;
+    const kids = [].slice.call(c.children);
+    let cards = 0;
+    for (let ki = 0; ki < kids.length; ki++) {
+      const kcs = getComputedStyle(kids[ki]);
+      if (kcs.display === 'inline' || kcs.display === 'none') continue;
+      const boxed = (kcs.backgroundColor !== 'rgba(0, 0, 0, 0)' && kcs.backgroundColor !== 'transparent') || parseFloat(kcs.borderTopWidth) > 0 || kcs.borderTopLeftRadius !== '0px';
+      if (boxed && parseFloat(kcs.paddingTop) > 0) cards++;
+    }
+    if (cards >= 3) { add('major', sig(c), 'a group of ' + cards + ' cards uses CSS multi-column (columns/column-count) — it reflows by height and orphans cards (an uneven last column); use display:grid or flex with a column count that fills each row cleanly for the item count'); break; }
+  }
+
   return JSON.stringify(out.slice(0, 24));
 })()`;
 
