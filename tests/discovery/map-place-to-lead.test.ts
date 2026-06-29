@@ -57,8 +57,8 @@ describe('mapPlaceToLead', () => {
       city: 'Austin',
       url: 'https://acmeplumbing.example',
       site: 48,
-      score: 88,
-      value: 2400,
+      score: 48,
+      value: 0,
       agent: 'orion',
       stage: 'found',
       demo: 'draft',
@@ -95,9 +95,9 @@ describe('mapPlaceToLead', () => {
       email: null,
       industry: 'Dental',
     });
-    // score is now derived from the heuristic site score: min(95, site+40). site=5 -> 45.
-    expect(result.score).toBe(45);
-    expect(result.value).toBe(2400);
+    // score mirrors the real heuristic site score (no fabricated projection); value is 0 without a qualifier.
+    expect(result.score).toBe(5);
+    expect(result.value).toBe(0);
     expect(result.agent).toBe('orion');
     expect(result.stage).toBe('found');
     expect(result.demo).toBe('draft');
@@ -127,7 +127,7 @@ describe('mapPlaceToLead', () => {
       expect(result.websiteScore).toBe(17);
     });
 
-    it('falls back to site=38 and websiteScore=null when assessment is null', () => {
+    it('falls back to site=0 and websiteScore=null when assessment is null', () => {
       const result = mapPlaceToLead({
         place: makePlace(),
         enrichment: makeEnrichment(),
@@ -135,7 +135,7 @@ describe('mapPlaceToLead', () => {
         email: null,
         industry: 'Plumbing',
       });
-      expect(result.site).toBe(38);
+      expect(result.site).toBe(0);
       expect(result.websiteScore).toBeNull();
     });
 
@@ -291,13 +291,13 @@ describe('mapPlaceToLead', () => {
       expect(result.stage).toBe('found');
     });
 
-    it('derives score = min(95, site + 40) and caps it at 95', () => {
+    it('sets score to the real heuristic site score (0 when not assessed; no fabricated projection)', () => {
       const low = mapPlaceToLead({ place: makePlace(), enrichment: makeEnrichment(), assessment: makeAssessment({ score: 10 }), email: null, industry: 'Plumbing' });
-      expect(low.score).toBe(50); // 10 + 40
+      expect(low.score).toBe(10);
       const noSite = mapPlaceToLead({ place: makePlace(), enrichment: makeEnrichment(), assessment: null, email: null, industry: 'Plumbing' });
-      expect(noSite.score).toBe(78); // 38 default + 40
+      expect(noSite.score).toBe(0);
       const high = mapPlaceToLead({ place: makePlace(), enrichment: makeEnrichment(), assessment: makeAssessment({ score: 90 }), email: null, industry: 'Plumbing' });
-      expect(high.score).toBe(95); // min(95, 130)
+      expect(high.score).toBe(90);
     });
   });
 });

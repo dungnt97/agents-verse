@@ -129,7 +129,6 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
   const [pending, startTransition] = useTransition();
   const d = demo;
   const hue = hueFor(d.industry);
-  const first = d.business.split(' ')[0];
 
   // Persist a status change then refresh. Demo mode (no DB) → cosmetic toast fallback.
   const changeStatus = (status: Parameters<typeof updateDemoStatus>[1], successMsg: string) => {
@@ -141,18 +140,8 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
     });
   };
 
-  /* Outreach tone variants — body text for each tone */
-  const tones: Record<string, string> = {
-    [t('demos.toneFriendly')]: d.outreach.body,
-    [t('demos.tonePremium')]:  `Hi ${first} team — we took the liberty of rebuilding your homepage as a working concept. It's fast, refined and built to convert. No charge, no obligation — we'd genuinely value your eye on it.`,
-    [t('demos.toneDirect')]:   `Hi ${first} team — we rebuilt your homepage. It loads faster, works on mobile, and drives more enquiries. Live demo inside. Worth two minutes?`,
-    [t('demos.toneLocal')]:    `Hi ${first} team — we're local and we rebuilt your ${d.city} homepage as a free working demo. Mobile-ready and easy for your customers. Mind taking a look?`,
-  };
-
-  const [tone, setTone] = useState(t('demos.toneFriendly'));
-  const [body, setBody] = useState(tones[t('demos.toneFriendly')]);
-
-  const pickTone = (tk: string) => { setTone(tk); setBody(tones[tk]); };
+  // The editable outreach draft is the real body Echo generated for this demo (no fabricated tone variants).
+  const [body, setBody] = useState(d.outreach.body);
   const checks = Object.entries(d.checklist);
   const passed = checks.filter(([, v]) => v).length;
 
@@ -251,11 +240,6 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
 
           {/* Outreach */}
           <h3 style={{ fontSize:14, marginBottom:12 }}>{t('demos.sectionOutreach')}</h3>
-          <div className="row" style={{ gap:7, marginBottom:12, flexWrap:'wrap' }}>
-            {Object.keys(tones).map(tk => (
-              <button key={tk} className={'chip'+(tone===tk?' active':'')} onClick={() => pickTone(tk)} style={{ height:30 }}>{tk}</button>
-            ))}
-          </div>
           <div style={{ border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
             <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border-soft)', fontSize:13 }}>
               <span style={{ color:'var(--ink-3)' }}>{t('demos.subjectLabel')}</span>
