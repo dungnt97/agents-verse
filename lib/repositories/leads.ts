@@ -29,8 +29,17 @@ export async function getAudit(leadId: string): Promise<AuditResult> {
   const [lead] = await db.select().from(leadsTable).where(eq(leadsTable.id, leadId)).limit(1);
   const [a] = await db.select().from(auditsTable).where(eq(auditsTable.leadId, leadId)).limit(1);
   if (!lead) return AV.audit(leadId);
-  // No stored audit (e.g. a discovery-sourced lead) → derive from THIS lead, not a mock placeholder.
-  if (!a) return buildAuditFor(lead);
+  // No stored audit (e.g. a seeded lead that never ran the worker). Don't fabricate a finished AI audit:
+  // keep the heuristic sub-scores derived from the real site score, but replace the generic problem list
+  // and the templated narrative with an honest "not audited yet / these are estimates" message.
+  if (!a) {
+    const est = buildAuditFor(lead);
+    return {
+      ...est,
+      problems: [`Not audited yet — the scores below are estimated from the current site (${lead.site}/100). Run an audit for the full AI breakdown.`],
+      summary: `${lead.company} has not been through a full audit yet, so these figures are estimated from its current site score (${lead.site}/100). Run an audit to get the real AI analysis.`,
+    };
+  }
   return {
     ...lead,
     scores: a.scores,
