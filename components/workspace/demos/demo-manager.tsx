@@ -17,6 +17,7 @@ import { fmt, hueFor } from '@/lib/data/format';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { useToast } from '@/lib/providers/toast-provider';
 import { updateDemoStatus } from '@/lib/actions/demos';
+import { requestDemoGeneration } from '@/lib/actions/run-demo-gen';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { Demo } from '@/lib/data/types';
 
@@ -272,7 +273,14 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
           {/* draft → review: sends the draft demo into the review queue */}
           {d.status==='draft'    && <button disabled={pending} className="btn btn-primary grow" onClick={() => changeStatus('review', 'Sent for review · '+d.business)}>{t('demos.btnSendReview')}</button>}
           {/* Improve AI: cosmetic only — triggers background AI job, not a status transition */}
-          <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => onAction('Improvement requested')}>
+          <button disabled={pending} className="btn btn-ghost" style={{borderColor:'var(--border)'}} onClick={() => {
+            if (!useDb) { onAction('AI improvement queued (demo mode).', 'success'); return; }
+            startTransition(async () => {
+              const r = await requestDemoGeneration(d.leadId);
+              onAction(r.ok ? 'Nova is rebuilding this demo — it takes a few minutes; reopen it when ready.' : r.message, r.ok ? 'success' : 'warning');
+              router.refresh();
+            });
+          }}>
             <Icon name="spark" size={15}/> {t('demos.btnImproveAI')}
           </button>
           {/* Copy the real public demo URL to the clipboard. */}
