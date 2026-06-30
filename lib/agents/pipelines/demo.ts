@@ -114,19 +114,21 @@ export async function generateDemoHtml(input: DemoGenInput, step: StepRunner = i
   // falls back to `built`, and the /tmp PNGs live only within this step.
   const reviewed = await step.run('review-revise', async () => {
     try {
-      const id = `${process.pid}-${Date.now()}`;
-      const desktopPngs = await renderHtmlToPng(built, `/tmp/demo-${id}-d.html`, `/tmp/demo-${id}-d.png`, DESKTOP_WIDTH);
-      const mobilePngs = await renderHtmlToPng(built, `/tmp/demo-${id}-m.html`, `/tmp/demo-${id}-m.png`, MOBILE_WIDTH);
-
-      // Pass 3 — the niche-aware board reviews every page slice in parallel (independent lenses).
-      const reviews = await runBoard(REVIEW_BOARD, { input, desktopPngs, mobilePngs });
-      if (reviews.length === 0) return built;
-
-      // Pass 4 — Atlas consolidates the board into one prioritized fix list.
-      const fixes = await runAgent(atlasSynthesizer, { input, reviews });
-
-      // Pass 5 — Nova revises the page to satisfy the fixes (sees the slices too).
-      return await runAgent(novaReviser, { input, fixes, desktopPngs, mobilePngs, currentHtml: built });
+      let current = built;
+      // Passes 3-5, looped up to 2 rounds: render -> board review -> Atlas fix list -> Nova revise. The 2nd
+      // round RE-REVIEWS the revised page (catches issues the first fix missed or introduced), stopping
+      // early if the board flags nothing.
+      for (let round = 1; round <= 2; round++) {
+        const id = `${process.pid}-${Date.now()}-r${round}`;
+        const desktopPngs = await renderHtmlToPng(current, `/tmp/demo-${id}-d.html`, `/tmp/demo-${id}-d.png`, DESKTOP_WIDTH);
+        const mobilePngs = await renderHtmlToPng(current, `/tmp/demo-${id}-m.html`, `/tmp/demo-${id}-m.png`, MOBILE_WIDTH);
+        const reviews = await runBoard(REVIEW_BOARD, { input, desktopPngs, mobilePngs });
+        if (reviews.length === 0) break;
+        console.error('[demo-gen] review round ' + round + ': ' + reviews.length + ' lens critique(s)');
+        const fixes = await runAgent(atlasSynthesizer, { input, reviews });
+        current = await runAgent(novaReviser, { input, fixes, desktopPngs, mobilePngs, currentHtml: current });
+      }
+      return current;
     } catch {
       return built;
     }

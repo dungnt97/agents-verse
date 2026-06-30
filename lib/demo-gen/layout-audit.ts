@@ -144,6 +144,30 @@ const AUDIT_SCRIPT = `(() => {
     if (cards >= 3) { add('major', sig(c), 'a group of ' + cards + ' cards uses CSS multi-column (columns/column-count) — it reflows by height and orphans cards (an uneven last column); use display:grid or flex with a column count that fills each row cleanly for the item count'); break; }
   }
 
+  // Header legibility: a transparent/overlay header at the top sits OVER the hero — dark brand/nav text
+  // then blends into the imagery (unreadable until it docks to a solid bar on scroll). Flag dark header
+  // text in the transparent state. String methods only (no regex), perceptual luminance.
+  const parseRgb = (c) => { const i = c.indexOf('('); if (i < 0) return null; const inner = c.slice(i + 1, c.indexOf(')')); const p = inner.split(','); return { r: parseFloat(p[0]) || 0, g: parseFloat(p[1]) || 0, b: parseFloat(p[2]) || 0, a: p.length > 3 ? parseFloat(p[3]) : 1 }; };
+  const lum = (c) => { const p = parseRgb(c); return p ? (0.299 * p.r + 0.587 * p.g + 0.114 * p.b) / 255 : 1; };
+  const hdr = document.querySelector('header') || document.querySelector('[class*="header"]') || document.querySelector('[class*="nav"]');
+  if (hdr && visible(hdr)) {
+    const hcs = getComputedStyle(hdr);
+    const bg = parseRgb(hcs.backgroundColor);
+    const overlay = (hcs.position === 'fixed' || hcs.position === 'sticky' || hcs.position === 'absolute') && (!bg || bg.a < 0.35) && hcs.backgroundImage === 'none';
+    if (overlay) {
+      const texts = [].slice.call(hdr.querySelectorAll('a, span, button, strong, b'));
+      let dark = 0, seen = 0;
+      for (let ti = 0; ti < texts.length; ti++) {
+        const el = texts[ti]; const tx = (el.textContent || '').trim();
+        if (!tx || tx.length > 28 || !visible(el)) continue;
+        const ecs = getComputedStyle(el);
+        if (parseRgb(ecs.backgroundColor) && parseRgb(ecs.backgroundColor).a > 0.35) continue;
+        seen++; if (lum(ecs.color) < 0.5) dark++;
+      }
+      if (seen > 0 && dark >= Math.ceil(seen / 2)) add('major', sig(hdr), 'the header overlaps the hero (transparent at the top) but its brand/nav text is DARK — it blends into the hero imagery and is unreadable until scroll; use LIGHT header text + a subtle dark top-scrim in the transparent state, switching to dark text only when it docks to a solid light bar on scroll');
+    }
+  }
+
   return JSON.stringify(out.slice(0, 24));
 })()`;
 
