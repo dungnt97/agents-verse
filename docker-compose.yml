@@ -33,6 +33,8 @@ services:
     environment:
       USE_DB: "true"
       INNGEST_BASE_URL: http://inngest:8288   # web only sends events to the Inngest server
+      ANTHROPIC_BASE_URL: http://9router:20128   # AI-summary server actions reach the gateway (same as worker)
+      AGENT_MODEL_SONNET: cc/claude-sonnet-4-6   # sonnet model id on the 9router gateway (completeText / AI-summary)
     depends_on:
       db:
         condition: service_healthy   # don't start web until Postgres healthcheck passes
@@ -128,6 +130,7 @@ services:
       # AGENT_MODEL_OPUS (the combo id) come from .env.local; clear ANTHROPIC_BASE_URL there to fall
       # back to a direct subscription via CLAUDE_CODE_OAUTH_TOKEN instead.
       ANTHROPIC_BASE_URL: http://9router:20128
+      AGENT_MODEL_SONNET: cc/claude-sonnet-4-6   # sonnet model id (orion qualifier / completeText)
     depends_on:
       db:
         condition: service_healthy
