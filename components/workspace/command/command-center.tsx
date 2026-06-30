@@ -25,6 +25,7 @@ import {
   approveSupportEscalation,
   rejectSupportEscalation,
 } from '@/lib/actions/escalations';
+import { requestSummary } from '@/lib/actions/summary';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import type { Escalation, Metrics } from '@/lib/data/types';
 
@@ -163,7 +164,7 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
               if (!useDb) { onAction('You took over · ' + e.who, 'success'); return; }
               startTransition(async () => { const r = await resolveEscalation(e.id, 'resolved'); if (r.ok) { router.refresh(); onAction('You took over · ' + e.who, 'success'); } else onAction(r.message ?? 'Could not take over', 'warning'); });
             }} style={{ borderColor: 'var(--border)' }}>{t('dash.takeOver')}</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => onAction('Summary requested')} style={{ borderColor: 'var(--border)' }}>{t('dash.askAiSummary')}</button>
+            <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => startTransition(async () => { const r = await requestSummary({ kind: 'escalation', label: e.title }); onAction(r.text, r.ok ? 'success' : 'warning'); })} style={{ borderColor: 'var(--border)' }}>{t('dash.askAiSummary')}</button>
             <button className="btn btn-soft btn-sm" disabled={isPending} onClick={() => handleResolve('dismissed')} style={{ marginLeft: 'auto' }}>{t('dash.reject')}</button>
           </div>
         </div>
@@ -231,6 +232,7 @@ export function CommandCenter({ escalations, metrics }: CommandCenterProps) {
   const { t } = useI18n();
   const onAction = useToast();
   const [exp, setExp] = useState<string | null>('e1');
+  const [summaryPending, startSummary] = useTransition();
 
 
   /* Filter chips — chrome labels */
@@ -263,7 +265,7 @@ export function CommandCenter({ escalations, metrics }: CommandCenterProps) {
         </div>
         <div className="row" style={{ gap: 10 }}>
           <button className="btn btn-ghost" style={{ borderColor: 'var(--border)' }} onClick={() => onAction('Approved all safe items', 'success')}><Icon name="check" size={16} /> {t('cmd.approveAll')}</button>
-          <button className="btn btn-primary" onClick={() => onAction('Daily summary generated')}>{t('cmd.askSummary')}</button>
+          <button className="btn btn-primary" disabled={summaryPending} onClick={() => startSummary(async () => { const r = await requestSummary({ kind: 'daily' }); onAction(r.text, r.ok ? 'success' : 'warning'); })}>{t('cmd.askSummary')}</button>
         </div>
       </div>
 
