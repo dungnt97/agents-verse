@@ -224,6 +224,8 @@ export interface Demo {
   notes: string;
   checklist: DemoChecklist;
   outreach: DemoOutreach;
+  /** True while the demo is being (re)generated — keep it visible, don't drop it from the list. */
+  generating?: boolean;
 }
 
 export interface AuditResult extends Lead {

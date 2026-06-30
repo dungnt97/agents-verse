@@ -29,8 +29,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ leadId:
   const demo = await getGeneratedDemo(leadId);
 
   if (!demo) return placeholder('Chưa có demo', 'Demo cho lead này chưa được tạo. Bấm “Generate demo” trong workspace.', 404);
+  // Serve the existing demo even while a re-generation is in flight — the current html stays valid until
+  // the new version lands, so "Improve with AI" never makes a live demo go dark.
+  if (demo.html) return new Response(demo.html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
   if (demo.status === 'generating') return placeholder('Đang tạo demo…', 'AI đang dựng bản redesign — tải lại trang sau ít phút.');
-  if (demo.status === 'failed' || !demo.html) return placeholder('Tạo demo thất bại', demo.error ?? 'Vui lòng thử tạo lại.', 500);
-
-  return new Response(demo.html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
+  return placeholder('Tạo demo thất bại', demo.error ?? 'Vui lòng thử tạo lại.', 500);
 }

@@ -94,8 +94,8 @@ function DemoCard({ d, onOpen }: { d: Demo; onOpen: (id: string) => void; onActi
         borderColor: hover ? 'var(--border-strong)' : 'var(--border)' }}>
       <div style={{ position:'relative' }}>
         <DemoThumb hue={hue} label={d.demoUrl} />
-        <span className={'badge '+d.statusCls} style={{ position:'absolute', top:10, right:10, boxShadow:'var(--sh-sm)' }}>
-          {d.statusLabel}
+        <span className={'badge '+(d.generating ? 'badge-info' : d.statusCls)} style={{ position:'absolute', top:10, right:10, boxShadow:'var(--sh-sm)' }}>
+          {d.generating && <span className="pulse" style={{ background:'var(--info)' }} />} {d.generating ? 'Regenerating…' : d.statusLabel}
         </span>
       </div>
       <div style={{ padding:'14px 15px' }}>
