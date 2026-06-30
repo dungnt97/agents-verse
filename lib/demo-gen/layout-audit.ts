@@ -144,32 +144,33 @@ const AUDIT_SCRIPT = `(() => {
     if (cards >= 3) { add('major', sig(c), 'a group of ' + cards + ' cards uses CSS multi-column (columns/column-count) — it reflows by height and orphans cards (an uneven last column); use display:grid or flex with a column count that fills each row cleanly for the item count'); break; }
   }
 
-  // Header legibility: a transparent/overlay header at the top sits OVER the hero — dark brand/nav text
-  // then blends into the imagery (unreadable until it docks to a solid bar on scroll). Flag dark header
-  // text in the transparent state. String methods only (no regex), perceptual luminance.
-  const parseRgb = (c) => { const i = c.indexOf('('); if (i < 0) return null; const inner = c.slice(i + 1, c.indexOf(')')); const p = inner.split(','); return { r: parseFloat(p[0]) || 0, g: parseFloat(p[1]) || 0, b: parseFloat(p[2]) || 0, a: p.length > 3 ? parseFloat(p[3]) : 1 }; };
-  const lum = (c) => { const p = parseRgb(c); return p ? (0.299 * p.r + 0.587 * p.g + 0.114 * p.b) / 255 : 1; };
-  const hdr = document.querySelector('header') || document.querySelector('[class*="header"]') || document.querySelector('[class*="nav"]');
-  if (hdr && visible(hdr)) {
-    const hcs = getComputedStyle(hdr);
-    const bg = parseRgb(hcs.backgroundColor);
-    const overlay = (hcs.position === 'fixed' || hcs.position === 'sticky' || hcs.position === 'absolute') && (!bg || bg.a < 0.35) && hcs.backgroundImage === 'none';
-    if (overlay) {
-      const texts = [].slice.call(hdr.querySelectorAll('a, span, button, strong, b'));
-      let dark = 0, seen = 0;
-      for (let ti = 0; ti < texts.length; ti++) {
-        const el = texts[ti]; const tx = (el.textContent || '').trim();
-        if (!tx || tx.length > 28 || !visible(el)) continue;
-        const ecs = getComputedStyle(el);
-        if (parseRgb(ecs.backgroundColor) && parseRgb(ecs.backgroundColor).a > 0.35) continue;
-        seen++; if (lum(ecs.color) < 0.5) dark++;
-      }
-      if (seen > 0 && dark >= Math.ceil(seen / 2)) add('major', sig(hdr), 'the header overlaps the hero (transparent at the top) but its brand/nav text is DARK — it blends into the hero imagery and is unreadable until scroll; use LIGHT header text + a subtle dark top-scrim in the transparent state, switching to dark text only when it docks to a solid light bar on scroll');
-    }
-  }
-
   return JSON.stringify(out.slice(0, 24));
 })()`;
+
+// Header legibility probe (runs at the fresh top, before any scroll, so the header is in its real
+// transparent/overlay state). Returns the header's box + dominant text colour, or null when the header is
+// a solid opaque bar (fine on its own background) or absent. String expression (no closures).
+const HEADER_PROBE = `(() => {
+  const h = document.querySelector('header') || document.querySelector('[class*="header"]') || document.querySelector('[class*="nav"]');
+  if (!h) return null;
+  const cs = getComputedStyle(h);
+  if (cs.position !== 'fixed' && cs.position !== 'sticky' && cs.position !== 'absolute') return null;
+  const bg = cs.backgroundColor; const m = bg.indexOf('(');
+  let alpha = 1; if (m >= 0) { const parts = bg.slice(m + 1, bg.indexOf(')')).split(','); alpha = parts.length > 3 ? parseFloat(parts[3]) : 1; }
+  if (alpha >= 0.7 && cs.backgroundImage === 'none') return null;
+  let color = cs.color; const els = [].slice.call(h.querySelectorAll('a, span, strong, b'));
+  for (let i = 0; i < els.length; i++) { const e = els[i]; if ((e.textContent || '').trim() && getComputedStyle(e).display !== 'none') { color = getComputedStyle(e).color; break; } }
+  const r = h.getBoundingClientRect();
+  return { x: r.left, y: r.top, w: r.width, h: r.height, color };
+})()`;
+
+// Perceptual luminance (0..1) from an "rgb(r, g, b[, a])" string; null when unparseable.
+function colorLuminance(c: string): number | null {
+  const i = c.indexOf('(');
+  if (i < 0) return null;
+  const p = c.slice(i + 1, c.indexOf(')')).split(',');
+  return (0.299 * (parseFloat(p[0]) || 0) + 0.587 * (parseFloat(p[1]) || 0) + 0.114 * (parseFloat(p[2]) || 0)) / 255;
+}
 
 const VIEWPORTS: ReadonlyArray<{ vp: 'desktop' | 'mobile'; width: number; height: number }> = [
   { vp: 'desktop', width: 1440, height: 900 },
@@ -193,6 +194,27 @@ export async function auditLayout(html: string): Promise<LayoutDefect[]> {
         const context = await browser.newContext({ viewport: { width, height }, isMobile: width < 700, deviceScaleFactor: 1 });
         const page = await context.newPage();
         await page.goto('file://' + path, { waitUntil: 'networkidle', timeout: 30000 });
+        // PIXEL-ACCURATE header legibility: at the fresh top (no scroll yet) a transparent overlay header sits
+        // over the hero — screenshot its strip, average the REAL background luminance (sharp 1x1), and compare
+        // to the text colour. Flags dark-on-dark (unreadable) but NOT dark-on-light (readable) — no false alarm.
+        try {
+          const hp = await page.evaluate<{ x: number; y: number; w: number; h: number; color: string } | null>(HEADER_PROBE);
+          if (hp && hp.w > 40 && hp.h > 8) {
+            const shot = await (page as unknown as { screenshot(o: { clip: { x: number; y: number; width: number; height: number } }): Promise<Buffer> }).screenshot({
+              clip: { x: Math.max(0, hp.x), y: Math.max(0, hp.y), width: Math.max(1, Math.min(width - Math.max(0, hp.x), hp.w)), height: Math.max(1, Math.min(hp.h, 220)) },
+            });
+            const sharpFn = (await import('sharp')).default as unknown as (b: Buffer) => { resize(w: number, h: number): { raw(): { toBuffer(): Promise<Buffer> } } };
+            const px = await sharpFn(shot).resize(1, 1).raw().toBuffer();
+            const bgLum = (0.299 * px[0] + 0.587 * px[1] + 0.114 * px[2]) / 255;
+            const tLum = colorLuminance(hp.color);
+            if (tLum !== null) {
+              const contrast = (Math.max(bgLum, tLum) + 0.05) / (Math.min(bgLum, tLum) + 0.05);
+              if (contrast < 2.5) {
+                defects.push({ viewport: vp, severity: 'major', selector: 'header', issue: 'the transparent header text is low-contrast over the hero (~' + contrast.toFixed(1) + ':1, well under the ~3:1 minimum) — its brand/nav blends into the imagery; use light text + a subtle dark top-scrim (or a solid bar) so the header stays legible over the hero' });
+              }
+            }
+          }
+        } catch { /* header legibility probe is best-effort */ }
         await page.evaluate(SCROLL_SCRIPT);
         for (let i = 0; i < 15; i++) {
           const pending = await page.evaluate<number>(PENDING_IMAGES);
