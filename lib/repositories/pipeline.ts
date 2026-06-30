@@ -42,6 +42,7 @@ function buildDemoRow(
     agents: ['atlas', 'nova', 'iris', 'kira'],
     generated: gen.updatedAt ? relativeTime(Math.floor(new Date(gen.updatedAt).getTime() / 1000)) : 'today',
     demoUrl: '/demo/' + l.id,
+    generating: gen.status === 'generating',
     clientStatus: st.label,
     value: l.value,
     changes: probs.length ? probs.slice(0, 5) : REDESIGN_CHANGES,
@@ -64,7 +65,7 @@ function buildDemoRow(
 
 export async function getDemos(): Promise<Demo[]> {
   if (!USE_DB) return AV.demos;
-  const gens = await db.select().from(generatedDemos).where(eq(generatedDemos.status, 'ready'));
+  const gens = await db.select().from(generatedDemos).where(inArray(generatedDemos.status, ['ready', 'generating']));
   if (gens.length === 0) return [];
   const ids = gens.map((g) => g.leadId);
   const [leadRows, auditRows] = await Promise.all([
@@ -82,7 +83,7 @@ export async function getDemos(): Promise<Demo[]> {
 export async function demoByLead(leadId: string): Promise<Demo | undefined> {
   if (!USE_DB) return AV.demoByLead(leadId);
   const [gen] = await db.select().from(generatedDemos).where(eq(generatedDemos.leadId, leadId)).limit(1);
-  if (!gen || gen.status !== 'ready') return undefined;
+  if (!gen || (gen.status !== 'ready' && gen.status !== 'generating')) return undefined;
   const [l] = await db.select().from(leadsTable).where(eq(leadsTable.id, leadId)).limit(1);
   if (!l) return undefined;
   const [a] = await db.select().from(auditsTable).where(eq(auditsTable.leadId, leadId)).limit(1);
