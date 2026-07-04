@@ -282,4 +282,13 @@ describe('decideReplyOutcome — Closer routing (advance vs escalate)', () => {
       decideReplyOutcome({ currentStage: 'pricing', recommendedStage: 'quoted', conf: 85, value: 1, autonomyMode: 'guarded' }),
     ).toEqual({ action: 'advance', toStage: 'quoted' });
   });
+
+  it("'hold' always escalates (no stage change) regardless of mode/conf — the deal stays put for review", () => {
+    for (const autonomyMode of ['manual', 'review', 'guarded', 'full'] as const) {
+      const res = decideReplyOutcome({ currentStage: 'pricing', recommendedStage: 'hold', conf: 95, value: 1, autonomyMode });
+      expect(res.action, `${autonomyMode} hold`).toBe('escalate');
+      // A hold never yields a toStage — it must not move the deal.
+      expect('toStage' in res).toBe(false);
+    }
+  });
 });

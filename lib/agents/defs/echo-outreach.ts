@@ -30,6 +30,9 @@ function buildEchoPrompt({ company, industry, city, cta, summary }: EchoInput): 
     `What the redesign delivers / fixes: ${summary}`,
     `The one action the new site makes effortless: "${cta}".`,
     ``,
+    `LANGUAGE: write BOTH the subject and the body in natural, fluent Vietnamese — the recipient is a`,
+    `Vietnamese ${industry} business owner. (The audit inputs above may be in English; the email is not.)`,
+    ``,
     `How to write it:`,
     `- Open with ONE specific, verifiable observation about ${company}'s current site or situation (drawn`,
     `  from the fixes above). A signal-first opener earns the read; a generic "I came across your business" does not.`,
@@ -46,7 +49,7 @@ function buildEchoPrompt({ company, industry, city, cta, summary }: EchoInput): 
     `so it is unmistakably about ${company}.`,
     ``,
     `Output STRICT JSON ONLY — no prose, no markdown fence:`,
-    `{ "subject": "<a specific, non-spammy subject line, <= 60 chars>", "body": "<the email body, plain text, \\n between paragraphs>" }`,
+    `{ "subject": "<a specific, non-spammy subject line, <= 60 chars>", "body": "<the email body in Vietnamese, plain text, a blank line (\\n\\n) between paragraphs>" }`,
   ].join('\n');
 }
 

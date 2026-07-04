@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { MAX_REPLY_CHARS } from '../data/deal-stage-machine';
 
 // Pure helpers for the Resend inbound-email webhook (app/api/inbound). Resend signs webhooks with the
 // Svix scheme; we verify the signature here (no svix SDK — keeps the lockfile stable) and parse the
@@ -77,5 +78,7 @@ export function parseInboundEmail(body: unknown): InboundEmail | null {
       : typeof html === 'string'
         ? html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
         : '';
-  return { from, text: body0 };
+  // Cap the inbound body: an attacker controls this text, so bound it before it reaches the event bus /
+  // the Closer prompt (token cost + Inngest event-size limit).
+  return { from, text: body0.slice(0, MAX_REPLY_CHARS) };
 }

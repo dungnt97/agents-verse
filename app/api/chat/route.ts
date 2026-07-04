@@ -10,14 +10,31 @@ export const dynamic = 'force-dynamic';
 const MAX_TURNS = 8; // only the last few turns are sent (bounds tokens + abuse)
 const MAX_CONTENT = 2000; // per-message character cap
 
-// Module-level limiter: 20 messages / 5 min per client IP (best-effort, in-memory).
+// Per-client limiter (20 msgs / 5 min) PLUS a coarse global ceiling (200 msgs / 5 min) as a spend
+// backstop: the per-IP key is only as trustworthy as the proxy, so a global cap bounds total paid-gateway
+// cost even if IP keying is defeated. Best-effort, in-memory (resets on restart — fine on one VPS).
 const limited = slidingWindowLimiter(20, 5 * 60_000);
+const globalLimited = slidingWindowLimiter(200, 5 * 60_000);
+
+// Derive the client key from a TRUSTED source: X-Real-IP (proxy-set) first, else the LAST X-Forwarded-For
+// hop — the one appended by our own fronting proxy. The FIRST hop is client-supplied and trivially spoofed
+// (rotating it per request would bypass the per-IP cap entirely on this unauthenticated endpoint).
+function clientKey(req: Request): string {
+  const realIp = req.headers.get('x-real-ip')?.trim();
+  if (realIp) return realIp;
+  const hops = (req.headers.get('x-forwarded-for') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  return hops.length ? hops[hops.length - 1] : 'local';
+}
 
 export async function POST(req: Request): Promise<Response> {
   if (!assistantConfigured()) return new Response('assistant not configured', { status: 503 });
 
-  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'local';
-  if (limited(ip, Date.now())) return new Response('rate limited', { status: 429 });
+  const now = Date.now();
+  // Evaluate BOTH limiters (each call records a hit) so global accounting stays accurate even when the
+  // per-IP check passes.
+  const ipOver = limited(clientKey(req), now);
+  const globalOver = globalLimited('*', now);
+  if (ipOver || globalOver) return new Response('rate limited', { status: 429 });
 
   let body: { messages?: unknown };
   try {
@@ -27,13 +44,24 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const raw = Array.isArray(body.messages) ? body.messages : [];
-  const messages: ChatTurn[] = raw
+  const sliced: ChatTurn[] = raw
     .slice(-MAX_TURNS)
     .map((m): ChatTurn => ({
       role: (m as { role?: unknown })?.role === 'assistant' ? 'assistant' : 'user',
       content: String((m as { content?: unknown })?.content ?? '').slice(0, MAX_CONTENT),
     }))
     .filter((m) => m.content.trim());
+
+  // The widget seeds an assistant greeting, so the transcript can LEAD with an assistant turn (and slicing
+  // can also strand one first) — but the Messages API rejects a transcript whose first turn isn't 'user'
+  // or whose roles don't alternate. Drop leading assistant turns, then merge consecutive same-role turns.
+  while (sliced.length && sliced[0].role !== 'user') sliced.shift();
+  const messages: ChatTurn[] = [];
+  for (const m of sliced) {
+    const last = messages[messages.length - 1];
+    if (last && last.role === m.role) last.content += '\n\n' + m.content;
+    else messages.push({ role: m.role, content: m.content });
+  }
   if (!messages.length || messages[messages.length - 1].role !== 'user') {
     return new Response('no user message', { status: 400 });
   }

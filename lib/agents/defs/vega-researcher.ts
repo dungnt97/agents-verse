@@ -5,6 +5,7 @@
 // relative imports, no `server-only`.
 import { buildResearchPrompt, type DemoGenInput } from '../../demo-gen/prompt';
 import type { AgentDef } from '../types';
+import { makeTextValidator } from '../validators';
 
 export interface ResearchInput {
   input: DemoGenInput;
@@ -19,5 +20,7 @@ export const vegaResearcher: AgentDef<ResearchInput, string> = {
   // Multi-turn vision research over a large full-page screenshot; headroom for a slow first token.
   limits: { timeoutMs: 360_000, maxTurns: 8 },
   buildPrompt: ({ input, oldSitePngs }) => buildResearchPrompt(input, oldSitePngs),
-  validate: (raw) => raw.trim(),
+  // Empty output THROWS so runAgent retries (the caller treats a research failure as best-effort and
+  // falls back to an empty brief; a bare trim would return '' without ever retrying the gateway blip).
+  validate: makeTextValidator(),
 };
