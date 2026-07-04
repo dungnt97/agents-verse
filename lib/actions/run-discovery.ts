@@ -49,6 +49,7 @@ export async function runDiscovery(input: { industry?: string; city?: string }):
   // App-side daily cost guard (the hard QPD cap lives in Cloud Console). Counts discovery-sourced
   // leads created today; stops before any paid call once the cap is hit.
   const cap = Number(process.env.DISCOVERY_DAILY_CAP) || 0;
+  let budget = ENRICH_TOP_N;
   if (cap > 0) {
     const [{ value: todayCount }] = await db
       .select({ value: count() })
@@ -57,13 +58,16 @@ export async function runDiscovery(input: { industry?: string; city?: string }):
     if (todayCount >= cap) {
       return { found: 0, enriched: 0, upserted: 0, started: 0, message: `Daily discovery cap (${cap}) reached.` };
     }
+    // Clamp THIS pass to what's left under the cap — checking only before the run let a single pass
+    // overshoot by up to ENRICH_TOP_N-1 paid enrichments.
+    budget = Math.min(ENRICH_TOP_N, cap - todayCount);
   }
 
   const industry = (input.industry || process.env.DISCOVERY_DEFAULT_INDUSTRY || 'dentists').trim();
   const city = (input.city || process.env.DISCOVERY_DEFAULT_CITY || 'Austin TX').trim();
 
   const places = dedupePlaces(await searchBusinesses({ industry, city }));
-  const top = places.slice(0, ENRICH_TOP_N);
+  const top = places.slice(0, budget);
 
   const enriched: { place: (typeof top)[number]; enrichment: Awaited<ReturnType<typeof enrichPlace>>; assessment: Awaited<ReturnType<typeof assessWebsite>> | null; email: string | null }[] = [];
   for (const place of top) {
