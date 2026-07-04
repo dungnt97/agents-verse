@@ -105,7 +105,7 @@ All 13 workspace + 4 public routes are **dynamic** (`ƒ` server-rendered on dema
 - `lib/db/` — Database layer:
   - `client.ts` — Drizzle client over a single direct postgres-js connection; no pooler.
   - `schema/` — 16 tables across `agents.ts`, `leads.ts`, `pipeline.ts`, `ops.ts`, `audit.ts`, `auth.ts` (Better Auth), `enums.ts`, + `index.ts` barrel.
-  - `seed.ts` — Idempotent seed (ports `AV` into Postgres) with founder creation via Better Auth.
+  - `seed.ts` — Idempotent seed: always the org chart (agents/rooms/settings) + founder (Better Auth; skipped when `FOUNDER_PASSWORD` is unset); the mock `AV` business fixtures load only under `SEED_DEMO_DATA=true`.
 - `lib/discovery/` — Lead discovery (Google Places API):
   - `places-client.ts` — Places API HTTP client with field masks.
   - `map-place-to-lead.ts` — Maps a Places result to a `Lead`.
@@ -205,7 +205,7 @@ Core entities are defined in `lib/data/types.ts` and mirrored in `lib/db/schema/
 - **Pipeline orchestrator** (`lib/inngest/functions/orchestrate-pipeline.ts` + `pipeline-machine.ts` + `pipeline_runs`) — audit→demo→outreach under the autonomy gate; pause/kill-switch; resume/halt.
 - **Closer** (deal reply → advance/escalate), **Echo** (outreach email, Resend, CAN-SPAM), **Cipher** (`run-build.ts` delivery build → `builds`), **Mira** (`run-support.ts` onboarding), **Resend inbound webhook** (`app/api/inbound/route.ts`), **Ledger** (cost meter → `cost` escalation).
 
-**Demo data:** Seed includes 8 leads (dentists in Austin, TX) + 11 agents + 8 rooms + 5 demo requests + 4 deals. Fully functional UI with mock state; discovery and real audits require credentials to execute (Google Places API, Gemini, PageSpeed Insights).
+**Seed data:** By default the seed loads only the product **org chart** (11 agents + 8 rooms + the founder settings singleton) + the founder login — the running app fills leads/audits/demos/deals from real subsystem runs. Business **fixtures** (8 leads of dentists in Austin, TX + 5 demo requests + 4 deals + audits/escalations/activity/metrics) are **opt-in** via `SEED_DEMO_DATA=true` (used by the DB integration suite and for a populated local showcase). Discovery + real audits still require credentials to execute (Google Places, Gemini, PageSpeed).
 
 ## Migration Status: FUNCTIONALLY COMPLETE (Dual-Stack, Pending Cleanup)
 

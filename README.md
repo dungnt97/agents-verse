@@ -62,7 +62,8 @@ The web container's entrypoint runs `migrate → seed → start`. Front it with 
 | Real Auth (Better Auth), mutable-state→DB, Docker self-host | ✅ Done |
 | Audit subsystem (PageSpeed + Playwright + Gemini, durable via Inngest) | ✅ Code-complete (needs `GEMINI_API_KEY` + `GOOGLE_PAGESPEED_API_KEY` + worker stack) |
 | Workspace state machine (all interactions persist to Postgres) | ✅ Done |
-| Subsystem 3 (demo generation) · 4 (outreach/email) · 5 (deal/CRM automation) | ⬜ Not built (roadmap — key-gated) |
+| Subsystem 3 (demo generation) | ✅ Code-complete (needs the `claude` CLI backend — 9router gateway or `CLAUDE_CODE_OAUTH_TOKEN` — + worker stack) |
+| Subsystem 4 (outreach/email) · 5 (deal/CRM) · 6 (delivery + inbound + Ledger) | ✅ Code-complete (outreach/onboarding/inbound key-gated on `RESEND_API_KEY` / `RESEND_INBOUND_SECRET`) |
 
 See [`docs/development-roadmap.md`](./docs/development-roadmap.md) for detail.
 

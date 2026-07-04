@@ -12,7 +12,7 @@ Guidance for Claude Code working in this repository. Read `./README.md` first fo
 
 **Components NEVER import `AV` directly** — they receive entity data via async Server-Component props (page → screen), with a small server-seeded directory context (`workspace-data-provider`) for pervasive room/agent lookups. The mock `AV` is now only the repositories' fallback when `USE_DB` is off. Every new mutation MUST honor dual-mode (degrade gracefully with no DB).
 
-**Built so far** (all merged to `main`): Foundation (DB client/schema/seed/repos), Lead Discovery (Google Places), real Auth, mutable-state→DB, Docker self-host Postgres, the **Audit subsystem** (PageSpeed + Playwright + Gemini, durable via an Inngest worker), and the full workspace **state machine** wired to Postgres. **NOT built** (roadmap, key-gated at their core): Subsystem 3 demo-generation, 4 outreach/email, 5 deal/CRM automation. See `docs/development-roadmap.md`.
+**Built so far** (all merged to `main`): Foundation (DB client/schema/seed/repos), Lead Discovery (Google Places + the **Orion** LLM qualifier), real Auth, mutable-state→DB, Docker self-host Postgres, the **Audit subsystem** (PageSpeed + Playwright + Gemini, durable via an Inngest worker), the full workspace **state machine** wired to Postgres, and Subsystems **3 demo-generation**, **4 outreach/email**, **5 deal/CRM**, and **6 delivery + inbound + Ledger** — all code-complete. What's left is runtime enablement, not code: they're **key-gated** (demo-gen needs the `claude` CLI backend; outreach/onboarding/inbound need `RESEND_API_KEY` / `RESEND_INBOUND_SECRET`) and degrade gracefully when a key is absent. See `docs/development-roadmap.md`.
 
 The original buildless CDN-React prototype has been removed (preserved in git history only); the codebase is now Next.js-first.
 
@@ -22,14 +22,15 @@ The original buildless CDN-React prototype has been removed (preserved in git hi
 npm run dev         # dev server (Turbopack) → http://localhost:3000  (USE_DB=false → mock, no creds)
 npm run build       # production build
 npm run typecheck   # tsc --noEmit  (PRIMARY gate — always run after .ts/.tsx changes)
+npm run test        # vitest run (pure unit suite: agents, discovery, inngest machines, i18n parity — no DB/keys)
 npm run lint        # eslint app lib components
 npm run db:generate # drizzle-kit generate (after editing lib/db/schema/*)
 npm run db:migrate  # apply migrations  (needs DATABASE_URL in .env.local)
-npm run db:seed     # seed mock data + founder (needs DATABASE_URL + BETTER_AUTH_SECRET)
+npm run db:seed     # seed org chart (rooms+agents+settings) + founder; business fixtures opt-in via SEED_DEMO_DATA=true (needs DATABASE_URL + BETTER_AUTH_SECRET + FOUNDER_PASSWORD)
 docker compose up -d --build   # full stack: web + db(Postgres) + inngest + redis + worker
 ```
 
-Always run `npm run typecheck` (and ideally `npm run build`) after changing `.ts`/`.tsx` files. `typecheck`/`build` pass with **no DB or keys** (mock fallback); that's the standard verification gate. Note: `package-lock.json` IS committed (Docker `npm ci` needs it).
+Always run `npm run typecheck` and `npm run test` after changing `.ts`/`.tsx` files (and ideally `npm run build`). All three pass with **no DB or keys** (mock fallback); that's the standard verification gate. Note: `package-lock.json` IS committed (Docker `npm ci` needs it).
 
 ## Architecture
 
