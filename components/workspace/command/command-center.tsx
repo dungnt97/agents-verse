@@ -24,6 +24,7 @@ import {
   rejectOutreachEscalation,
   approveSupportEscalation,
   rejectSupportEscalation,
+  takeOverEscalation,
 } from '@/lib/actions/escalations';
 import { requestSummary } from '@/lib/actions/summary';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
@@ -162,7 +163,7 @@ export function EscalationCard({ e, onAction, expanded, onToggle }: EscalationCa
             {e.kind === 'cost' && <button className="btn btn-ghost btn-sm" onClick={() => onAction('Adjust the daily AI budget in Settings → Guardrails', 'success')} style={{ borderColor: 'var(--border)' }}>{t('dash.raiseBudget')}</button>}
             <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => {
               if (!useDb) { onAction('You took over · ' + e.who, 'success'); return; }
-              startTransition(async () => { const r = await resolveEscalation(e.id, 'resolved'); if (r.ok) { router.refresh(); onAction('You took over · ' + e.who, 'success'); } else onAction(r.message ?? 'Could not take over', 'warning'); });
+              startTransition(async () => { const r = await takeOverEscalation(e.id); if (r.ok) { router.refresh(); onAction('You took over · ' + e.who, 'success'); } else onAction(r.message ?? 'Could not take over', 'warning'); });
             }} style={{ borderColor: 'var(--border)' }}>{t('dash.takeOver')}</button>
             <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => startTransition(async () => { const r = await requestSummary({ kind: 'escalation', label: e.title }); onAction(r.text, r.ok ? 'success' : 'warning'); })} style={{ borderColor: 'var(--border)' }}>{t('dash.askAiSummary')}</button>
             <button className="btn btn-soft btn-sm" disabled={isPending} onClick={() => handleResolve('dismissed')} style={{ marginLeft: 'auto' }}>{t('dash.reject')}</button>

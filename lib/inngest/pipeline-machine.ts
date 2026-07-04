@@ -38,7 +38,7 @@ const PRECLIENT_AUTOHOP_MODES: readonly AutonomyMode[] = ['guarded', 'full'];
 // What the orchestrator should do after observing a fact. `fromStatus` is the run status the emit's
 // conditional stage write must match: an auto-hop advances a 'running' run; a founder resume advances
 // a 'waiting_approval' one. Pinning it keeps a redelivered fact from ever releasing a parked gate.
-export type PipelineEmitEvent = 'demo/requested' | 'outreach/requested';
+export type PipelineEmitEvent = 'audit/requested' | 'demo/requested' | 'outreach/requested';
 export type NextHop =
   | { kind: 'emit'; event: PipelineEmitEvent; from: PipelineStage; to: PipelineStage; fromStatus: PipelineRunStatus }
   | { kind: 'gate'; from: PipelineStage; reason: string }
@@ -102,12 +102,29 @@ export const RESUME_HOP: Partial<Record<PipelineStage, { event: PipelineEmitEven
   demo: { event: 'outreach/requested', to: 'outreach' },
 };
 
+// The event that (re-)fires a stage's work. Used by a founder resume from PAUSE: a completion fact
+// that arrived during the pause window was consumed by the machine's 'stop' branch, so the only
+// delivery-agnostic way to move a resumed run is to re-request its current stage. Stage work is safe
+// to re-run: the audit re-audits, the demo save is idempotent, and outreach's sendable-guard +
+// per-lead idempotency key prevent a double email — the cost is a re-spent step, not a wrong state.
+export const STAGE_REQUEST_EVENT: Partial<Record<PipelineStage, PipelineEmitEvent>> = {
+  audit: 'audit/requested',
+  demo: 'demo/requested',
+  outreach: 'outreach/requested',
+};
+
 type RunState = { stage: PipelineStage; status: PipelineRunStatus };
 
-// Founder approved a parked gate → release the held hop. Only a run actually parked at a gate can be
-// resumed; a duplicate resume (run already moved on) is a no-op. The emit pins fromStatus to
-// 'waiting_approval' so the conditional write advances exactly the parked row.
+// Founder resumed a run. Two legal sources: a run parked at a gate ('waiting_approval') releases the
+// held hop; a run the founder paused re-fires its current stage in place (from === to — the signal
+// for the orchestrator to mint a fresh event id, since the stage's original request id was already
+// consumed). Anything else is a duplicate/late resume and stops.
 export function decideResume(run: RunState): NextHop {
+  if (run.status === 'paused') {
+    const evt = STAGE_REQUEST_EVENT[run.stage];
+    if (!evt) return { kind: 'stop', reason: `no request event for stage ${run.stage}` };
+    return { kind: 'emit', event: evt, from: run.stage, to: run.stage, fromStatus: 'paused' };
+  }
   if (run.status !== 'waiting_approval') {
     return { kind: 'stop', reason: `run not awaiting approval (status ${run.status})` };
   }

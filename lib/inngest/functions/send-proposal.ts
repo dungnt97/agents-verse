@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { inngest, type ProposalRequestedData } from '../client';
 import { db } from '../../db/client';
-import { leads, deals, settings } from '../../db/schema';
+import { leads, deals, settings, escalations } from '../../db/schema';
 import { renderHtmlToPdf } from '../../demo-gen/render';
 import { buildProposal, type ProposalPricing } from '../../proposals/proposal';
 import { buildProposalHtml } from '../../proposals/proposal-html';
@@ -19,6 +19,37 @@ export const sendProposal = inngest.createFunction(
     retries: 1,
     concurrency: [{ limit: 2 }, { limit: 1, key: 'event.data.dealId' }],
     triggers: [{ event: 'proposal/requested' }],
+    // A founder-approved proposal email that terminally fails must not vanish silently — surface it
+    // as an open escalation (+ activity row) so the founder can resend or follow up manually.
+    onFailure: async ({ event, error, step }) => {
+      const { dealId } = event.data.event.data as ProposalRequestedData;
+      await step.run('escalate-proposal-failure', async () => {
+        const [deal] = await db.select().from(deals).where(eq(deals.id, dealId)).limit(1);
+        const client = deal?.client ?? dealId;
+        await db
+          .insert(escalations)
+          .values({
+            id: `esc-proposal-failed-${dealId}`,
+            kind: 'sales',
+            sev: 'high',
+            title: `Proposal email failed — ${client}`,
+            who: client,
+            value: deal?.value ?? 0,
+            agent: 'closer',
+            reason: `The proposal email could not be sent after retries: ${error.message}`,
+            rec: 'Retry from the deal drawer, or send the proposal PDF manually.',
+            conf: 100,
+            time: 'just now',
+            status: 'open',
+            dealId,
+          })
+          .onConflictDoUpdate({
+            target: escalations.id,
+            set: { status: 'open', resolvedAt: null, reason: `The proposal email could not be sent after retries: ${error.message}` },
+          });
+        await recordActivity({ agent: 'closer', room: 'sales', type: 'deal', text: `Proposal email to ${client} failed`, status: 'error' });
+      });
+    },
   },
   async ({ event, step }) => {
     const { dealId } = event.data as ProposalRequestedData;

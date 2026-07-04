@@ -27,6 +27,20 @@ export async function requestDemoGeneration(leadId: string): Promise<RunDemoGenR
   const [audit] = await db.select().from(audits).where(eq(audits.leadId, leadId)).limit(1);
   if (!audit) return { ok: false, message: 'Run an audit first — the demo is built from it.' };
 
+  // Double-click guard: `demo/requested` carries no dedup id (a lead may legitimately be re-generated
+  // later), so a rapid second click would queue a SECOND full ~20-32 min opus run behind the per-lead
+  // serialization. A fresh 'generating' row means one is already queued/running; the staleness window
+  // (> the worst-case run) lets a run that died without a status write be re-requested.
+  const GENERATING_FRESH_MS = 45 * 60 * 1000;
+  const [existing] = await db.select().from(generatedDemos).where(eq(generatedDemos.leadId, leadId)).limit(1);
+  if (
+    existing?.status === 'generating' &&
+    existing.updatedAt &&
+    Date.now() - existing.updatedAt.getTime() < GENERATING_FRESH_MS
+  ) {
+    return { ok: false, message: `A demo for ${lead.company} is already generating.` };
+  }
+
   // Mark generating right away so the UI reflects state before the worker picks it up.
   await db
     .insert(generatedDemos)

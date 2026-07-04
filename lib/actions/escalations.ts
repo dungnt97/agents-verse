@@ -143,13 +143,16 @@ export async function rejectOutreachEscalation(escalationId: string): Promise<Mu
   if (blocked) return blocked;
   const [esc] = await db.select().from(escalations).where(eq(escalations.id, escalationId)).limit(1);
   if (!esc) return { ok: false, message: `escalation not found: ${escalationId}` };
+  if (esc.kind !== 'outreach') return { ok: false, message: `not an outreach escalation: ${escalationId}` };
   if (esc.runId) {
     const leadId = esc.id.replace(/^esc-outreach-/, '');
     try {
       await inngest.send({
         name: 'outreach/sent',
+        // Run-scoped id: Inngest dedups event ids for ~24h, so a lead-scoped id here would swallow
+        // the closing fact of the lead's NEXT run and strand it.
         data: { leadId, runId: esc.runId, outcome: 'failed' },
-        id: `outreach/sent:${leadId}`,
+        id: `outreach/sent:${esc.runId}`,
       });
     } catch (e) {
       // Best-effort run-close; the dismiss below must succeed regardless of the event bus.
@@ -157,6 +160,43 @@ export async function rejectOutreachEscalation(escalationId: string): Promise<Mu
     }
   }
   await db.update(escalations).set({ status: 'dismissed', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));
+  revalidatePath('/command');
+  revalidatePath('/overview');
+  return { ok: true };
+}
+
+// "Take over": the founder handles the escalated work personally. Kind-aware — for run-linked
+// escalations, resolving the row is NOT enough: the row is the run's only release mechanism, so a
+// blind resolve would leave the run parked ('waiting_approval') or 'running' at outreach forever,
+// and the active-run index would block any fresh run for that lead. Taking over means the agent's
+// automated path ends here: close the run, keep the row as the audit trail.
+export async function takeOverEscalation(escalationId: string): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+  const [esc] = await db.select().from(escalations).where(eq(escalations.id, escalationId)).limit(1);
+  if (!esc) return { ok: false, message: `escalation not found: ${escalationId}` };
+  if (esc.runId) {
+    try {
+      if (esc.kind === 'pipeline') {
+        // Halt the parked run (the founder is driving this lead manually now). Emit BEFORE resolving
+        // so a send failure leaves the row re-actionable. Same id namespace as reject — one halt per
+        // escalation is all a run ever needs.
+        await inngest.send({ name: 'pipeline/halted', data: { runId: esc.runId }, id: `pipeline/halted:${esc.id}` });
+      } else if (esc.kind === 'outreach') {
+        // The founder sends (or skips) the email personally → the automated run ends without a send.
+        const leadId = esc.id.replace(/^esc-outreach-/, '');
+        await inngest.send({
+          name: 'outreach/sent',
+          data: { leadId, runId: esc.runId, outcome: 'failed' },
+          id: `outreach/sent:${esc.runId}`,
+        });
+      }
+    } catch (e) {
+      console.error('[take over] run-close event send failed:', e);
+      return { ok: false, message: 'Could not close the linked pipeline run — try again.' };
+    }
+  }
+  await db.update(escalations).set({ status: 'resolved', resolvedAt: new Date() }).where(eq(escalations.id, escalationId));
   revalidatePath('/command');
   revalidatePath('/overview');
   return { ok: true };

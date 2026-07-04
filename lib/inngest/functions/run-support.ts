@@ -33,6 +33,35 @@ export const runSupport = inngest.createFunction(
       { limit: 1, key: 'event.data.leadId' },
     ],
     triggers: [{ event: 'deal/won' }, { event: 'support/approved' }],
+    // A terminally-failed onboarding email (draft or send) must not vanish — the client just signed
+    // and is waiting to hear from us. Surface an open escalation so the founder follows up manually.
+    onFailure: async ({ event, error, step }) => {
+      const { leadId } = event.data.event.data as { leadId: string };
+      await step.run('escalate-support-failure', async () => {
+        const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+        const client = lead?.company ?? leadId;
+        await db
+          .insert(escalations)
+          .values({
+            id: `esc-support-failed-${leadId}`,
+            kind: 'support',
+            sev: 'high',
+            title: `Onboarding email failed — ${client}`,
+            who: client,
+            value: 0,
+            agent: 'mira',
+            reason: `The onboarding email could not be drafted/sent after retries: ${error.message}`,
+            rec: 'Contact the new client manually to request their assets.',
+            conf: 100,
+            time: 'just now',
+            status: 'open',
+          })
+          .onConflictDoUpdate({
+            target: escalations.id,
+            set: { status: 'open', resolvedAt: null, reason: `The onboarding email could not be drafted/sent after retries: ${error.message}` },
+          });
+      });
+    },
   },
   async ({ event, step }) => {
     const eventName = event.name;

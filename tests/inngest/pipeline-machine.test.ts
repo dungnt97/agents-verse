@@ -203,7 +203,7 @@ describe('decideResume — founder approved a gate', () => {
   });
 
   it('is a no-op when the run is not actually parked (duplicate resume / already moved on)', () => {
-    for (const status of ['running', 'done', 'failed', 'paused'] as const) {
+    for (const status of ['running', 'done', 'failed'] as const) {
       const res = decideResume({ stage: 'audit', status });
       expect(res).toEqual({ kind: 'stop', reason: `run not awaiting approval (status ${status})` });
     }
@@ -213,6 +213,31 @@ describe('decideResume — founder approved a gate', () => {
     expect(decideResume({ stage: 'delivery', status: 'waiting_approval' })).toEqual({
       kind: 'stop',
       reason: 'no resume hop from delivery',
+    });
+  });
+});
+
+describe('decideResume — founder released a paused run', () => {
+  it('re-fires the CURRENT stage in place (from === to) so a fact swallowed during the pause cannot strand it', () => {
+    for (const [stage, event] of [
+      ['audit', 'audit/requested'],
+      ['demo', 'demo/requested'],
+      ['outreach', 'outreach/requested'],
+    ] as const) {
+      expect(decideResume({ stage, status: 'paused' })).toEqual({
+        kind: 'emit',
+        event,
+        from: stage,
+        to: stage,
+        fromStatus: 'paused', // the conditional write claims exactly the paused row
+      });
+    }
+  });
+
+  it('stops when the paused stage has no request event to re-fire', () => {
+    expect(decideResume({ stage: 'delivery', status: 'paused' })).toEqual({
+      kind: 'stop',
+      reason: 'no request event for stage delivery',
     });
   });
 });
