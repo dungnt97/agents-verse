@@ -1,7 +1,7 @@
 // Nova — UI designer / front-end engineer. Two task defs (skills): the Pass-2 build from Atlas's spec
 // and the Pass-5 major revision against the board's fix list. Both wrap existing demo-gen builders
 // unchanged and emit one complete HTML document. tsx-safe: relative imports, no `server-only`.
-import { buildBuildPrompt, buildRevisePrompt, buildLayoutFixPrompt, type DemoGenInput } from '../../demo-gen/prompt';
+import { buildBuildPrompt, buildRevisePrompt, buildLayoutFixPrompt, buildQaFixPrompt, type DemoGenInput } from '../../demo-gen/prompt';
 import type { AgentDef } from '../types';
 import { makeHtmlValidator } from '../validators';
 
@@ -64,5 +64,18 @@ export const novaLayoutFixer: AgentDef<LayoutFixInput, string> = {
   tools: [],
   limits: { timeoutMs: 600_000, maxTurns: 4 },
   buildPrompt: ({ input, fixList, currentHtml }) => buildLayoutFixPrompt(input, fixList, currentHtml),
+  validate: html,
+};
+
+// Runtime-health guard pass — repairs console/JS errors, broken assets, and a11y gaps (missing alt /
+// lang / h1 / accessible names). Uses a prompt that PERMITS the script/attribute/asset edits those fixes
+// require, unlike the visual-only layout fixer whose prompt forbids them. Text-only (findings are precise).
+export const novaQaFixer: AgentDef<LayoutFixInput, string> = {
+  id: 'nova',
+  role: 'UI Designer — surgical fix of runtime/accessibility defects',
+  model: 'opus',
+  tools: [],
+  limits: { timeoutMs: 600_000, maxTurns: 4 },
+  buildPrompt: ({ input, fixList, currentHtml }) => buildQaFixPrompt(input, fixList, currentHtml),
   validate: html,
 };

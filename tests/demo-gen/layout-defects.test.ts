@@ -57,7 +57,7 @@ describe('buildLayoutFixPrompt', () => {
   });
 });
 
-import { novaLayoutFixer } from '@/lib/agents/defs/nova-designer';
+import { novaLayoutFixer, novaQaFixer } from '@/lib/agents/defs/nova-designer';
 
 describe('novaLayoutFixer def', () => {
   const input = {
@@ -75,6 +75,16 @@ describe('novaLayoutFixer def', () => {
     expect(p).toContain('1. [major] spine crosses heading');
     expect(p).toContain('<html><body>x</body></html>');
     expect(p).toContain('X Co');
+  });
+
+  it('novaQaFixer is an opus, no-tools agent whose buildPrompt permits runtime-health edits', () => {
+    expect(novaQaFixer.id).toBe('nova');
+    expect(novaQaFixer.model).toBe('opus');
+    expect(novaQaFixer.tools).toEqual([]);
+    const p = novaQaFixer.buildPrompt({ input, fixList: '1. missing lang attribute', currentHtml: '<html><body>x</body></html>' });
+    expect(p).toContain('1. missing lang attribute');
+    expect(p).toContain('SURGICAL runtime-health fix');
+    expect(p).toContain('these targeted changes are EXPECTED and permitted');
   });
 });
 

@@ -100,7 +100,9 @@ export function buildDirectorPrompt(input: DemoGenInput, researchBrief: string, 
       ? `=== CHOSEN CONCEPT — EXECUTE THIS (its signature move IS the page's identity; build the spec AROUND it, do NOT flatten it into a generic template) ===\n${concept.trim()}\n=== END CONCEPT ===`
       : ``,
     ``,
-    `COMMIT TO ONE BOLD ART DIRECTION. Pick the ONE archetype that genuinely fits this brand and execute it without compromise — do NOT default to warm-cream/serif "editorial trust" (that look is itself a tired AI default; use it only for genuine prestige luxury and only if earned):`,
+    concept.trim()
+      ? `COMMIT TO ONE BOLD ART DIRECTION — derive it from the CHOSEN CONCEPT's OWN visual language and NAME that direction yourself; do NOT flatten the concept into one of the labels below. The archetypes are only a fallback vocabulary if the concept leaves the look underspecified. Execute the concept's aesthetic without compromise; never default to warm-cream/serif "editorial trust" (a tired AI default — only for earned prestige luxury):`
+      : `COMMIT TO ONE BOLD ART DIRECTION. Pick the ONE archetype below that genuinely fits this brand and execute it without compromise — do NOT default to warm-cream/serif "editorial trust" (that look is itself a tired AI default; use it only for genuine prestige luxury and only if earned):`,
     `- Ethereal Glass — deep near-black canvas (#08090C, never pure #000), soft radial mesh-gradient orbs glowing behind, frosted glass cards (backdrop-filter blur + 1px inner white highlight + tinted inner shadow), wide geometric grotesk. Fits tech / proptech / finance / AI.`,
     `- Soft Structuralism — light silver / warm off-white, MASSIVE bold grotesk headlines, floating cards on large soft diffused ambient shadows, generous air. Fits property / health / consumer / services.`,
     `- Vivid Modern — ONE confident tasteful brand colour on a near-neutral base, bold blocks, oversized type, springy motion. Fits hospitality / food / fitness / lifestyle.`,
@@ -111,7 +113,7 @@ export function buildDirectorPrompt(input: DemoGenInput, researchBrief: string, 
     ``,
     `Then lock these as exact, paste-ready decisions:`,
     `1. THE SIGNATURE — if a CHOSEN CONCEPT is given above, realize ITS signature move as the ONE focal point and spec exactly how it's built (markup + the vanilla-JS interaction/motion mechanics); otherwise invent the bespoke hook + one signature visual move yourself (kinetic type, a real mesh/grain atmosphere, an editorial overlap, a distinctive hero composition). Either way it must be nameable from the hero alone.`,
-    `2. Palette — SOLVE it per-brand; do NOT reach for the category cliché (property→brass/gold, tech→cobalt, health→teal). One near-neutral canvas + one deep anchor + exactly ONE accent, every value as hex; the accent is a less-expected but on-tone hue (justify in one line). The background is a DESIGNED surface (mesh / grain / layered tint), never a flat fill.`,
+    `2. Palette — SOLVE it per-brand; do NOT reach for the category cliché (property→brass/gold, tech→cobalt, health→teal). One near-neutral canvas + one deep anchor + exactly ONE accent, every value as hex; the accent is a less-expected but on-tone hue (justify in one line). The background is a DELIBERATE treatment — a designed surface (mesh / grain / layered tint) OR an intentional bold flat colour block — never an accidental empty flat fill.`,
     `3. Type — TWO DIFFERENT Google Fonts: a characterful DISPLAY face (e.g. Bricolage Grotesque, Unbounded, Outfit, Sora, Familjen Grotesk, Fraunces) and a separate readable BODY face (e.g. Be Vietnam Pro, Plus Jakarta Sans, Lexend, Mulish). NEVER the same family for both; NEVER Inter / Roboto / Open Sans / Space Grotesk. Demand extreme contrast — display clamp() to ~clamp(2.6rem,6vw,5.5rem), body 16-18px, a big weight jump, tight display tracking. Both MUST render flawless Vietnamese diacritics; if the natural fit fails VN, pick the best VN-correct alternative and say so.`,
     `4. Spend boldness in ONE focal point (an oversized display headline, one full-bleed image, or one saturated accent moment); keep everything else quiet and restrained.`,
     `5. Layout — grid, margins, and how section rhythm VARIES (scale, alignment, full-bleed vs contained) so no two bands feel the same. Intentional asymmetric negative space is GOOD — do NOT fill it.`,
@@ -119,27 +121,53 @@ export function buildDirectorPrompt(input: DemoGenInput, researchBrief: string, 
     `7. Motion — name specific gestures (staggered entrance, a kinetic hero, a sticky header that solidifies + blurs), not "fade in".`,
     `8. Copy voice + 3 example headlines in natural Vietnamese for ${input.city}.`,
     ``,
-    `SELF-CHECK before finishing: would this exact spec appear UNCHANGED for a different brand in this category? If yes, push palette/type/signature until it could only be THIS brand. Could a reviewer name your signature move from the hero screenshot alone? If not, make it bolder. Is the background a designed surface, not a flat fill?`,
+    `SELF-CHECK before finishing: would this exact spec appear UNCHANGED for a different brand in this category? If yes, push palette/type/signature until it could only be THIS brand. Could a reviewer name your signature move from the hero screenshot alone? If not, make it bolder. Is the background a deliberate treatment (a designed surface OR an intentional bold flat colour), not an accidental empty fill?`,
   ].join('\n');
 }
 
+// The OUTPUT contract differs by pass: the build + surgical-fix passes emit HTML with no tools; the
+// revise pass holds a Read tool and MUST view the screenshots first. One source so every pass agrees —
+// a stray "do NOT call any tools" used to countermand the reviser's whole reason for having Read.
+function outputRule(allowRead: boolean): string {
+  const toolClause = allowRead
+    ? `FIRST use your Read tool to VIEW every screenshot referenced above, THEN respond with the HTML DIRECTLY in your message — call no OTHER tools and write no files.`
+    : `Respond with the HTML DIRECTLY in your message — do NOT call any tools and do NOT write files.`;
+  return `OUTPUT: ONE complete self-contained HTML5 document (doctype → </html>), all CSS in a single <style>, all JS in one <script> before </body>. Only external resources: Google Fonts <link> and Unsplash images (https://images.unsplash.com/photo-...). Output ONLY raw HTML — no markdown fences, no commentary. ${toolClause} Do not stop early; emit the whole document in one go.`;
+}
+
+// Safety rules a surgical (measured-layout / web-app-QA) fix must ALSO honour so it never re-introduces
+// the exact defects the deterministic guards catch — but which carry no "redesign" pressure. Shared
+// verbatim by the creative build/revise passes and the surgical fix passes (single source of truth).
+const DECORATION_SAFETY_RULE = `DECORATION SAFETY: decorative elements (dividers, rules, a "spine"/timeline line, oversized background numbers, watermarks, blobs) must sit BEHIND content (lower stacking, never over a heading or paragraph) and inside their OWN track. A vertical timeline/process spine MUST begin at the FIRST item's node and end at the LAST — it must NEVER extend up into, behind, or across a centered section heading, eyebrow, or subtitle; leave that heading clean vertical space above where the spine starts. No line, rule, or graphic may cross over text glyphs.`;
+
+const NO_JS_SAFE_RULE = `NO-JS-SAFE REVEAL (critical): put NO opacity:0 / visibility:hidden in base CSS; add class 'js' to <html> via an inline script at the very start of <body> and gate every reveal behind \`.js\` (e.g. \`.js .reveal{opacity:0;transform:translateY(24px)}\`); NEVER hide <img>/media behind a reveal; add a failsafe \`setTimeout(()=>document.querySelectorAll('.reveal,.mask,.in-view').forEach(e=>e.classList.add('in','is-visible')),1500)\`. A per-word/line reveal MASK using overflow:hidden must NOT wrap text that carries a text-shadow or glow — overflow clips the shadow into hard rectangles behind each word; put the glow on the non-clipped parent, OR set overflow:visible once revealed (\`.js .in .word{overflow:visible}\`), OR skip the mask on glowing headlines.`;
+
 // Shared execution rules for the build + revise passes. Lean and concrete: depth + a visible signature
 // carry the same loud weight that anti-void rules used to monopolise, so the model stops shipping flat.
-function craftConstraints(input: DemoGenInput): string {
+// `allowRead` toggles the OUTPUT tool clause for the revise pass (which reads the screenshots first).
+function craftConstraints(input: DemoGenInput, opts: { allowRead?: boolean } = {}): string {
   return [
-    `OUTPUT: ONE complete self-contained HTML5 document (doctype → </html>), all CSS in a single <style>, all JS in one <script> before </body>. Only external resources: Google Fonts <link> and Unsplash images (https://images.unsplash.com/photo-...). Output ONLY raw HTML — no markdown fences, no commentary. Respond with the HTML DIRECTLY in your message — do NOT call any tools and do NOT write files. Do not stop early; emit the whole document in one go.`,
+    outputRule(!!opts.allowRead),
     `SURFACE & DEPTH (match the CHOSEN style — do NOT default every site to dark-canvas + mesh-gradient + glass): the background must be a DELIBERATE, designed surface fitting the concept's aesthetic — pick what the style demands: a layered radial/mesh-gradient, OR confident flat colour-blocking, OR editorial paper + film-grain, OR a printed/patterned canvas, OR raw brutalist fields, OR crisp high-contrast Swiss white. An ACCIDENTAL empty flat fill is a FAIL, but an INTENTIONAL bold flat colour is great. Use depth cues that suit the style (tinted layered shadows + grain for soft/modern; hard edges + heavy borders for brutalist; ink-on-paper contrast for editorial) — glassmorphism ONLY where the style truly calls for it, not by default. Vary border-radius by role.`,
     `SIGNATURE MUST BE VISIBLE: the spec's ONE signature move must be unmistakable in the first viewport — a reviewer should be able to name it from the hero screenshot alone. Do not dilute it into generic polish.`,
     `STRUCTURE MANDATE (break the template — this is the #1 thing that makes demos look generic): the PRODUCT / MENU / listing section must NOT be a tidy row of equal cards. Present it an UNCONVENTIONAL way that fits the concept — a horizontal-scroll filmstrip, a single-focus interactive showcase (one large item that swaps via tabs/clicks), an editorial asymmetric list with oversized imagery, an overlapping/collage composition, or an interactive builder. The page MUST include at least ONE full-bleed or genuinely unconventional structural section (not just stacked centered bands). NEVER default to hero → row-of-3/4-equal-cards → testimonials → footer; if you catch yourself building that, redesign that section.`,
-    `DECORATION SAFETY: decorative elements (dividers, rules, a "spine"/timeline line, oversized background numbers, watermarks, blobs) must sit BEHIND content (lower stacking, never over a heading or paragraph) and inside their OWN track. A vertical timeline/process spine MUST begin at the FIRST item's node and end at the LAST — it must NEVER extend up into, behind, or across a centered section heading, eyebrow, or subtitle; leave that heading clean vertical space above where the spine starts. No line, rule, or graphic may cross over text glyphs.`,
+    DECORATION_SAFETY_RULE,
     `TYPE: load and actually use BOTH fonts — display face for headings only, body face for text. Extreme size/weight contrast, tight display tracking, text-wrap:balance on headings, a single H1, body line-height 1.4-1.6, WCAG-AA contrast. Never one family for everything. NAV & UI LABELS stay SMALL (~0.9-1rem) and use white-space:nowrap so nav links, buttons and badges NEVER break mid-phrase to a second line — the big clamp() display sizes are for HERO and section headings ONLY, never for nav/labels/inputs.`,
     `SPACING & LAYOUT: define a 4px-base spacing scale as CSS custom properties and use only those tokens (no ad-hoc pixels). Cap main content ~1200-1320px (full-bleed bands may bleed background/imagery but keep TEXT grid-aligned). Use flex/grid + gap; vary section rhythm. Intentional asymmetric whitespace is a FEATURE — keep it; just don't pad a thin section into an empty slab, strand a capped column alone in a wide track (size the track to its content, center it, or add a second real element), or ship a multi-item set whose cards have mismatched fields. When a SECONDARY card group (testimonials, features, pricing, stats — not the signature showcase, which follows STRUCTURE MANDATE) does use a card grid, lay it out with CSS grid or flex and a column count that fills each row cleanly for the item count — never CSS multi-column (columns/column-count), which reflows and orphans cards. The top header/nav is COMPACT and fits on ONE row at desktop — if its items won't fit, collapse to a menu/hamburger button rather than letting links wrap or overflow. A header that overlaps the hero (transparent / fixed at the top) MUST use light text with a subtle dark top-scrim so the brand + nav stay legible over the imagery, then switch to dark text once it docks to a solid light bar on scroll. No inline label, button, chip or nav item may wrap to two lines or spill past its container at any width. Real responsive layout, mobile-first, flawless at 375 / 768 / 1440px.`,
     `IMAGERY (curate, don't scatter): real Unsplash photos via <img src>, each with descriptive alt + width/height (or aspect-ratio) so nothing shifts, painting immediately. All photos share ONE consistent grade — apply a unifying brand-accent tint over each via mix-blend-mode or a brand-tinted ::after/gradient overlay so disparate stock reads as shot for one brand. Prefer few large images over many small. No emoji icons (use inline SVG); no placeholder boxes. EVERY <img> MUST carry an onerror handler that, if the photo fails to load (a dead/invalid Unsplash id), swaps in a brand-tinted gradient block of the SAME size — never let a broken-image icon ship. Prefer Unsplash ids you are confident exist; append ?w=1600&q=80 for sizing.`,
     `INTERACTIVITY: where the niche promises a tool (search, filter, "định giá"/quote, booking), implement a CONVINCING vanilla-JS mock that computes a real result from the inputs — it must actually respond. Make the CTA "${input.redesign.cta}" unmissable; on mobile add a sticky primary-action bar where the niche expects it.`,
-    `MOTION (vanilla, gate behind @media (prefers-reduced-motion: reduce)): IntersectionObserver staggered scroll reveals, hover micro-interactions with cubic-bezier/spring easing, tactile :active scale(.98), a sticky header that solidifies + blurs, a button-in-button trailing icon (arrow in its own circle, never a naked icon). NO-JS-SAFE REVEAL (critical): put NO opacity:0 / visibility:hidden in base CSS; add class 'js' to <html> via an inline script at the very start of <body> and gate every reveal behind \`.js\` (e.g. \`.js .reveal{opacity:0;transform:translateY(24px)}\`); NEVER hide <img>/media behind a reveal; add a failsafe \`setTimeout(()=>document.querySelectorAll('.reveal,.mask,.in-view').forEach(e=>e.classList.add('in','is-visible')),1500)\`. A per-word/line reveal MASK using overflow:hidden must NOT wrap text that carries a text-shadow or glow — overflow clips the shadow into hard rectangles behind each word; put the glow on the non-clipped parent, OR set overflow:visible once revealed (\`.js .in .word{overflow:visible}\`), OR skip the mask on glowing headlines.`,
+    `MOTION (vanilla, gate behind @media (prefers-reduced-motion: reduce)): IntersectionObserver staggered scroll reveals, hover micro-interactions with cubic-bezier/spring easing, tactile :active scale(.98), a sticky header that solidifies + blurs, a button-in-button trailing icon (arrow in its own circle, never a naked icon). ${NO_JS_SAFE_RULE}`,
     `CONTENT: natural, fluent, specific Vietnamese for ${input.city} — realistic, factually-coherent names/listings/numbers, never lorem or "TODO". Keep the brand name "${input.company}".`,
     `NEVER (instant AI / dated tells): Inter/Roboto/Open Sans or one font for everything; purple→blue / purple→pink gradients; pure #000; a flat texture-less background; three equal cards in a tidy row; a generic stat bar; emoji icons; the same radius on everything; a centered-H1-over-dark-photo hero; round fake numbers and clichés ("Elevate", "Seamless", "Unleash"). Introduce no colours, fonts, or radii the spec did not name.`,
   ].join('\n');
+}
+
+// Output + safety subset ONLY — for the surgical passes (measured layout defects, web-app QA) that must
+// fix a precise list and change NOTHING else. Deliberately omits the creative playbook (STRUCTURE
+// MANDATE, the NEVER-list, palette/type/interactivity directives) whose "redesign that section" pressure
+// would license exactly the broad changes those passes are instructed not to make.
+function surgicalConstraints(): string {
+  return [outputRule(false), DECORATION_SAFETY_RULE, NO_JS_SAFE_RULE].join('\n');
 }
 
 // PASS 2 — Build the page from the spec.
@@ -231,7 +259,7 @@ export function buildReviewSynthesisPrompt(input: DemoGenInput, reviews: string[
     ``,
     ...reviews.map((r, i) => `=== REVIEW ${i + 1} ===\n${r}`),
     ``,
-    `Produce a SHORT numbered list — AT MOST 6 fixes — ordered by impact on how DISTINCTIVE + premium the page feels. LEAD with the biggest DISTINCTIVENESS blocker: if the page has regressed to a generic category template (a plain row of equal cards, a stock "could be any brand" landing, no nameable signature), the #1 fix is to push it back to a BOLD, unconventional, ownable design — then single-font/cliché-palette/broken-layout blockers, then high-leverage craft/content fixes. Each fix is ONE concrete instruction tagged [severity · design|content|niche|brand]. CRITICAL: every fix must move the page BOLDER + more distinctive — NEVER recommend making it safer, calmer, or more conventional/competitor-like. Don't pad with nitpicks; don't flag intentional whitespace. Output ONLY the fix list.`,
+    `Produce a SHORT numbered list — AT MOST 6 fixes — ordered by impact on how DISTINCTIVE + premium the page feels. LEAD with the biggest DISTINCTIVENESS blocker: if the page has regressed to a generic category template (a plain row of equal cards, a stock "could be any brand" landing, no nameable signature), the #1 fix is to push it back to a BOLD, unconventional, ownable design — then single-font/cliché-palette/broken-layout blockers, then high-leverage craft/content fixes. Each fix is ONE concrete instruction tagged [severity · design|content|niche|brand]. CRITICAL: never soften the page's IDENTITY — its signature move, palette, type pairing, or bold structure — to satisfy a nitpick or to look more conventional/competitor-like. BUT legibility, contrast, and broken-layout fixes are MANDATORY even when the remedy is quieter (a dark scrim under an overlay header, a solid backing behind text on a busy image, smaller nav labels): making an unreadable or broken element correct is NOT "making the page safer" and must never be dropped for boldness. Don't pad with nitpicks; don't flag intentional whitespace. Output ONLY the fix list.`,
   ].join('\n');
 }
 
@@ -253,14 +281,14 @@ export function buildRevisePrompt(
     ``,
     `Output ONE complete, polished, responsive HTML document.`,
     ``,
-    `REGRESSION GUARD: the design's signature move, the TWO distinct fonts (display ≠ body), and the designed non-flat background MUST remain present and prominent after your edits — never flatten the page chasing fixes. Keep all working content and imagery.`,
+    `REGRESSION GUARD: the design's signature move, the TWO distinct fonts (display ≠ body), and the deliberate background treatment (a designed surface OR an intentional bold flat colour — not an accidental empty fill) MUST remain present and prominent after your edits — never flatten the page chasing fixes. Keep all working content and imagery.`,
     `VERIFICATION: before you output, silently confirm each numbered fix is present in your HTML and the design is still bold; do not output until every blocker is satisfied.`,
     ``,
     `=== CURRENT HTML (revise this) ===`,
     currentHtml,
     `=== END CURRENT HTML ===`,
     ``,
-    craftConstraints(input),
+    craftConstraints(input, { allowRead: true }),
   ].join('\n');
 }
 
@@ -278,6 +306,28 @@ export function buildLayoutFixPrompt(input: DemoGenInput, fixList: string, curre
     currentHtml,
     `=== END CURRENT HTML ===`,
     ``,
-    craftConstraints(input),
+    // Only the output + safety rules — NOT the full creative playbook, whose "redesign that section" /
+    // NEVER-list directives would license the broad restyling this surgical pass is told not to do.
+    surgicalConstraints(),
+  ].join('\n');
+}
+
+// Deterministic-guard pass — repair ONLY the mechanically-detected RUNTIME-HEALTH defects (JS/console
+// errors, broken asset URLs, missing alt / lang / <h1> / accessible control names). Unlike the layout
+// fixer these fixes REQUIRE touching scripts, attributes, and asset URLs — so this prompt permits those
+// edits explicitly while still forbidding any visual redesign.
+export function buildQaFixPrompt(input: DemoGenInput, findings: string, currentHtml: string): string {
+  return [
+    `You are a senior front-end engineer doing a SURGICAL runtime-health fix on the "${input.company}" (${input.industry}) demo page. A headless browser loaded the page and found these CONCRETE runtime/accessibility defects:`,
+    findings,
+    ``,
+    `Fix EXACTLY these defects and NOTHING else — the page must look VISUALLY IDENTICAL; do NOT redesign, restyle, recolour, rewrite marketing copy, or change the layout or concept. Unlike a pure layout fix, correcting these REQUIRES editing code, so these targeted changes are EXPECTED and permitted: edit or repair the <script> to clear a console/JS error; swap a broken/invalid asset URL for a working one (or the brand-tinted gradient fallback); add a missing lang attribute on <html>, a single <h1>, descriptive alt text on images, and accessible names (aria-label / visible text) on unnamed controls. Change nothing beyond what a listed defect requires.`,
+    `Respond with the COMPLETE corrected HTML document DIRECTLY in your message — do NOT call any tools, do NOT write files, do NOT stop early. Keep ALL existing visual content, imagery, and styles intact.`,
+    ``,
+    `=== CURRENT HTML (fix this) ===`,
+    currentHtml,
+    `=== END CURRENT HTML ===`,
+    ``,
+    surgicalConstraints(),
   ].join('\n');
 }

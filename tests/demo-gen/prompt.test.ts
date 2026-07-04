@@ -5,6 +5,8 @@ import {
   buildDirectorPrompt,
   buildBuildPrompt,
   buildRevisePrompt,
+  buildLayoutFixPrompt,
+  buildQaFixPrompt,
   buildPersonaReviewPrompt,
   buildReviewSynthesisPrompt,
   REVIEW_PERSONAS,
@@ -234,6 +236,23 @@ describe('buildDirectorPrompt', () => {
     expect(out).toContain('Concept: scroll-driven listings tour\n=== END CONCEPT ===');
   });
 
+  it('derives the art direction from the concept (not the closed archetype menu) when a concept is given', () => {
+    const withConcept = buildDirectorPrompt(input, '', 'a bold scroll-narrative concept');
+    // The archetype list becomes a fallback vocabulary, not the primary instruction.
+    expect(withConcept).toContain("derive it from the CHOSEN CONCEPT's OWN visual language");
+    expect(withConcept).toContain('only a fallback vocabulary');
+    // Without a concept, the director still picks from the archetype menu directly.
+    const noConcept = buildDirectorPrompt(input, '');
+    expect(noConcept).toContain('Pick the ONE archetype below that genuinely fits this brand');
+  });
+
+  it('states the flat-background policy consistently (intentional flat colour is allowed)', () => {
+    const out = buildDirectorPrompt(input, '');
+    // Rule 2 + the self-check both allow an intentional bold flat colour — only an ACCIDENTAL empty fill fails.
+    expect(out).toContain('an intentional bold flat colour block — never an accidental empty flat fill');
+    expect(out).toContain('an intentional bold flat colour), not an accidental empty fill?');
+  });
+
   it('omits the chosen-concept block (default param) when no concept is supplied', () => {
     const out = buildDirectorPrompt(input, 'brief');
     expect(out).not.toContain('=== CHOSEN CONCEPT — EXECUTE THIS');
@@ -326,7 +345,9 @@ describe('buildReviewSynthesisPrompt', () => {
     expect(out).toContain('=== REVIEW 3 ===\nNiche notes');
     expect(out).toContain('AT MOST 6 fixes');
     expect(out).toContain('biggest DISTINCTIVENESS blocker');
-    expect(out).toContain('NEVER recommend making it safer');
+    // Identity is protected, but legibility/contrast/broken-layout fixes stay mandatory even when quieter.
+    expect(out).toContain("never soften the page's IDENTITY");
+    expect(out).toContain('legibility, contrast, and broken-layout fixes are MANDATORY');
     expect(out).toContain('Output ONLY the fix list');
   });
 
@@ -353,6 +374,10 @@ describe('buildRevisePrompt', () => {
     expect(out).toContain('=== END CURRENT HTML ===');
     // craftConstraints fingerprint appears in revise too.
     expect(out).toContain('ONE complete self-contained HTML5 document');
+    // The reviser HAS a Read tool: the OUTPUT rule tells it to use it, and the old contradictory
+    // "do NOT call any tools" (written for the tool-less builder) must be gone from this pass.
+    expect(out).toContain('FIRST use your Read tool to VIEW every screenshot');
+    expect(out).not.toMatch(/do NOT call any tools/i);
   });
 
   it('renders single-shot render labels without slice joining', () => {
@@ -372,5 +397,33 @@ describe('buildRevisePrompt', () => {
     const out = buildRevisePrompt(input, 'fixes', [], [], html);
     expect(out).toContain('desktop (none)');
     expect(out).toContain('mobile (none)');
+  });
+});
+
+describe('surgical fix prompts carry only the output+safety subset, not the creative playbook', () => {
+  const input = makeInput();
+  const html = '<!doctype html><html><body>x</body></html>';
+
+  it('buildLayoutFixPrompt omits the redesign directives that would license broad restyling', () => {
+    const out = buildLayoutFixPrompt(input, '1. [major] spine crosses the heading', html);
+    // Keeps the surgical framing + the safety rules a fix must honour.
+    expect(out).toContain('Fix EXACTLY these defects and NOTHING else');
+    expect(out).toContain('DECORATION SAFETY');
+    expect(out).toContain('NO-JS-SAFE REVEAL');
+    // Drops the creative playbook whose "redesign that section" / NEVER-list pressure fights "change nothing else".
+    expect(out).not.toContain('STRUCTURE MANDATE');
+    expect(out).not.toContain('NEVER (instant AI / dated tells)');
+  });
+
+  it('buildQaFixPrompt frames findings as runtime-health and permits the script/attr/asset edits they need', () => {
+    const out = buildQaFixPrompt(input, '1. console error: undefined is not a function', html);
+    expect(out).toContain('SURGICAL runtime-health fix');
+    expect(out).toContain('1. console error: undefined is not a function');
+    expect(out).toContain(html);
+    // Explicitly permits the edits the layout fixer forbids…
+    expect(out).toContain('these targeted changes are EXPECTED and permitted');
+    // …while still forbidding a visual redesign and the creative playbook.
+    expect(out).toContain('VISUALLY IDENTICAL');
+    expect(out).not.toContain('STRUCTURE MANDATE');
   });
 });
