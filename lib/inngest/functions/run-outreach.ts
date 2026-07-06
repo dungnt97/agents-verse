@@ -4,7 +4,12 @@ import { db } from '../../db/client';
 import { leads, generatedDemos, audits, escalations, settings } from '../../db/schema';
 import { runAgent } from '../../agents/runner';
 import { echoOutreach } from '../../agents/defs/echo-outreach';
-import { sendEmail, outreachEmailHtml, resendConfigured } from '../../integrations/resend';
+import {
+  sendOutreach,
+  outreachChannel,
+  outreachChannelConfigured,
+  recipientForChannel,
+} from '../../integrations/outreach-channel';
 import type { AutonomyMode } from '../../data/deal-stage-machine';
 
 // Echo outreach (WORKER only — shells `claude` + makes the outbound email call; relative imports, no
@@ -19,33 +24,48 @@ const appUrl = () => process.env.APP_URL || process.env.BETTER_AUTH_URL || '';
 const unsubscribeFor = (leadId: string) =>
   `mailto:${process.env.OUTREACH_REPLY_TO || process.env.OUTREACH_FROM || 'unsubscribe@localhost'}?subject=Unsubscribe%20${leadId}`;
 
-type Sendable = { email: string; company: string } | { skip: string };
+// What actually goes out on WhatsApp is the approved template (Meta policy) — NOT a free-form Echo draft.
+// So on that channel the founder must review the TEMPLATE + its resolved params, not an email that would
+// be silently discarded. Deterministic (no claude call), so it needs no memoized step.
+function whatsappPreview(company: string, demoUrl: string): { subject: string; body: string } {
+  const template = process.env.WHATSAPP_TEMPLATE_NAME || '(WHATSAPP_TEMPLATE_NAME unset)';
+  return {
+    subject: `WhatsApp • ${company}`,
+    body: `Approved WhatsApp template "${template}" will be sent to ${company}.\nParams: {{1}} = ${company}, {{2}} = ${demoUrl}\n(The template's approved wording is what the prospect receives — cold WhatsApp must use a template.)`,
+  };
+}
 
-// One guard for BOTH send paths: refuse to email a lead that's already contacted, has no ready demo to
-// link, has no address, or when email isn't configured at all (degrade instead of throw+retry).
+type Sendable = { recipient: string; company: string } | { skip: string };
+
+// One guard for BOTH send paths + the ACTIVE channel: refuse a lead already contacted, without a ready
+// demo, without a channel address (email or phone), or when the channel isn't configured (degrade instead
+// of throw+retry). `recipient` is the email OR phone depending on OUTREACH_CHANNEL.
 async function loadSendable(leadId: string): Promise<Sendable> {
-  if (!resendConfigured()) return { skip: 'email not configured (RESEND_API_KEY + OUTREACH_FROM)' };
+  if (!outreachChannelConfigured()) return { skip: `outreach channel not configured (${outreachChannel()})` };
   const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
   if (!lead) return { skip: 'lead not found' };
   if (lead.demo === 'sent') return { skip: 'already contacted' };
   // The demo flag only tracks OUR send; a lead the founder moved by hand (contacted/replied/won) must
-  // never receive a cold "see your new demo" email — and markSent would then downgrade their stage.
+  // never receive a cold "see your new demo" message — and markSent would then downgrade their stage.
   if (lead.stage !== 'found') return { skip: `lead already at '${lead.stage}' — past cold outreach` };
-  if (!lead.email) return { skip: 'lead has no email' };
+  const recipient = recipientForChannel(lead);
+  if (!recipient) return { skip: `lead has no ${outreachChannel() === 'whatsapp' ? 'phone' : 'email'}` };
   const [demo] = await db.select().from(generatedDemos).where(eq(generatedDemos.leadId, leadId)).limit(1);
   if (!demo || demo.status !== 'ready') return { skip: 'no ready demo to link' };
-  return { email: lead.email, company: lead.company };
+  return { recipient, company: lead.company };
 }
 
-// Send via Resend (idempotency-keyed per lead so a retry/duplicate can't email twice).
-async function sendOutreachEmail(leadId: string, email: string, subject: string, body: string): Promise<void> {
-  const unsubscribe = unsubscribeFor(leadId);
-  const result = await sendEmail({
-    to: email,
-    subject,
-    html: outreachEmailHtml(body, `${appUrl()}/demo/${leadId}`, unsubscribe),
-    unsubscribe,
-    idempotencyKey: `outreach:${leadId}`,
+// Send on the active channel (email | whatsapp), idempotency-keyed per lead so a retry/duplicate can't
+// send twice. Echo's draft is used verbatim for email; on WhatsApp the dispatcher sends the approved
+// template (Meta policy) with the company + demo link.
+async function sendVia(leadId: string, recipient: string, company: string, subject: string, body: string): Promise<void> {
+  const result = await sendOutreach({
+    leadId,
+    recipient,
+    company,
+    draft: { subject, body },
+    demoUrl: `${appUrl()}/demo/${leadId}`,
+    unsubscribe: unsubscribeFor(leadId),
   });
   if (!result.ok) throw new Error(`outreach send failed: ${result.error}`);
 }
@@ -107,7 +127,7 @@ export const runOutreach = inngest.createFunction(
           });
         return { leadId, skipped: sendable.skip };
       }
-      await step.run('send-approved', () => sendOutreachEmail(leadId, sendable.email, subject, body));
+      await step.run('send-approved', () => sendVia(leadId, sendable.recipient, sendable.company, subject, body));
       await step.run('mark-sent-approved', () => markSent(leadId));
       await step.sendEvent('emit-sent', {
         name: 'outreach/sent',
@@ -126,7 +146,7 @@ export const runOutreach = inngest.createFunction(
       const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
       const [s] = await db.select().from(settings).limit(1);
       return {
-        email: sendable.email,
+        recipient: sendable.recipient,
         company: sendable.company,
         industry: lead?.industry ?? '',
         city: lead?.city ?? '',
@@ -149,19 +169,24 @@ export const runOutreach = inngest.createFunction(
       return { leadId, skipped: loaded.skip };
     }
 
-    // Draft the email (the claude call) — memoized so a later gate/send failure doesn't re-spend it.
-    const draft = await step.run('draft', () =>
-      runAgent(echoOutreach, {
-        company: loaded.company,
-        industry: loaded.industry,
-        city: loaded.city,
-        cta: loaded.cta,
-        summary: loaded.summary,
-      }),
-    );
+    // Draft what the founder reviews + (on email) what sends. Email → Echo's claude draft (memoized so a
+    // later gate/send failure doesn't re-spend it). WhatsApp → a deterministic template preview, since the
+    // send is the approved template and an Echo email draft would be reviewed then thrown away.
+    const draft =
+      outreachChannel() === 'whatsapp'
+        ? whatsappPreview(loaded.company, `${appUrl()}/demo/${leadId}`)
+        : await step.run('draft', () =>
+            runAgent(echoOutreach, {
+              company: loaded.company,
+              industry: loaded.industry,
+              city: loaded.city,
+              cta: loaded.cta,
+              summary: loaded.summary,
+            }),
+          );
 
     if (loaded.autonomyMode === 'full') {
-      await step.run('send', () => sendOutreachEmail(leadId, loaded.email, draft.subject, draft.body));
+      await step.run('send', () => sendVia(leadId, loaded.recipient, loaded.company, draft.subject, draft.body));
       await step.run('mark-sent', () => markSent(leadId));
       await step.sendEvent('emit-sent', { name: 'outreach/sent', data: { leadId, runId, outcome: 'ok' }, id: `outreach/sent:${runId ?? leadId}` });
       return { leadId, sent: true };
@@ -182,7 +207,7 @@ export const runOutreach = inngest.createFunction(
           who: loaded.company,
           value: loaded.value,
           agent: 'echo',
-          reason: `Outreach draft for ${loaded.company} — review the email before it is sent.`,
+          reason: `Outreach draft for ${loaded.company} — review the ${outreachChannel() === 'whatsapp' ? 'WhatsApp message' : 'email'} before it is sent.`,
           rec: draft.body,
           conf: loaded.score,
           time: 'just now',
