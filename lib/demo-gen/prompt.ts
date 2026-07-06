@@ -4,7 +4,7 @@
 // deliberately TIGHT and reference-anchored: a few bold, concrete demands (commit to one art direction,
 // real depth, a visible signature, two distinct fonts) rather than a long defensive checklist — a pile
 // of "don't" rules makes the model tick boxes and ship something flat and safe.
-import type { AuditResult } from '../data/types';
+import type { AuditResult, MapsData } from '../data/types';
 
 export interface DemoGenInput {
   company: string;
@@ -17,6 +17,24 @@ export interface DemoGenInput {
   problems: string[];
   redesign: AuditResult['redesign'];
   summary: string;
+  /** Real Google-Maps facts (rating/reviews/hours) to build from instead of inventing. */
+  mapsData?: MapsData | null;
+}
+
+// Real business facts from Google Maps, formatted for the prompt so the model uses them verbatim instead
+// of inventing numbers. Empty string when there's nothing real to add (keeps the prompt clean).
+function mapsFactsBlock(m: MapsData | null | undefined): string {
+  if (!m) return '';
+  const lines: string[] = [];
+  if (m.rating != null) lines.push(`- Google rating: ${m.rating}★${m.reviewsCount != null ? ` from ${m.reviewsCount} reviews` : ''} (use as a real trust signal).`);
+  if (m.hours?.length) lines.push(`- Real opening hours (use verbatim in the contact/booking section): ${m.hours.join(' · ')}`);
+  if (m.categories?.length) lines.push(`- Google categories: ${m.categories.join(', ')}.`);
+  if (m.priceLevel) lines.push(`- Price level: ${m.priceLevel}.`);
+  if (m.reviews?.length) {
+    lines.push(`- Real customer reviews — use these as the testimonials (verbatim or lightly tightened; keep the reviewer's meaning + first name if given, never invent fake quotes):`);
+    for (const r of m.reviews) lines.push(`  · ${r.stars != null ? `${r.stars}★ ` : ''}"${r.text.replace(/\s+/g, ' ').slice(0, 240)}"${r.name ? ` — ${r.name}` : ''}`);
+  }
+  return lines.length ? `REAL GOOGLE MAPS FACTS (ground the copy in these — do NOT contradict or invent around them):\n${lines.join('\n')}` : '';
 }
 
 function clientBlock(input: DemoGenInput): string {
@@ -33,7 +51,10 @@ function clientBlock(input: DemoGenInput): string {
     `Problems found:`,
     ...input.problems.map((p) => `- ${p}`),
     `Honor this brief from the audit — CTA "${input.redesign.cta}", tone "${input.redesign.content}", sections: ${input.redesign.sections.join(', ')}.`,
-  ].join('\n');
+    mapsFactsBlock(input.mapsData),
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 // PASS 0 — research (best-effort). Ground the redesign in the client's REAL brand (from their current
@@ -159,7 +180,7 @@ function craftConstraints(input: DemoGenInput, opts: { allowRead?: boolean } = {
     `IMAGERY (curate, don't scatter): real Unsplash photos via <img src>, each with descriptive alt + width/height (or aspect-ratio) so nothing shifts, painting immediately. All photos share ONE consistent grade — apply a unifying brand-accent tint over each via mix-blend-mode or a brand-tinted ::after/gradient overlay so disparate stock reads as shot for one brand. Prefer few large images over many small. No emoji icons (use inline SVG); no placeholder boxes. EVERY <img> MUST carry an onerror handler that, if the photo fails to load (a dead/invalid Unsplash id), swaps in a brand-tinted gradient block of the SAME size — never let a broken-image icon ship. Prefer Unsplash ids you are confident exist; append ?w=1600&q=80 for sizing.`,
     `INTERACTIVITY: where the niche promises a tool (search, filter, "định giá"/quote, booking), implement a CONVINCING vanilla-JS mock that computes a real result from the inputs — it must actually respond. Make the CTA "${input.redesign.cta}" unmissable; on mobile add a sticky primary-action bar where the niche expects it.`,
     `MOTION (vanilla, gate behind @media (prefers-reduced-motion: reduce)): IntersectionObserver staggered scroll reveals, hover micro-interactions with cubic-bezier/spring easing, tactile :active scale(.98), a sticky header that solidifies + blurs, a button-in-button trailing icon (arrow in its own circle, never a naked icon). ${NO_JS_SAFE_RULE}`,
-    `CONTENT: natural, fluent, specific ${input.language} for ${input.city} — realistic, factually-coherent names/listings/numbers, never lorem or "TODO". Keep the brand name "${input.company}".`,
+    `CONTENT: natural, fluent, specific ${input.language} for ${input.city} — realistic, factually-coherent names/listings/numbers, never lorem or "TODO". When REAL GOOGLE MAPS FACTS are given above, BUILD FROM THEM: the real reviews become the testimonials (keep the reviewer's words + first name; never fabricate quotes), the real rating + review-count is the trust proof, the real opening hours fill the contact/booking section — never invent numbers that contradict them. Keep the brand name "${input.company}".`,
     `NEVER (instant AI / dated tells): Inter/Roboto/Open Sans or one font for everything; purple→blue / purple→pink gradients; pure #000; a flat texture-less background; three equal cards in a tidy row; a generic stat bar; emoji icons; the same radius on everything; a centered-H1-over-dark-photo hero; round fake numbers and clichés ("Elevate", "Seamless", "Unleash"). Introduce no colours, fonts, or radii the spec did not name.`,
   ].join('\n');
 }

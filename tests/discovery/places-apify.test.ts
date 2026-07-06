@@ -50,6 +50,8 @@ describe('searchBusinessesApify', () => {
       lng: 108.22,
       businessStatus: 'OPERATIONAL',
       primaryType: 'Dental clinic',
+      // categoryName seeds categories even with no rating/reviews scraped.
+      mapsData: { rating: null, reviewsCount: null, reviews: [], hours: [], categories: ['Dental clinic'], priceLevel: null },
     });
   });
 
@@ -95,5 +97,48 @@ describe('enrichPlaceApify', () => {
 
   it('returns nulls for an unknown id', async () => {
     expect(await enrichPlaceApify('does-not-exist')).toEqual({ websiteUri: null, phone: null });
+  });
+});
+
+describe('searchBusinessesApify — rich Maps facts (mapsData)', () => {
+  const rich = [
+    {
+      placeId: 'ChIJrich',
+      title: 'Bloom Nails',
+      address: '10 Main St, Austin, TX, USA',
+      categoryName: 'Nail salon',
+      location: { lat: 30.2, lng: -97.7 },
+      totalScore: 4.7,
+      reviewsCount: 213,
+      reviews: [
+        { text: 'Best manicure in Austin, spotless studio.', stars: 5, name: 'Jenna' },
+        { text: '  ', stars: 4, name: 'Blank' }, // blank text → dropped
+      ],
+      openingHours: [
+        { day: 'Monday', hours: '9 AM to 7 PM' },
+        { day: 'Sunday', hours: 'Closed' },
+      ],
+      categories: ['Nail salon', 'Spa'],
+      price: '$$',
+    },
+  ];
+
+  it('captures rating/reviews/hours/categories/price into place.mapsData', async () => {
+    mockFetch(rich);
+    const [place] = await searchBusinessesApify({ industry: 'nail salon', city: 'Austin TX' });
+    expect(place.mapsData).toEqual({
+      rating: 4.7,
+      reviewsCount: 213,
+      reviews: [{ text: 'Best manicure in Austin, spotless studio.', stars: 5, name: 'Jenna' }],
+      hours: ['Monday: 9 AM to 7 PM', 'Sunday: Closed'],
+      categories: ['Nail salon', 'Spa'],
+      priceLevel: '$$',
+    });
+  });
+
+  it('leaves mapsData null when the scrape carries no rich facts', async () => {
+    mockFetch([{ placeId: 'ChIJbare', title: 'Bare Co', address: 'x', location: { lat: 1, lng: 2 } }]);
+    const [place] = await searchBusinessesApify({ industry: 'x', city: 'y' });
+    expect(place.mapsData).toBeNull();
   });
 });

@@ -48,5 +48,6 @@ export function mapPlaceToLead(args: {
     email,
     phone: enrichment.phone,
     websiteScore: assessment?.score ?? null,
+    mapsData: place.mapsData ?? null,
   };
 }

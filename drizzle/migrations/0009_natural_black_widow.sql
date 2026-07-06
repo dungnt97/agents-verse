@@ -1,0 +1,1 @@
+ALTER TABLE "leads" ADD COLUMN "maps_data" jsonb;

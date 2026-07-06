@@ -1,5 +1,6 @@
 import 'server-only';
 import { searchBusinessesApify, enrichPlaceApify } from './places-apify';
+import type { MapsData } from '../data/types';
 
 // Google Places API (New) client via REST. Field masks are passed explicitly per request so
 // the cost-sensitive two-phase split is enforced at the call site:
@@ -29,6 +30,9 @@ export interface DiscoveredPlace {
   lng: number | null;
   businessStatus: string;
   primaryType: string;
+  // Rich Maps facts (rating/reviews/hours). Populated by the Apify provider (returned in the same scrape);
+  // null for Google until its field mask is widened. Fed to demo generation for real content.
+  mapsData?: MapsData | null;
 }
 
 export interface PlaceEnrichment {

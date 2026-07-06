@@ -428,3 +428,31 @@ describe('surgical fix prompts carry only the output+safety subset, not the crea
     expect(out).not.toContain('STRUCTURE MANDATE');
   });
 });
+
+describe('real Google Maps facts in the prompt', () => {
+  const maps = {
+    rating: 4.7,
+    reviewsCount: 213,
+    reviews: [{ text: 'Best manicure in town, spotless studio.', stars: 5, name: 'Jenna' }],
+    hours: ['Monday: 9 AM to 7 PM', 'Sunday: Closed'],
+    categories: ['Nail salon', 'Spa'],
+    priceLevel: '$$',
+  };
+
+  it('surfaces real rating, reviews and hours in the build prompt', () => {
+    const out = buildBuildPrompt(makeInput({ mapsData: maps }), 'SPEC');
+    expect(out).toContain('REAL GOOGLE MAPS FACTS');
+    expect(out).toContain('4.7★ from 213 reviews');
+    expect(out).toContain('Best manicure in town, spotless studio.');
+    expect(out).toContain('Monday: 9 AM to 7 PM');
+    // and the CONTENT directive tells the model to build from them
+    expect(out).toContain('When REAL GOOGLE MAPS FACTS are given above, BUILD FROM THEM');
+  });
+
+  it('adds no facts block when mapsData is absent', () => {
+    const out = buildBuildPrompt(makeInput({ mapsData: null }), 'SPEC');
+    // The block header lines (not the CONTENT directive, which always references the facts by name).
+    expect(out).not.toContain('Google rating:');
+    expect(out).not.toContain('use these as the testimonials');
+  });
+});
