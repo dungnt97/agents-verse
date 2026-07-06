@@ -207,7 +207,7 @@ export const runOutreach = inngest.createFunction(
           who: loaded.company,
           value: loaded.value,
           agent: 'echo',
-          reason: `Outreach draft for ${loaded.company} — review the ${outreachChannel() === 'whatsapp' ? 'WhatsApp message' : 'email'} before it is sent.`,
+          reason: `Outreach draft for ${loaded.company} — review the ${outreachChannel() === 'email' ? 'email' : 'message'} before it is sent.`,
           rec: draft.body,
           conf: loaded.score,
           time: 'just now',
