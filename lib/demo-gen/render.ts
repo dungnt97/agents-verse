@@ -16,14 +16,17 @@ interface PwPage {
 interface PwContext { newPage(): Promise<PwPage>; close(): Promise<void> }
 interface PwBrowser { newContext(opts: Record<string, unknown>): Promise<PwContext>; close(): Promise<void> }
 
-// The critique screenshots feed a vision model. Two bounds: HARD_MAX_PX guards a runaway page, and
-// each delivered slice stays around SLICE_PX so the model receives it at a legible resolution — a
-// single very tall image gets downscaled until text is unreadable AND sections below the old cap were
-// dropped entirely (which is how an empty-void section once shipped unreviewed). A tall page is
-// therefore captured as several ordered top→bottom slices, bounded by MAX_SLICES per viewport.
+// The critique screenshots feed a vision model. Two bounds: HARD_MAX_PX guards a runaway page, and each
+// delivered slice stays around SLICE_PX so the model receives it at a legible resolution — a single very
+// tall image gets downscaled until text is unreadable AND sections below the old cap were dropped
+// entirely (which is how an empty-void section once shipped unreviewed). A tall page is captured as
+// ordered top→bottom slices; MAX_SLICES is set so slice COUNT follows page height (each slice stays
+// ≤ SLICE_PX) rather than the height being crammed into a fixed slice count — a MAX_SLICES too small
+// (was 3) made each slice on a tall page balloon to ~5,000px and downscale the Vietnamese copy to mush.
+// ceil(HARD_MAX_PX / SLICE_PX) = 7, so 8 means the cap never forces an over-tall slice.
 const HARD_MAX_PX = 16000;
 const SLICE_PX = 2600;
-const MAX_SLICES = 3;
+const MAX_SLICES = 8;
 
 // The viewport widths the board reviews at. Exported so the prompt labels each slice with the SAME
 // width the page was actually rendered at (a mismatch makes reviewers reason about the wrong canvas).

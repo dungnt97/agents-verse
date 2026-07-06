@@ -4,7 +4,7 @@
 // Passes 3-5 are best-effort and fall back to the solid built page, so the result is never worse than a
 // single build. WORKER-ONLY (shells `claude`): relative imports, no `server-only`. Never import from web.
 import { atlasConceptor, atlasDirector, atlasSynthesizer } from '../defs/atlas-strategist';
-import { novaBuilder, novaReviser, novaLayoutFixer } from '../defs/nova-designer';
+import { novaBuilder, novaReviser, novaLayoutFixer, novaQaFixer } from '../defs/nova-designer';
 import { REVIEW_BOARD } from '../board';
 import { runAgent, runBoard } from '../runner';
 import { renderHtmlToPng, DESKTOP_WIDTH, MOBILE_WIDTH } from '../../demo-gen/render';
@@ -31,6 +31,18 @@ function extractWinner(concepts: string): string {
   const marker = '<<<WINNER>>>';
   const i = concepts.indexOf(marker);
   return i === -1 ? concepts.trim() : concepts.slice(i + marker.length).trim();
+}
+
+// Each board lens ends its critique with "VERDICT: PASS" or "VERDICT: HOLD". When EVERY surviving lens
+// passes and none flags a blocker-severity defect, the page is clean — the synth+revise round would then
+// only rewrite a page all four lenses already approved, spending a full pass and risking a regression for
+// no measured gain. This is the real all-clear signal the loop's early-stop was always meant to use
+// (the previous `reviews.length === 0` guard only fired when EVERY lens crashed).
+export function boardPassesClean(reviews: string[]): boolean {
+  if (reviews.length === 0) return false;
+  const allPass = reviews.every((r) => /verdict:\s*pass/i.test(r));
+  const anyBlocker = reviews.some((r) => /severity\s*[:=]?\s*blocker/i.test(r));
+  return allPass && !anyBlocker;
 }
 
 // Per-run aesthetic lanes. One is picked at random each generation and fed to the concepting pass so
@@ -124,6 +136,10 @@ export async function generateDemoHtml(input: DemoGenInput, step: StepRunner = i
         const mobilePngs = await renderHtmlToPng(current, `/tmp/demo-${id}-m.html`, `/tmp/demo-${id}-m.png`, MOBILE_WIDTH);
         const reviews = await runBoard(REVIEW_BOARD, { input, desktopPngs, mobilePngs });
         if (reviews.length === 0) break;
+        if (boardPassesClean(reviews)) {
+          console.error('[demo-gen] review round ' + round + ': board PASS (no blocker) — skipping synth+revise');
+          break;
+        }
         console.error('[demo-gen] review round ' + round + ': ' + reviews.length + ' lens critique(s)');
         const fixes = await runAgent(atlasSynthesizer, { input, reviews });
         current = await runAgent(novaReviser, { input, fixes, desktopPngs, mobilePngs, currentHtml: current });
@@ -164,7 +180,9 @@ export async function generateDemoHtml(input: DemoGenInput, step: StepRunner = i
         const qa = await runWebappQa(best);
         if (qa.length > 0) console.error('[demo-gen] webapp QA: ' + qa.length + ' finding(s): ' + formatQaReport(qa).slice(0, 240));
         if (hasBlockingQa(qa)) {
-          const fixed = await runAgent(novaLayoutFixer, { input, fixList: formatQaReport(qa), currentHtml: best });
+          // Use the QA-specific fixer: QA findings (JS errors, broken assets, missing alt/lang/h1) need
+          // script/attribute edits the layout fixer's prompt explicitly forbids.
+          const fixed = await runAgent(novaQaFixer, { input, fixList: formatQaReport(qa), currentHtml: best });
           // Keep the QA fix ONLY if it did not regress layout AND reduced blocking findings.
           if ((await auditLayout(fixed)).length <= defects.length && majorQaCount(await runWebappQa(fixed)) < majorQaCount(qa)) {
             console.error('[demo-gen] webapp QA: applied a fix pass (' + majorQaCount(qa) + ' major finding(s) before)');

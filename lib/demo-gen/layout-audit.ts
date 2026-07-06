@@ -151,17 +151,25 @@ const AUDIT_SCRIPT = `(() => {
 // transparent/overlay state). Returns the header's box + dominant text colour, or null when the header is
 // a solid opaque bar (fine on its own background) or absent. String expression (no closures).
 const HEADER_PROBE = `(() => {
-  const h = document.querySelector('header') || document.querySelector('[class*="header"]') || document.querySelector('[class*="nav"]');
-  if (!h) return null;
-  const cs = getComputedStyle(h);
-  if (cs.position !== 'fixed' && cs.position !== 'sticky' && cs.position !== 'absolute') return null;
-  const bg = cs.backgroundColor; const m = bg.indexOf('(');
-  let alpha = 1; if (m >= 0) { const parts = bg.slice(m + 1, bg.indexOf(')')).split(','); alpha = parts.length > 3 ? parseFloat(parts[3]) : 1; }
-  if (alpha >= 0.7 && cs.backgroundImage === 'none') return null;
-  let color = cs.color; const els = [].slice.call(h.querySelectorAll('a, span, strong, b'));
-  for (let i = 0; i < els.length; i++) { const e = els[i]; if ((e.textContent || '').trim() && getComputedStyle(e).display !== 'none') { color = getComputedStyle(e).color; break; } }
-  const r = h.getBoundingClientRect();
-  return { x: r.left, y: r.top, w: r.width, h: r.height, color };
+  // Consider EVERY header/nav candidate, not just the first match: a page often has a static <header>
+  // AND a separately position:fixed nav overlaying the hero — the old first-match-wins picked the static
+  // <header>, saw it wasn't positioned, and returned null, silently skipping the real overlay bar.
+  const cands = [].slice.call(document.querySelectorAll('header, nav, [class*="header"], [class*="nav"]'));
+  for (let ci = 0; ci < cands.length; ci++) {
+    const h = cands[ci];
+    const cs = getComputedStyle(h);
+    if (cs.position !== 'fixed' && cs.position !== 'sticky' && cs.position !== 'absolute') continue;
+    const r = h.getBoundingClientRect();
+    // Only a real top overlay bar (near the top, wide, non-trivial height) sits over the hero imagery.
+    if (r.top > 60 || r.height < 8 || r.width < window.innerWidth * 0.5) continue;
+    const bg = cs.backgroundColor; const m = bg.indexOf('(');
+    let alpha = 1; if (m >= 0) { const parts = bg.slice(m + 1, bg.indexOf(')')).split(','); alpha = parts.length > 3 ? parseFloat(parts[3]) : 1; }
+    if (alpha >= 0.7 && cs.backgroundImage === 'none') continue; // solid bar on its own bg — legible, skip
+    let color = cs.color; const els = [].slice.call(h.querySelectorAll('a, span, strong, b'));
+    for (let i = 0; i < els.length; i++) { const e = els[i]; if ((e.textContent || '').trim() && getComputedStyle(e).display !== 'none') { color = getComputedStyle(e).color; break; } }
+    return { x: r.left, y: r.top, w: r.width, h: r.height, color };
+  }
+  return null;
 })()`;
 
 // Perceptual luminance (0..1) from an "rgb(r, g, b[, a])" string; null when unparseable.
