@@ -8,7 +8,6 @@ import { getCurrentUser } from '@/lib/auth/session';
 import { USE_DB } from '@/lib/repositories/config';
 import { db } from '@/lib/db/client';
 import { leads, settings, pipelineRuns } from '@/lib/db/schema';
-import { hasContact } from '@/lib/discovery/contactability';
 import type { AutonomyMode } from '@/lib/data/deal-stage-machine';
 
 export interface StartPipelineResult {
@@ -27,12 +26,6 @@ export async function startPipeline(leadId: string): Promise<StartPipelineResult
 
   const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
   if (!lead) return { ok: false, message: 'Lead not found.' };
-
-  // Central invariant: never spend the audit→demo chain (opus) on a lead we can't reach — there'd be no
-  // way to send the finished demo. Callers pre-filter, but enforcing it here covers every entry point.
-  if (!hasContact(lead)) {
-    return { ok: false, message: `No contact info for ${lead.company} — skipped (can't send a demo).` };
-  }
 
   // Snapshot the autonomy posture at start time (for the record); live hop decisions re-read settings.
   const [s] = await db.select().from(settings).limit(1);
