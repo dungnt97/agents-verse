@@ -6,6 +6,10 @@ const nextConfig = {
   // before boot); adopting the slim standalone runtime is a later optimization once migrate/seed
   // move to a separate one-shot job.
   output: 'standalone',
+  // Worker-only personal-outreach libraries (Telegram MTProto userbot + Baileys WhatsApp). They are
+  // dynamic-imported inside the worker send-adapters and must never be bundled into the web server build
+  // (Baileys pulls sharp + native modules); keep them external so `next build` leaves them as runtime deps.
+  serverExternalPackages: ['telegram', '@whiskeysockets/baileys'],
   // Only files under `app/` define routes. Next 16 does not run ESLint during `next build`;
   // lint is run separately via `npm run lint` (scoped to app/lib/components).
   //

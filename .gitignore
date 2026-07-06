@@ -112,3 +112,6 @@ docker-compose.override.yml
 /coverage/
 /playwright-report/
 /test-results/
+
+# Personal WhatsApp (Baileys) session — never commit creds
+.wa-personal/
