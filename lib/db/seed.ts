@@ -161,7 +161,17 @@ async function seedDemoData() {
 
 async function seedFounder() {
   const email = process.env.FOUNDER_EMAIL ?? 'founder@agentsverse.ai';
-  const password = process.env.FOUNDER_PASSWORD ?? 'AgentsVerse!Demo2026';
+  const password = process.env.FOUNDER_PASSWORD;
+  // No fallback password: a default literal here is a publicly readable credential (this file is
+  // committed), the entrypoint auto-runs the seed on every boot, and onConflictDoNothing would
+  // make that credential permanent. Skipping is safe — the seed is idempotent, so the founder is
+  // created on the next run after FOUNDER_PASSWORD is set.
+  if (!password) {
+    console.warn(
+      '[seed] FOUNDER_PASSWORD is not set — skipping founder creation. Set it in .env.local and re-run db:seed (or restart the container).',
+    );
+    return null;
+  }
 
   const ctx = await auth.$context;
   const passwordHash = await ctx.password.hash(password);
@@ -199,7 +209,9 @@ async function main() {
   const email = await seedFounder();
 
   const [{ value: leadCount }] = await db.select({ value: count() }).from(leads);
-  console.log(`Seed complete. config=on, demoData=${demoData}, leads=${leadCount}, founder=${email}`);
+  console.log(
+    `Seed complete. config=on, demoData=${demoData}, leads=${leadCount}, founder=${email ?? 'SKIPPED (FOUNDER_PASSWORD unset)'}`,
+  );
 
   await sql.end({ timeout: 5 });
 }

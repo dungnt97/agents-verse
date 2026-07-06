@@ -33,8 +33,10 @@ services:
     environment:
       USE_DB: "true"
       INNGEST_BASE_URL: http://inngest:8288   # web only sends events to the Inngest server
-      ANTHROPIC_BASE_URL: http://9router:20128   # AI-summary server actions reach the gateway (same as worker)
-      AGENT_MODEL_SONNET: cc/claude-sonnet-4-6   # sonnet model id on the 9router gateway (completeText / AI-summary)
+      # `environment:` beats `env_file:`, so .env.local can NOT override these two. To override,
+      # set them in ./.env (compose's interpolation file) or the shell; unset uses the in-cluster default.
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL-http://9router:20128}    # AI-summary/chat server actions reach the gateway (same as worker)
+      AGENT_MODEL_SONNET: ${AGENT_MODEL_SONNET:-cc/claude-sonnet-4-6}   # sonnet model id on the gateway (completeText / AI-summary / Orion qualifier)
     depends_on:
       db:
         condition: service_healthy   # don't start web until Postgres healthcheck passes
@@ -95,10 +97,16 @@ services:
   # INITIAL_PASSWORD, connect a provider (Claude Code OAuth + Kiro free as a fallback combo), create an
   # API key, then put it in .env.local as ANTHROPIC_AUTH_TOKEN and the combo name in AGENT_MODEL_OPUS.
   "9router":
-    image: decolua/9router:latest
-    env_file:
-      - .env.local             # JWT_SECRET, INITIAL_PASSWORD (9router admin login)
+    # Pinned by digest: a third-party image that holds gateway credentials must not silently change
+    # under us via a new `latest` push. To update: `docker pull decolua/9router:latest`, verify it,
+    # then refresh this digest (`docker image inspect decolua/9router:latest --format '{{index .RepoDigests 0}}'`).
+    image: decolua/9router@sha256:c914a0c1927e8c2d8a83b42e650fdd797e9a2be4218bb8580c7bcd94e20bb844
     environment:
+      # Least privilege: no env_file here — this container used to receive ALL of .env.local (DB
+      # password, every API key). It only needs its own admin credentials, interpolated from ./.env;
+      # compose fails fast with the message below when they are missing.
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in ./.env — the 9router service no longer reads .env.local}
+      INITIAL_PASSWORD: ${INITIAL_PASSWORD:?set INITIAL_PASSWORD in ./.env — the 9router service no longer reads .env.local}
       DATA_DIR: /app/data      # persisted provider auth + config live here (the named volume below)
       PORT: "20128"
       # Demo-gen produces large single-shot HTML (~6+ min of streaming, a big reference-anchored prompt
@@ -127,10 +135,11 @@ services:
       USE_DB: "true"
       INNGEST_BASE_URL: http://inngest:8288
       # Point the `claude` CLI at the 9router gateway. ANTHROPIC_AUTH_TOKEN (the 9router API key) and
-      # AGENT_MODEL_OPUS (the combo id) come from .env.local; clear ANTHROPIC_BASE_URL there to fall
-      # back to a direct subscription via CLAUDE_CODE_OAUTH_TOKEN instead.
-      ANTHROPIC_BASE_URL: http://9router:20128
-      AGENT_MODEL_SONNET: cc/claude-sonnet-4-6   # sonnet model id (orion qualifier / completeText)
+      # AGENT_MODEL_OPUS (the combo id) come from .env.local. To fall back to a direct subscription via
+      # CLAUDE_CODE_OAUTH_TOKEN, set `ANTHROPIC_BASE_URL=` (explicitly empty) in ./.env — clearing it
+      # in .env.local has no effect (`environment:` beats `env_file:`).
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL-http://9router:20128}
+      AGENT_MODEL_SONNET: ${AGENT_MODEL_SONNET:-cc/claude-sonnet-4-6}   # sonnet model id (Closer/Echo/Mira/Cipher via the runner)
     depends_on:
       db:
         condition: service_healthy

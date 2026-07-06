@@ -21,6 +21,10 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: false,
     autoSignInAfterSignUp: false,
+    // The catch-all auth route is public; without this, anyone could self-register and every
+    // session passes getCurrentUser(), handing a stranger the whole workspace. The only account
+    // is the founder, created by the seed via direct DB insert (unaffected by this flag).
+    disableSignUp: true,
   },
 });
 
