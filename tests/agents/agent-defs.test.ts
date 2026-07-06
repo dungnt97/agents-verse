@@ -24,6 +24,10 @@ import {
 } from '@/lib/agents/defs/review-persona';
 import { irisReview } from '@/lib/agents/defs/iris-ux';
 import { kiraReview } from '@/lib/agents/defs/kira-qa';
+import { echoOutreach } from '@/lib/agents/defs/echo-outreach';
+import { closerSales } from '@/lib/agents/defs/closer-sales';
+import { cipherCoder } from '@/lib/agents/defs/cipher-coder';
+import { miraSupport } from '@/lib/agents/defs/mira-support';
 import { REVIEW_BOARD } from '@/lib/agents/board';
 import { AGENTS, getAgent } from '@/lib/agents/registry';
 
@@ -327,25 +331,28 @@ describe('REVIEW_BOARD', () => {
 });
 
 describe('AGENTS registry', () => {
-  it('exposes the canonical roster keyed by AgentId', () => {
-    expect(Object.keys(AGENTS).sort()).toEqual(['atlas', 'iris', 'kira', 'nova']);
+  it('maps each dashboard agent to its primary def, keyed by AgentId', () => {
+    expect(Object.keys(AGENTS).sort()).toEqual(['atlas', 'cipher', 'closer', 'echo', 'iris', 'kira', 'mira', 'nova', 'vega']);
     expect(AGENTS.atlas).toBe(atlasDirector);
     expect(AGENTS.nova).toBe(novaBuilder);
     expect(AGENTS.iris).toBe(irisReview);
     expect(AGENTS.kira).toBe(kiraReview);
+    expect(AGENTS.vega).toBe(vegaResearcher);
+    expect(AGENTS.echo).toBe(echoOutreach);
+    expect(AGENTS.closer).toBe(closerSales);
+    expect(AGENTS.cipher).toBe(cipherCoder);
+    expect(AGENTS.mira).toBe(miraSupport);
   });
 
-  it('every registered def carries its own AgentId', () => {
-    expect(AGENTS.atlas.id).toBe('atlas');
-    expect(AGENTS.nova.id).toBe('nova');
-    expect(AGENTS.iris.id).toBe('iris');
-    expect(AGENTS.kira.id).toBe('kira');
+  it('every registered def carries the AgentId it is keyed under', () => {
+    for (const [id, def] of Object.entries(AGENTS)) {
+      expect(def.id, id).toBe(id);
+    }
   });
 
   it('getAgent resolves each registered id to its def', () => {
-    expect(getAgent('atlas')).toBe(AGENTS.atlas);
-    expect(getAgent('nova')).toBe(AGENTS.nova);
-    expect(getAgent('iris')).toBe(AGENTS.iris);
-    expect(getAgent('kira')).toBe(AGENTS.kira);
+    for (const id of Object.keys(AGENTS) as (keyof typeof AGENTS)[]) {
+      expect(getAgent(id)).toBe(AGENTS[id]);
+    }
   });
 });

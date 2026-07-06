@@ -15,6 +15,7 @@ import { closerSales } from '@/lib/agents/defs/closer-sales';
 import { cipherCoder } from '@/lib/agents/defs/cipher-coder';
 import { miraSupport } from '@/lib/agents/defs/mira-support';
 import { buildOrionPrompt } from '@/lib/discovery/orion-qualify';
+import { nextStages } from '@/lib/data/deal-stage-machine';
 
 // A representative job (illustrative values) — the point is to show each prompt's real STRUCTURE and
 // instructions, not real audit numbers.
@@ -72,7 +73,9 @@ export function agentPromptPreview(id: string): string | null {
     case 'closer':
       return closerSales.buildPrompt({
         deal: { client: SAMPLE.company, industry: SAMPLE.industry, city: SAMPLE.city, pkg: SAMPLE_PKG, value: 2400, stage: 'quoted' },
-        legalNextStages: ['approval', 'call', 'won', 'lost'],
+        // Derive from the state machine so the founder-facing preview can never show an illegal hop
+        // (the old hardcoded list included 'call', which is NOT legal from 'quoted').
+        legalNextStages: [...nextStages('quoted')],
         text: SAMPLE_REPLY,
       });
     case 'cipher':

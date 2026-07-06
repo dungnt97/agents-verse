@@ -47,9 +47,9 @@ export const AGENT_BRIEFS: Record<string, AgentBrief> = {
   },
   kira: {
     role: 'Visual QA',
-    en: 'A review-board member on the visual-QA lens: catches broken layout, overflow, clipped or overlapping text, broken images and visual inconsistencies in the rendered demo.',
-    vi: 'Thành viên hội đồng review ở góc nhìn QA hình ảnh: bắt lỗi layout vỡ, tràn, chữ bị cắt/đè, ảnh hỏng và các điểm thiếu nhất quán trong bản demo.',
-    source: "lib/agents/defs/kira-qa.ts → buildPersonaReviewPrompt('qa')",
+    en: 'A review-board member on the art-direction / brand-craft lens: judges whether the demo reads bespoke and premium or templated/AI-generated, hunts the AI tells and the regression to a generic category template, and applies the "would this win the pitch" bar — every note pushes the page bolder and more distinctive, never safer.',
+    vi: 'Thành viên hội đồng review ở góc nhìn art-direction / brand-craft: đánh giá bản demo trông bespoke và cao cấp hay bị templated/AI, truy các dấu hiệu AI và việc trượt về template ngành chung chung, và áp chuẩn "liệu có thắng được pitch không" — mọi góp ý đẩy trang táo bạo và khác biệt hơn, không bao giờ an toàn hơn.',
+    source: "lib/agents/defs/kira-qa.ts → buildPersonaReviewPrompt('art')",
   },
   cipher: {
     role: 'Delivery / Technical SEO',
