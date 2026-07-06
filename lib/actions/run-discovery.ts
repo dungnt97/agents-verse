@@ -8,6 +8,7 @@ import { scrapeEmail } from '@/lib/discovery/email-scraper';
 import { dedupePlaces } from '@/lib/discovery/dedup';
 import { mapPlaceToLead, type DiscoveredLeadInsert } from '@/lib/discovery/map-place-to-lead';
 import { orionQualify } from '@/lib/discovery/orion-qualify';
+import { hasContact } from '@/lib/discovery/contactability';
 import { upsertDiscoveredLeads } from '@/lib/repositories/leads';
 import { USE_DB } from '@/lib/repositories/config';
 import { getCurrentUser } from '@/lib/auth/session';
@@ -122,10 +123,14 @@ export async function runDiscovery(input: { industry?: string; city?: string }):
     const placeIds = rows.map((r) => r.placeId).filter((v): v is string => !!v);
     if (remaining > 0 && placeIds.length) {
       const fresh = await db
-        .select({ id: leads.id })
+        .select({ id: leads.id, phone: leads.phone, email: leads.email })
         .from(leads)
         .where(and(inArray(leads.placeId, placeIds), eq(leads.stage, 'found')));
-      for (const l of fresh.slice(0, remaining)) {
+      // Only chase leads we can actually reach: spending demo generation (opus) on a business with no
+      // phone or email is wasted — there's no way to send them the demo. Non-contactable leads are still
+      // saved (visible in the list) but not auto-pipelined.
+      const contactable = fresh.filter(hasContact);
+      for (const l of contactable.slice(0, remaining)) {
         const r = await startPipeline(l.id);
         if (r.ok) started++;
       }

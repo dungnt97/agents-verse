@@ -22,6 +22,7 @@ function makeInput(overrides: Partial<DemoGenInput> = {}): DemoGenInput {
     industry: 'real estate',
     city: 'Da Nang',
     url: 'https://sunrise-realty.example',
+    language: 'English',
     scores: {
       visual: 40,
       mobile: 55,
@@ -213,7 +214,7 @@ describe('buildDirectorPrompt', () => {
     expect(out).toContain('SELF-CHECK before finishing');
     // industry interpolation in the blueprint + copy lines.
     expect(out).toContain('a real real estate customer expects');
-    expect(out).toContain('natural Vietnamese for Da Nang');
+    expect(out).toContain('natural English for Da Nang');
     // clientBlock embedded.
     expect(out).toContain('CLIENT: Sunrise Realty — real estate, Da Nang.');
   });
@@ -284,7 +285,7 @@ describe('buildBuildPrompt', () => {
     // CTA + brand interpolation inside constraints.
     expect(out).toContain('Make the CTA "Đặt lịch xem nhà" unmissable');
     expect(out).toContain('Keep the brand name "Sunrise Realty"');
-    expect(out).toContain('fluent, specific Vietnamese for Da Nang');
+    expect(out).toContain('fluent, specific English for Da Nang');
   });
 });
 

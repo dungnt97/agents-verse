@@ -11,6 +11,8 @@ export interface DemoGenInput {
   industry: string;
   city: string;
   url: string;
+  /** Language the demo copy is written in, e.g. "English" / "Vietnamese" (from the client's market). */
+  language: string;
   scores: AuditResult['scores'];
   problems: string[];
   redesign: AuditResult['redesign'];
@@ -49,7 +51,7 @@ export function buildResearchPrompt(input: DemoGenInput, oldSitePngs: string[]):
     shots,
     `Extract the REAL brand to carry forward — brand/wordmark + its actual colours (hex), the real product/listings + photo style, the genuine value proposition + tone — and the 2-3 worst things to KILL in the redesign.`,
     ``,
-    `PART 2 — REFERENCE BAR (benchmark the niche): from your knowledge of best-in-class ${input.industry} websites (global + the ${input.city} / Vietnam market), name 2-3 worth rivalling and extract concrete, CURRENT design cues to steal: layout system, type-pairing energy, colour mood, signature interactions, what makes a 2026 ${input.industry} site feel premium.`,
+    `PART 2 — REFERENCE BAR (benchmark the niche): from your knowledge of best-in-class ${input.industry} websites (global + the ${input.city} market), name 2-3 worth rivalling and extract concrete, CURRENT design cues to steal: layout system, type-pairing energy, colour mood, signature interactions, what makes a 2026 ${input.industry} site feel premium.`,
     ``,
     `Output exactly two blocks — "CLIENT REALITY" (brand name, colours, real assets, tone, kill-list) and "REFERENCE BAR" (named sites + concrete design cues). Specific and factual; no preamble.`,
   ].join('\n');
@@ -114,12 +116,12 @@ export function buildDirectorPrompt(input: DemoGenInput, researchBrief: string, 
     `Then lock these as exact, paste-ready decisions:`,
     `1. THE SIGNATURE — if a CHOSEN CONCEPT is given above, realize ITS signature move as the ONE focal point and spec exactly how it's built (markup + the vanilla-JS interaction/motion mechanics); otherwise invent the bespoke hook + one signature visual move yourself (kinetic type, a real mesh/grain atmosphere, an editorial overlap, a distinctive hero composition). Either way it must be nameable from the hero alone.`,
     `2. Palette — SOLVE it per-brand; do NOT reach for the category cliché (property→brass/gold, tech→cobalt, health→teal). One near-neutral canvas + one deep anchor + exactly ONE accent, every value as hex; the accent is a less-expected but on-tone hue (justify in one line). The background is a DELIBERATE treatment — a designed surface (mesh / grain / layered tint) OR an intentional bold flat colour block — never an accidental empty flat fill.`,
-    `3. Type — TWO DIFFERENT Google Fonts: a characterful DISPLAY face (e.g. Bricolage Grotesque, Unbounded, Outfit, Sora, Familjen Grotesk, Fraunces) and a separate readable BODY face (e.g. Be Vietnam Pro, Plus Jakarta Sans, Lexend, Mulish). NEVER the same family for both; NEVER Inter / Roboto / Open Sans / Space Grotesk. Demand extreme contrast — display clamp() to ~clamp(2.6rem,6vw,5.5rem), body 16-18px, a big weight jump, tight display tracking. Both MUST render flawless Vietnamese diacritics; if the natural fit fails VN, pick the best VN-correct alternative and say so.`,
+    `3. Type — TWO DIFFERENT Google Fonts: a characterful DISPLAY face (e.g. Bricolage Grotesque, Unbounded, Outfit, Sora, Familjen Grotesk, Fraunces) and a separate readable BODY face (e.g. Be Vietnam Pro, Plus Jakarta Sans, Lexend, Mulish). NEVER the same family for both; NEVER Inter / Roboto / Open Sans / Space Grotesk. Demand extreme contrast — display clamp() to ~clamp(2.6rem,6vw,5.5rem), body 16-18px, a big weight jump, tight display tracking. Both MUST render the site's language (${input.language}) flawlessly, including any accents/diacritics; if the natural fit fails ${input.language}, pick the best correct alternative and say so.`,
     `4. Spend boldness in ONE focal point (an oversized display headline, one full-bleed image, or one saturated accent moment); keep everything else quiet and restrained.`,
     `5. Layout — grid, margins, and how section rhythm VARIES (scale, alignment, full-bleed vs contained) so no two bands feel the same. Intentional asymmetric negative space is GOOD — do NOT fill it.`,
     `6. Section-by-section blueprint in the audit's order — what's in each, its one distinctive treatment, and the niche-essential functional modules a real ${input.industry} customer expects.`,
     `7. Motion — name specific gestures (staggered entrance, a kinetic hero, a sticky header that solidifies + blurs), not "fade in".`,
-    `8. Copy voice + 3 example headlines in natural Vietnamese for ${input.city}.`,
+    `8. Copy voice + 3 example headlines in natural ${input.language} for ${input.city}.`,
     ``,
     `SELF-CHECK before finishing: would this exact spec appear UNCHANGED for a different brand in this category? If yes, push palette/type/signature until it could only be THIS brand. Could a reviewer name your signature move from the hero screenshot alone? If not, make it bolder. Is the background a deliberate treatment (a designed surface OR an intentional bold flat colour), not an accidental empty fill?`,
   ].join('\n');
@@ -157,7 +159,7 @@ function craftConstraints(input: DemoGenInput, opts: { allowRead?: boolean } = {
     `IMAGERY (curate, don't scatter): real Unsplash photos via <img src>, each with descriptive alt + width/height (or aspect-ratio) so nothing shifts, painting immediately. All photos share ONE consistent grade — apply a unifying brand-accent tint over each via mix-blend-mode or a brand-tinted ::after/gradient overlay so disparate stock reads as shot for one brand. Prefer few large images over many small. No emoji icons (use inline SVG); no placeholder boxes. EVERY <img> MUST carry an onerror handler that, if the photo fails to load (a dead/invalid Unsplash id), swaps in a brand-tinted gradient block of the SAME size — never let a broken-image icon ship. Prefer Unsplash ids you are confident exist; append ?w=1600&q=80 for sizing.`,
     `INTERACTIVITY: where the niche promises a tool (search, filter, "định giá"/quote, booking), implement a CONVINCING vanilla-JS mock that computes a real result from the inputs — it must actually respond. Make the CTA "${input.redesign.cta}" unmissable; on mobile add a sticky primary-action bar where the niche expects it.`,
     `MOTION (vanilla, gate behind @media (prefers-reduced-motion: reduce)): IntersectionObserver staggered scroll reveals, hover micro-interactions with cubic-bezier/spring easing, tactile :active scale(.98), a sticky header that solidifies + blurs, a button-in-button trailing icon (arrow in its own circle, never a naked icon). ${NO_JS_SAFE_RULE}`,
-    `CONTENT: natural, fluent, specific Vietnamese for ${input.city} — realistic, factually-coherent names/listings/numbers, never lorem or "TODO". Keep the brand name "${input.company}".`,
+    `CONTENT: natural, fluent, specific ${input.language} for ${input.city} — realistic, factually-coherent names/listings/numbers, never lorem or "TODO". Keep the brand name "${input.company}".`,
     `NEVER (instant AI / dated tells): Inter/Roboto/Open Sans or one font for everything; purple→blue / purple→pink gradients; pure #000; a flat texture-less background; three equal cards in a tidy row; a generic stat bar; emoji icons; the same radius on everything; a centered-H1-over-dark-photo hero; round fake numbers and clichés ("Elevate", "Seamless", "Unleash"). Introduce no colours, fonts, or radii the spec did not name.`,
   ].join('\n');
 }
@@ -202,7 +204,7 @@ export const REVIEW_PERSONAS: ReviewPersona[] = [
   {
     key: 'copy',
     brief: (input) =>
-      `You are a CONVERSION COPYWRITER & CONTENT STRATEGIST, native to the ${input.city} market. STATE your standards (value-prop clarity, headline hook, message hierarchy & scannability, specificity vs vague fluff, CTA quality, trust/proof language, natural fluent Vietnamese tone for this niche). Then critique the ACTUAL copy — headlines, subheads, section intros, card/testimonial text, CTAs. Flag anything generic, AI-written, translated-sounding, exaggerated, factually incoherent, or unconvincing to a real local ${input.industry} customer. Give concrete Vietnamese rewrites as fixes, with severity.`,
+      `You are a CONVERSION COPYWRITER & CONTENT STRATEGIST, native to the ${input.city} market. STATE your standards (value-prop clarity, headline hook, message hierarchy & scannability, specificity vs vague fluff, CTA quality, trust/proof language, natural fluent ${input.language} tone for this niche). Then critique the ACTUAL copy — headlines, subheads, section intros, card/testimonial text, CTAs. Flag anything generic, AI-written, translated-sounding, exaggerated, factually incoherent, or unconvincing to a real local ${input.industry} customer. Give concrete ${input.language} rewrites as fixes, with severity.`,
   },
   {
     key: 'niche',

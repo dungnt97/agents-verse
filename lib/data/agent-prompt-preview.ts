@@ -24,6 +24,7 @@ const SAMPLE: DemoGenInput = {
   industry: 'Coffee & Hospitality',
   city: 'Ho Chi Minh City',
   url: 'https://current-site.example',
+  language: 'English',
   scores: { visual: 38, mobile: 33, cta: 35, trust: 47, seo: 49, speed: 58, content: 44, conversion: 35 },
   problems: [
     'Dated hero with no clear value proposition',
@@ -68,7 +69,7 @@ export function agentPromptPreview(id: string): string | null {
     case 'echo':
       return echoOutreach.buildPrompt({
         company: SAMPLE.company, industry: SAMPLE.industry, city: SAMPLE.city,
-        cta: SAMPLE.redesign.cta, summary: SAMPLE.summary,
+        cta: SAMPLE.redesign.cta, summary: SAMPLE.summary, language: SAMPLE.language,
       });
     case 'closer':
       return closerSales.buildPrompt({

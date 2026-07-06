@@ -4,6 +4,7 @@ import { db } from '../../db/client';
 import { leads, generatedDemos, audits, escalations, settings } from '../../db/schema';
 import { runAgent } from '../../agents/runner';
 import { echoOutreach } from '../../agents/defs/echo-outreach';
+import { demoLanguageForAddress } from '../../demo-gen/locale';
 import { sendEmail, outreachEmailHtml, resendConfigured } from '../../integrations/resend';
 import type { AutonomyMode } from '../../data/deal-stage-machine';
 
@@ -130,9 +131,10 @@ export const runOutreach = inngest.createFunction(
         company: sendable.company,
         industry: lead?.industry ?? '',
         city: lead?.city ?? '',
+        language: demoLanguageForAddress(lead?.formattedAddress),
         value: lead?.value ?? 0,
         score: lead?.score ?? 0,
-        cta: audit?.redesign?.cta ?? 'xem bản demo mới',
+        cta: audit?.redesign?.cta ?? 'see the new demo',
         summary: audit?.summary ?? 'a faster, mobile-first homepage redesign with a clear call-to-action',
         autonomyMode: (s?.autonomyMode as AutonomyMode | undefined) ?? 'guarded',
       };
@@ -157,6 +159,7 @@ export const runOutreach = inngest.createFunction(
         city: loaded.city,
         cta: loaded.cta,
         summary: loaded.summary,
+        language: loaded.language,
       }),
     );
 

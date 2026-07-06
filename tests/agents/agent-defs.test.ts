@@ -38,6 +38,7 @@ const input: DemoGenInput = {
   industry: 'real estate',
   city: 'Da Nang',
   url: 'https://zenith.example/old',
+  language: 'English',
   scores: {
     visual: 40,
     mobile: 30,

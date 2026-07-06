@@ -17,8 +17,8 @@ describe('agent def buildPrompt builders', () => {
     expect(p).toContain('Houston');
     expect(p).toMatch(/STRICT JSON/i);
   });
-  it('echoOutreach builds a VN outreach email prompt with the CTA', () => {
-    const p = echoOutreach.buildPrompt({ company: 'Lumi Spa', industry: 'wellness', city: 'Da Nang', cta: 'đặt lịch', summary: 'redesign' });
+  it('echoOutreach builds an outreach email prompt with the CTA', () => {
+    const p = echoOutreach.buildPrompt({ company: 'Lumi Spa', industry: 'wellness', city: 'Da Nang', cta: 'đặt lịch', summary: 'redesign', language: 'Vietnamese' });
     expect(p).toContain('Lumi Spa');
     expect(p).toContain('Da Nang');
     expect(p).toContain('đặt lịch');
