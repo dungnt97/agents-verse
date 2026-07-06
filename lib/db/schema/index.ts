@@ -9,3 +9,4 @@ export * from './pipeline-runs';
 export * from './builds';
 export * from './ops';
 export * from './audit';
+export * from './markets';

@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, count, eq, gte, inArray, isNotNull } from 'drizzle-orm';
+import { and, count, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
 import { searchBusinesses, enrichPlace } from '@/lib/discovery/places-client';
 import { assessWebsite } from '@/lib/discovery/bad-website-heuristic';
 import { scrapeEmail } from '@/lib/discovery/email-scraper';
@@ -9,11 +9,12 @@ import { dedupePlaces } from '@/lib/discovery/dedup';
 import { mapPlaceToLead, type DiscoveredLeadInsert } from '@/lib/discovery/map-place-to-lead';
 import { orionQualify } from '@/lib/discovery/orion-qualify';
 import { hasContact } from '@/lib/discovery/contactability';
+import { planNextMarket, DEFAULT_MARKET_PLAN, type MarketPick, type MarketPlan } from '@/lib/discovery/market-planner';
 import { upsertDiscoveredLeads } from '@/lib/repositories/leads';
 import { USE_DB } from '@/lib/repositories/config';
 import { getCurrentUser } from '@/lib/auth/session';
 import { db } from '@/lib/db/client';
-import { activity, leads, settings, pipelineRuns } from '@/lib/db/schema';
+import { activity, leads, settings, pipelineRuns, huntedMarkets } from '@/lib/db/schema';
 import { startPipeline } from './start-pipeline';
 import type { AutonomyMode } from '@/lib/data/deal-stage-machine';
 
@@ -33,7 +34,7 @@ export interface DiscoveryResult {
 // Orchestrates one discovery pass: search (Pro) → dedupe → enrich top-N (Enterprise) → assess
 // website + scrape email → map to Lead shape → upsert by placeId → log activity. Server action
 // (first-cut; promote to a durable workflow when throttling/approval is needed). DB-only.
-export async function runDiscovery(input: { industry?: string; city?: string }): Promise<DiscoveryResult> {
+export async function runDiscovery(input: { industry?: string; city?: string; auto?: boolean }): Promise<DiscoveryResult> {
   if (!USE_DB) {
     return { found: 0, enriched: 0, upserted: 0, started: 0, message: 'Discovery requires the database (set USE_DB=true).' };
   }
@@ -68,10 +69,27 @@ export async function runDiscovery(input: { industry?: string; city?: string }):
     budget = Math.min(ENRICH_TOP_N, cap - todayCount);
   }
 
-  const industry = (input.industry || process.env.DISCOVERY_DEFAULT_INDUSTRY || 'dentists').trim();
-  const city = (input.city || process.env.DISCOVERY_DEFAULT_CITY || 'Austin TX').trim();
+  // Market selection: `auto` uses the Guided-auto planner (rich-country pool + rotation state); otherwise
+  // the founder's typed input or the env defaults. A geo-bias regionCode comes only from the planner.
+  let pick: MarketPick | null = null;
+  let regionCode: string | undefined;
+  if (input.auto) {
+    const [s] = await db.select().from(settings).limit(1);
+    const plan = (s?.marketPlan as MarketPlan | null) ?? DEFAULT_MARKET_PLAN;
+    const hunted = await db.select().from(huntedMarkets);
+    pick = planNextMarket(
+      plan,
+      hunted.map((h) => ({ country: h.country, region: h.region, niche: h.niche, lastRunAt: h.lastRunAt?.getTime() ?? null })),
+    );
+    if (!pick) {
+      return { found: 0, enriched: 0, upserted: 0, started: 0, message: 'Autonomous hunting is off or the market pool is empty (configure settings.marketPlan).' };
+    }
+    regionCode = pick.regionCode;
+  }
+  const industry = (pick?.niche || input.industry || process.env.DISCOVERY_DEFAULT_INDUSTRY || 'dentists').trim();
+  const city = (pick?.city || input.city || process.env.DISCOVERY_DEFAULT_CITY || 'Austin TX').trim();
 
-  const places = dedupePlaces(await searchBusinesses({ industry, city }));
+  const places = dedupePlaces(await searchBusinesses({ industry, city, regionCode }));
   const top = places.slice(0, budget);
 
   const enriched: { place: (typeof top)[number]; enrichment: Awaited<ReturnType<typeof enrichPlace>>; assessment: Awaited<ReturnType<typeof assessWebsite>> | null; email: string | null }[] = [];
@@ -103,6 +121,18 @@ export async function runDiscovery(input: { industry?: string; city?: string }):
   );
 
   const upserted = await upsertDiscoveredLeads(rows);
+
+  // Record the hunted market (auto runs only) so the planner rotates to the next combo next time.
+  if (pick) {
+    const now = new Date();
+    await db
+      .insert(huntedMarkets)
+      .values({ id: `${pick.country}|${pick.city}|${pick.niche}`, country: pick.country, region: pick.city, niche: pick.niche, lastRunAt: now, leadsFound: upserted })
+      .onConflictDoUpdate({
+        target: huntedMarkets.id,
+        set: { lastRunAt: now, leadsFound: sql`${huntedMarkets.leadsFound} + ${upserted}` },
+      });
+  }
 
   // Auto-chain: under guarded/full, kick a pipeline for each freshly discovered lead so discovery flows
   // straight into audit→demo→outreach. Bounded by a per-day run cap (PIPELINE_DAILY_CAP) so a big batch

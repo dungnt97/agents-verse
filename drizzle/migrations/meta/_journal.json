@@ -71,6 +71,13 @@
       "when": 1783364138786,
       "tag": "0009_natural_black_widow",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783364760257,
+      "tag": "0010_old_rhodey",
+      "breakpoints": true
     }
   ]
 }
