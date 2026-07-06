@@ -52,10 +52,10 @@ export async function startPipeline(leadId: string): Promise<StartPipelineResult
   return { ok: true, message: `Pipeline started for ${lead.company}.`, runId };
 }
 
-// Founder kill switch: halt an actively-running run. The orchestrator's pure machine refuses to act
+// Founder kill switch: pause an actively-running run. The orchestrator's pure machine refuses to act
 // on a paused run, so no further hop fires. Only a 'running' run is pausable: a run parked at a gate
 // ('waiting_approval') is already stopped and is moved by approving/rejecting its escalation — pausing
-// it would consume the escalation on approve and strand the run paused with no way to resume.
+// it would orphan that escalation. Undo with resumePipelineRun below.
 export async function pausePipelineRun(runId: string): Promise<{ ok: boolean; message?: string }> {
   if (!USE_DB) return { ok: false, message: 'This action needs the database (set USE_DB=true).' };
   if (!(await getCurrentUser())) throw new Error('Unauthorized');
@@ -64,6 +64,30 @@ export async function pausePipelineRun(runId: string): Promise<{ ok: boolean; me
     .update(pipelineRuns)
     .set({ status: 'paused', updatedAt: new Date() })
     .where(and(eq(pipelineRuns.id, runId), eq(pipelineRuns.status, 'running')));
+
+  revalidatePath('/overview');
+  return { ok: true };
+}
+
+// Release a paused run. The orchestrator re-fires the run's CURRENT stage (a completion fact that
+// arrived while paused was consumed by the machine's stop branch, so waiting for it would strand the
+// run) — re-running a stage is safe: the audit re-audits, the demo save is idempotent, outreach's
+// sendable-guard + idempotency key prevent a double email. The row stays 'paused' until the
+// orchestrator's conditional write claims it, so a double-resume no-ops. The event id is minted per
+// pause cycle (updatedAt) so resuming after a later pause isn't swallowed by Inngest's 24h id dedup.
+export async function resumePipelineRun(runId: string): Promise<{ ok: boolean; message?: string }> {
+  if (!USE_DB) return { ok: false, message: 'This action needs the database (set USE_DB=true).' };
+  if (!(await getCurrentUser())) throw new Error('Unauthorized');
+
+  const [run] = await db.select().from(pipelineRuns).where(eq(pipelineRuns.id, runId)).limit(1);
+  if (!run) return { ok: false, message: 'Run not found.' };
+  if (run.status !== 'paused') return { ok: false, message: `Run is not paused (status: ${run.status}).` };
+
+  await inngest.send({
+    name: 'pipeline/resumed',
+    data: { runId },
+    id: `pipeline/resumed:${runId}:${run.updatedAt?.getTime() ?? 0}`,
+  });
 
   revalidatePath('/overview');
   return { ok: true };

@@ -16,7 +16,11 @@ interface PwPage {
   close(): Promise<void>;
 }
 interface PwContext { newPage(): Promise<PwPage>; close(): Promise<void> }
-interface PwBrowser { newContext(opts: Record<string, unknown>): Promise<PwContext>; close(): Promise<void> }
+interface PwBrowser {
+  newContext(opts: Record<string, unknown>): Promise<PwContext>;
+  close(): Promise<void>;
+  on(event: 'disconnected', cb: () => void): void;
+}
 
 export interface Screenshots {
   desktop: Buffer;
@@ -47,6 +51,12 @@ function assertSafeUrl(raw: string): string {
     host.endsWith('.local') ||
     host === '0.0.0.0' ||
     host === '::1' ||
+    // Dotless hostnames are never public sites but ARE the compose service DNS names (db, redis,
+    // inngest, 9router, worker, web) — the highest-value internal targets from inside the network.
+    !host.includes('.') ||
+    // Single-integer / hex forms (http://2130706433, http://0x7f000001) alias loopback & friends.
+    /^\d+$/.test(host) ||
+    /^0x[0-9a-f]+$/.test(host) ||
     /^127\./.test(host) ||
     /^10\./.test(host) ||
     /^192\.168\./.test(host) ||
@@ -57,17 +67,28 @@ function assertSafeUrl(raw: string): string {
 }
 
 // Reuse one Browser across jobs (cheaper than relaunching). Lazily launched on first use.
+// The cache must never hold a DEAD browser: a failed launch clears itself (otherwise the rejected
+// promise is served to every later job), and a Chromium crash (OOM under the container mem_limit)
+// clears it via 'disconnected' so the next job relaunches instead of failing until a manual restart.
 let browserPromise: Promise<PwBrowser> | null = null;
 
 async function getBrowser(): Promise<PwBrowser> {
   if (!browserPromise) {
-    browserPromise = (async () => {
+    const launching = (async () => {
       const { chromium } = (await import('playwright')) as unknown as {
         chromium: { launch(opts: Record<string, unknown>): Promise<PwBrowser> };
       };
       // --no-sandbox is required to run Chromium as root inside the container.
-      return chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+      const browser = await chromium.launch({ args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+      browser.on('disconnected', () => {
+        if (browserPromise === launching) browserPromise = null;
+      });
+      return browser;
     })();
+    browserPromise = launching;
+    launching.catch(() => {
+      if (browserPromise === launching) browserPromise = null;
+    });
   }
   return browserPromise;
 }

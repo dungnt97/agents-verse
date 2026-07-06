@@ -102,10 +102,12 @@ export const orchestratePipeline = inngest.createFunction(
             );
         });
         // Event `id` makes the next hop exactly-once across the chain even if this step re-executes.
+        // A resume-from-pause re-request (from === to) must NOT reuse the stage-keyed id — that id
+        // was consumed when the stage first fired — so it derives a fresh one from this delivery.
         await step.sendEvent('emit-next', {
           name: hop.event,
           data: { leadId, runId },
-          id: `${hop.event}:${runId}`,
+          id: hop.from === hop.to ? `${hop.event}:${runId}:${event.id ?? 'resume'}` : `${hop.event}:${runId}`,
         });
         return { runId, hop: hop.kind, to: hop.to };
       }

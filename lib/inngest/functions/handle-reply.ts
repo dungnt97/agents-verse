@@ -30,6 +30,39 @@ export const handleReply = inngest.createFunction(
       { limit: 1, key: 'event.data.dealId' },
     ],
     triggers: [{ event: 'reply/received' }],
+    // A verified client reply whose interpretation terminally fails must not be lost — the inbound
+    // webhook's svix-id dedup blocks re-emission, so this is the reply's last chance to surface.
+    // Reuses the esc-reply-<dealId> review flag the success path uses: same founder workflow (read
+    // the reply, act in the deals UI), just without an AI interpretation attached.
+    onFailure: async ({ event, error, step }) => {
+      const { dealId, text } = event.data.event.data as ReplyReceivedData;
+      await step.run('escalate-reply-failure', async () => {
+        const [deal] = await db.select().from(deals).where(eq(deals.id, dealId)).limit(1);
+        if (!deal) return;
+        const reason = `Automatic interpretation failed (${error.message}) — review the reply manually. Reply: "${text.slice(0, 200)}"`;
+        await db
+          .insert(escalations)
+          .values({
+            id: `esc-reply-${dealId}`,
+            kind: 'sales',
+            sev: 'high',
+            title: `Client reply needs review — ${deal.client}`,
+            who: deal.client,
+            value: deal.value,
+            agent: 'closer',
+            reason,
+            rec: 'Read the reply and advance the deal manually in the deals screen.',
+            conf: 0,
+            time: 'just now',
+            status: 'open',
+            dealId,
+          })
+          .onConflictDoUpdate({
+            target: escalations.id,
+            set: { status: 'open', resolvedAt: null, reason, conf: 0 },
+          });
+      });
+    },
   },
   async ({ event, step }) => {
     const { dealId, text } = event.data as ReplyReceivedData;

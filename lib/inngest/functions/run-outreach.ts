@@ -28,6 +28,9 @@ async function loadSendable(leadId: string): Promise<Sendable> {
   const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
   if (!lead) return { skip: 'lead not found' };
   if (lead.demo === 'sent') return { skip: 'already contacted' };
+  // The demo flag only tracks OUR send; a lead the founder moved by hand (contacted/replied/won) must
+  // never receive a cold "see your new demo" email — and markSent would then downgrade their stage.
+  if (lead.stage !== 'found') return { skip: `lead already at '${lead.stage}' — past cold outreach` };
   if (!lead.email) return { skip: 'lead has no email' };
   const [demo] = await db.select().from(generatedDemos).where(eq(generatedDemos.leadId, leadId)).limit(1);
   if (!demo || demo.status !== 'ready') return { skip: 'no ready demo to link' };
@@ -51,7 +54,10 @@ async function sendOutreachEmail(leadId: string, email: string, subject: string,
 // can't be approved into a second send). Atomic + idempotent.
 async function markSent(leadId: string): Promise<void> {
   await db.transaction(async (tx) => {
-    await tx.update(leads).set({ stage: 'contacted', demo: 'sent' }).where(eq(leads.id, leadId));
+    // Stage advances only from 'found' (never downgrade a lead the founder moved to replied/won in
+    // the send window); the demo flag always records that our email went out.
+    await tx.update(leads).set({ stage: 'contacted' }).where(and(eq(leads.id, leadId), eq(leads.stage, 'found')));
+    await tx.update(leads).set({ demo: 'sent' }).where(eq(leads.id, leadId));
     await tx
       .update(escalations)
       .set({ status: 'resolved', resolvedAt: new Date() })
@@ -68,6 +74,19 @@ export const runOutreach = inngest.createFunction(
       { limit: 1, key: 'event.data.leadId' },
     ],
     triggers: [{ event: 'outreach/requested' }, { event: 'outreach/approved' }],
+    // Terminal draft/send failure (retries exhausted): report it as a failed fact so an orchestrated
+    // run is failed instead of sitting 'running' at outreach forever (which would also block any
+    // fresh run for the lead via the partial-unique active-run index). Mirrors run-audit/run-demo-gen.
+    onFailure: async ({ event, step }) => {
+      const { leadId, runId } = event.data.event.data as { leadId: string; runId?: string };
+      if (runId) {
+        await step.sendEvent('emit-outreach-failed', {
+          name: 'outreach/sent',
+          data: { leadId, runId, outcome: 'failed' as const },
+          id: `outreach/sent:${runId}`,
+        });
+      }
+    },
   },
   async ({ event, step }) => {
     const eventName = event.name;
@@ -84,7 +103,7 @@ export const runOutreach = inngest.createFunction(
           await step.sendEvent('emit-skip', {
             name: 'outreach/sent',
             data: { leadId, runId, outcome: 'failed' },
-            id: `outreach/sent:${leadId}`,
+            id: `outreach/sent:${runId ?? leadId}`,
           });
         return { leadId, skipped: sendable.skip };
       }
@@ -93,7 +112,7 @@ export const runOutreach = inngest.createFunction(
       await step.sendEvent('emit-sent', {
         name: 'outreach/sent',
         data: { leadId, runId, outcome: 'ok' },
-        id: `outreach/sent:${leadId}`,
+        id: `outreach/sent:${runId ?? leadId}`,
       });
       return { leadId, sent: true };
     }
@@ -125,7 +144,7 @@ export const runOutreach = inngest.createFunction(
         await step.sendEvent('emit-skip', {
           name: 'outreach/sent',
           data: { leadId, runId, outcome: 'failed' },
-          id: `outreach/sent:${leadId}`,
+          id: `outreach/sent:${runId ?? leadId}`,
         });
       return { leadId, skipped: loaded.skip };
     }
@@ -144,7 +163,7 @@ export const runOutreach = inngest.createFunction(
     if (loaded.autonomyMode === 'full') {
       await step.run('send', () => sendOutreachEmail(leadId, loaded.email, draft.subject, draft.body));
       await step.run('mark-sent', () => markSent(leadId));
-      await step.sendEvent('emit-sent', { name: 'outreach/sent', data: { leadId, runId, outcome: 'ok' }, id: `outreach/sent:${leadId}` });
+      await step.sendEvent('emit-sent', { name: 'outreach/sent', data: { leadId, runId, outcome: 'ok' }, id: `outreach/sent:${runId ?? leadId}` });
       return { leadId, sent: true };
     }
 
@@ -187,7 +206,7 @@ export const runOutreach = inngest.createFunction(
         await step.sendEvent('emit-skip', {
           name: 'outreach/sent',
           data: { leadId, runId, outcome: 'failed' },
-          id: `outreach/sent:${leadId}`,
+          id: `outreach/sent:${runId ?? leadId}`,
         });
       return { leadId, skipped: 'outreach previously dismissed for this lead' };
     }
