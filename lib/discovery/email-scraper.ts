@@ -1,5 +1,6 @@
 import 'server-only';
 import * as cheerio from 'cheerio';
+import { safeFetch } from './safe-fetch';
 
 // Best-effort email sourcing (~50-70% hit rate). Parses mailto: links on the homepage and a
 // /contact page. Never submits forms; a miss returns null (the lead falls back to phone/manual).
@@ -7,21 +8,18 @@ import * as cheerio from 'cheerio';
 const FETCH_TIMEOUT_MS = 8000;
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 
+// SSRF-guarded (validates host + every redirect hop — the URL is directory data fetched from inside the
+// Docker network). A blocked host / unreachable site throws → caught here → null (fall back to manual).
 async function fetchText(url: string): Promise<string | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      redirect: 'follow',
+    const { res } = await safeFetch(url, {
+      timeoutMs: FETCH_TIMEOUT_MS,
       headers: { 'User-Agent': 'AgentsVerseBot/1.0 (+website audit)' },
     });
     if (!res.ok) return null;
     return await res.text();
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

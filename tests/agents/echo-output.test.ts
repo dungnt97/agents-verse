@@ -32,3 +32,16 @@ describe('echoOutputSchema (Echo outreach validator)', () => {
     expect(echoOutputSchema.parse(valid)).toEqual(valid);
   });
 });
+
+describe('Echo prompt — language directive', () => {
+  it('instructs the model to write the email in Vietnamese (the recipient is a VN owner)', () => {
+    const p = echoOutreach.buildPrompt({
+      company: 'Lumi Spa', industry: 'spa', city: 'Da Nang',
+      cta: 'đặt lịch', summary: 'a faster mobile homepage',
+    });
+    expect(p).toContain('LANGUAGE');
+    expect(p).toMatch(/write .*Vietnamese/i);
+    // The paragraph-separator note matches the wrapper, which splits on a blank line (\n\n), not a single \n.
+    expect(p).toContain('\\n\\n');
+  });
+});

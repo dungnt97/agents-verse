@@ -56,7 +56,14 @@ export async function connectAssistant(messages: ChatTurn[], signal?: AbortSigna
 // Non-streaming completion against the same gateway — for server-side agents (e.g. Orion's lead
 // qualifier) that need ONE structured answer, not a token stream. Throws on a non-OK response so the
 // caller can fall back. Returns the concatenated text content of the reply.
-export async function completeText(prompt: string, opts?: { maxTokens?: number; system?: string }): Promise<string> {
+export async function completeText(
+  prompt: string,
+  opts?: { maxTokens?: number; system?: string; signal?: AbortSignal; timeoutMs?: number },
+): Promise<string> {
+  // Always bound the call: without a signal, a gateway that accepts the TCP connection but then stalls
+  // (mid-restart, upstream hang) would block the caller for undici's ~5-minute default — freezing the
+  // whole discovery pass or the "Ask AI summary" click. A caller-supplied signal takes precedence.
+  const signal = opts?.signal ?? AbortSignal.timeout(opts?.timeoutMs ?? 45_000);
   const res = await fetch(`${base()}/v1/messages`, {
     method: 'POST',
     headers: {
@@ -70,6 +77,7 @@ export async function completeText(prompt: string, opts?: { maxTokens?: number; 
       ...(opts?.system ? { system: opts.system } : {}),
       messages: [{ role: 'user', content: prompt }],
     }),
+    signal,
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');

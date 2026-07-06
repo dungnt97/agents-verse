@@ -3,6 +3,11 @@
 // demo-gen builders unchanged and emit decisive text (no HTML). tsx-safe: relative imports, no server-only.
 import { buildConceptPrompt, buildDirectorPrompt, buildReviewSynthesisPrompt, type DemoGenInput } from '../../demo-gen/prompt';
 import type { AgentDef } from '../types';
+import { makeTextValidator } from '../validators';
+
+// An empty CLI/gateway result must THROW (not pass as ''), so runAgent's retry fires instead of feeding
+// an empty spec/concept/fix-list downstream. A bare `raw.trim()` returns '' and defeats the retry loop.
+const text = makeTextValidator();
 
 export interface DirectorInput {
   input: DemoGenInput;
@@ -29,7 +34,7 @@ export const atlasConceptor: AgentDef<DirectorInput, string> = {
   tools: [],
   limits: { timeoutMs: 180_000, maxTurns: 1 },
   buildPrompt: ({ input, researchBrief, styleProvocation }) => buildConceptPrompt(input, researchBrief, styleProvocation),
-  validate: (raw) => raw.trim(),
+  validate: text,
 };
 
 // Pass 1 — expand the chosen concept into the tight, reference-anchored creative-director spec the build
@@ -41,7 +46,7 @@ export const atlasDirector: AgentDef<DirectorInput, string> = {
   tools: [],
   limits: { timeoutMs: 180_000, maxTurns: 1 },
   buildPrompt: ({ input, researchBrief, concept }) => buildDirectorPrompt(input, researchBrief, concept),
-  validate: (raw) => raw.trim(),
+  validate: text,
 };
 
 // Pass 4 — consolidate the expert review board's notes into one short, prioritized fix list.
@@ -52,5 +57,5 @@ export const atlasSynthesizer: AgentDef<SynthesisInput, string> = {
   tools: [],
   limits: { timeoutMs: 180_000, maxTurns: 1 },
   buildPrompt: ({ input, reviews }) => buildReviewSynthesisPrompt(input, reviews),
-  validate: (raw) => raw.trim(),
+  validate: text,
 };

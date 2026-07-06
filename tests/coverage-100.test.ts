@@ -147,8 +147,10 @@ describe('bad-website-heuristic: assessWebsite (fetch mocked)', () => {
 
   it('a weak, stale page accumulates every flag', async () => {
     const html = '<table><tr><td><table><tr><td>old</td></tr></table></td></tr></table> copyright 2016';
-    mockFetch({ html, url: 'http://x.test' }); // http → no-https
-    const r = await assessWebsite('x.test');
+    // The SSRF-guarded fetch derives the final URL from the request (not the mock's `url`), so drive the
+    // http scheme via the input to exercise the no-https flag.
+    mockFetch({ html });
+    const r = await assessWebsite('http://x.test');
     expect(r.reachable).toBe(true);
     expect(r.flags).toEqual(expect.arrayContaining(['no-https', 'no-viewport', 'no-clear-cta', 'stale-copyright', 'thin-content', 'table-layout']));
     expect(r.score).toBe(12); // floored

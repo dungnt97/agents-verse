@@ -1,4 +1,5 @@
 import 'server-only';
+import { safeFetch } from './safe-fetch';
 
 // Lightweight "weak website" heuristic — fetches the homepage HTML and flags signals of an
 // outdated/poor site. Deliberately NOT a full Lighthouse/PageSpeed audit (that depth is the
@@ -13,20 +14,15 @@ export interface SiteAssessment {
 
 const FETCH_TIMEOUT_MS = 8000;
 
+// SSRF-guarded fetch (validates the host + every redirect hop — the URL is directory data fetched from
+// inside the Docker network).
 async function fetchHtml(url: string): Promise<{ ok: boolean; html: string; finalUrl: string }> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: { 'User-Agent': 'AgentsVerseBot/1.0 (+website audit)' },
-    });
-    const html = await res.text();
-    return { ok: res.ok, html, finalUrl: res.url };
-  } finally {
-    clearTimeout(timer);
-  }
+  const { res, finalUrl } = await safeFetch(url, {
+    timeoutMs: FETCH_TIMEOUT_MS,
+    headers: { 'User-Agent': 'AgentsVerseBot/1.0 (+website audit)' },
+  });
+  const html = await res.text();
+  return { ok: res.ok, html, finalUrl };
 }
 
 export async function assessWebsite(url: string): Promise<SiteAssessment> {
@@ -51,7 +47,11 @@ export async function assessWebsite(url: string): Promise<SiteAssessment> {
 
   // Stale copyright: a year more than 2 behind is a strong "untended site" signal. The current
   // year is read at runtime (server action context) — passed in via the caller is overkill here.
-  const years = [...lower.matchAll(/©|copyright[^0-9]{0,10}(20\d{2})/g)].map((m) => Number(m[1]));
+  // Group the © / "copyright" alternation so BOTH forms capture the year — the old `©|copyright…(year)`
+  // matched a bare `©` with no year group (→ NaN), which poisoned Math.max and made the flag never fire.
+  const years = [...lower.matchAll(/(?:©|copyright)[^0-9]{0,10}(20\d{2})/g)]
+    .map((m) => Number(m[1]))
+    .filter(Number.isFinite);
   const newest = years.length ? Math.max(...years) : null;
   const currentYear = new Date().getFullYear();
   if (newest !== null && currentYear - newest >= 2) flags.push('stale-copyright');

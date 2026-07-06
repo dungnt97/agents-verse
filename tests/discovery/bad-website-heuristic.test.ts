@@ -55,20 +55,22 @@ describe('assessWebsite — URL normalization', () => {
     const fn = mockFetchOnce(fetchResult({ html: healthyHtml() }));
     await assessWebsite('acme.com');
     expect(fn).toHaveBeenCalledTimes(1);
-    expect(fn.mock.calls[0][0]).toBe('https://acme.com');
+    // The SSRF-guarded fetch validates the URL first, so it is canonicalised (trailing slash added).
+    expect(fn.mock.calls[0][0]).toBe('https://acme.com/');
   });
 
   it('passes an http(s) URL through unchanged', async () => {
     const fn = mockFetchOnce(fetchResult({ html: healthyHtml() }));
     await assessWebsite('http://acme.com');
-    expect(fn.mock.calls[0][0]).toBe('http://acme.com');
+    expect(fn.mock.calls[0][0]).toBe('http://acme.com/');
   });
 
-  it('forwards an abort signal and a custom User-Agent to fetch', async () => {
+  it('forwards an abort signal and a custom User-Agent to fetch, following redirects manually', async () => {
     const fn = mockFetchOnce(fetchResult({ html: healthyHtml() }));
     await assessWebsite('https://acme.com');
     const init = fn.mock.calls[0][1] as RequestInit;
-    expect(init.redirect).toBe('follow');
+    // Redirects are followed MANUALLY so each hop's host is re-validated against the SSRF blocklist.
+    expect(init.redirect).toBe('manual');
     expect(init.signal).toBeInstanceOf(AbortSignal);
     expect((init.headers as Record<string, string>)['User-Agent']).toContain('AgentsVerseBot');
   });
@@ -194,10 +196,10 @@ describe('assessWebsite — copyright edge cases', () => {
     expect(res.flags).not.toContain('stale-copyright');
   });
 
-  it('does NOT flag stale when a leading © symbol pollutes the year list with NaN', async () => {
-    // The literal `©` alternative captures no group, so its parsed year is NaN. With `©` first
-    // and an old `copyright <year>` after it, the year list is [NaN, oldYear] and
-    // Math.max(NaN, oldYear) === NaN → `NaN >= 2` is false → the stale rule never fires.
+  it('flags stale even when a leading © symbol precedes an old copyright year (no NaN poisoning)', async () => {
+    // A real © before "copyright <old year>": the old regex parsed the bare © as NaN, poisoning
+    // Math.max(NaN, oldYear) → the stale rule never fired even on a genuinely stale site. The grouped
+    // regex + finite filter now reads the real year, so a 5-year-old copyright correctly flags stale.
     const oldYear = CURRENT_YEAR - 5;
     const html =
       '<html><head><meta name="viewport" content="width=device-width"></head>' +
@@ -206,8 +208,7 @@ describe('assessWebsite — copyright edge cases', () => {
       `${pad(1600)}</body></html>`;
     mockFetchOnce(fetchResult({ html, finalUrl: 'https://acme.com' }));
     const res = await assessWebsite('https://acme.com');
-    expect(res.flags).not.toContain('stale-copyright');
-    expect(res.flags).toEqual([]);
+    expect(res.flags).toEqual(['stale-copyright']);
   });
 
   it('matches "copyright2019" with zero gap chars before the year', async () => {

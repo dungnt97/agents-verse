@@ -65,6 +65,11 @@ function runClaude(prompt: string, model: AgentModel, tools: AgentTool[], limits
         reject(e instanceof Error ? e : new Error(String(e)));
       }
     });
+    // If the CLI dies before consuming stdin (spawn ENOENT, an instant auth/gateway failure, or our own
+    // SIGKILL mid-write), Node emits 'error' (EPIPE / ERR_STREAM_DESTROYED) on the stdin stream. With no
+    // listener that becomes an uncaughtException that kills the whole worker container, taking down every
+    // concurrent run; the close/error handlers already produce the diagnostic rejection, so swallow it.
+    child.stdin.on('error', () => {});
     child.stdin.write(prompt);
     child.stdin.end();
   });

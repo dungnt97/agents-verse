@@ -8,6 +8,7 @@ import { getCurrentUser } from '@/lib/auth/session';
 import { USE_DB } from '@/lib/repositories/config';
 import { db } from '@/lib/db/client';
 import { deals } from '@/lib/db/schema';
+import { MAX_REPLY_CHARS } from '@/lib/data/deal-stage-machine';
 
 export interface IngestReplyResult {
   ok: boolean;
@@ -22,7 +23,8 @@ export async function ingestReply(dealId: string, text: string): Promise<IngestR
   if (!USE_DB) return { ok: false, message: 'Reply handling requires the database (set USE_DB=true).' };
   if (!(await getCurrentUser())) throw new Error('Unauthorized');
 
-  const body = text.trim();
+  // Cap the pasted reply: bounds the Closer's token cost and keeps the Inngest event under its size limit.
+  const body = text.trim().slice(0, MAX_REPLY_CHARS);
   if (!body) return { ok: false, message: 'Reply text is empty.' };
 
   const [deal] = await db.select().from(deals).where(eq(deals.id, dealId)).limit(1);

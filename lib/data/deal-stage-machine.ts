@@ -16,6 +16,11 @@ export const DEAL_TRANSITIONS: Record<DealStage, readonly DealStage[]> = {
   lost: [],
 };
 
+// Max chars of a client reply fed into the Closer prompt / carried on the reply event. Caps token cost
+// and keeps an oversized paste/email from diluting the strict-JSON instruction or hitting the Inngest
+// event-size limit. Enforced at every ingest boundary (webhook parse, founder paste) + in the prompt.
+export const MAX_REPLY_CHARS = 4000;
+
 // Default founder auto-approve ceiling (USD); overridable via settings.guardrails.autoApproveLimit.
 export const DEAL_AUTO_APPROVE_LIMIT = 4000;
 // Deals below this AI confidence always route to founder review, regardless of value/mode.
@@ -65,7 +70,8 @@ export function requiresApproval({
 
 export interface ReplyDecisionInput {
   currentStage: DealStage;
-  recommendedStage: DealStage;
+  // The Closer may recommend a real stage OR 'hold' (keep the deal in place → founder review).
+  recommendedStage: DealStage | 'hold';
   conf: number;
   value: number;
   autonomyMode: AutonomyMode;
@@ -91,6 +97,11 @@ export function decideReplyOutcome({
   threshold,
   confFloor,
 }: ReplyDecisionInput): ReplyDecision {
+  // 'hold' = the agent judged there is no confident move (objection / needs-time) → surface for founder
+  // review without touching the deal, instead of forcing a premature stage change.
+  if (recommendedStage === 'hold') {
+    return { action: 'escalate', reason: 'agent recommends holding — keep the deal warm for founder review' };
+  }
   if (!canTransition(currentStage, recommendedStage)) {
     return { action: 'escalate', reason: `not a legal next stage: ${currentStage} → ${recommendedStage}` };
   }
