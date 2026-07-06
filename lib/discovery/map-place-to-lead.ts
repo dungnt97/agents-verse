@@ -1,4 +1,4 @@
-import { leads } from '@/lib/db/schema';
+import { leads } from '../db/schema';
 import type { DiscoveredPlace, PlaceEnrichment } from './places-client';
 import type { SiteAssessment } from './bad-website-heuristic';
 

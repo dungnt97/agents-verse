@@ -1,4 +1,4 @@
-import 'server-only';
+// Worker-safe (no `server-only`) so the discovery cron can import it under tsx via run-discovery-core.
 import * as cheerio from 'cheerio';
 import { safeFetch } from './safe-fetch';
 

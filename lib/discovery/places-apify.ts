@@ -1,4 +1,4 @@
-import 'server-only';
+// Worker-safe (no `server-only`) so the discovery cron can import it under tsx via run-discovery-core.
 import type { DiscoveredPlace, PlaceEnrichment } from './places-client';
 import type { MapsData } from '../data/types';
 

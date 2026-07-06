@@ -7,7 +7,8 @@
 // rest of the agents use (sonnet via 9router) and ALWAYS degrades to a deterministic estimate when
 // the gateway is off or the call fails — so discovery never breaks and no value is fabricated.
 // =========================================================================
-import { assistantConfigured, completeText } from '@/lib/integrations/assistant';
+// Relative import (not `@/`) so this stays resolvable under the worker's tsx runtime via run-discovery-core.
+import { assistantConfigured, completeText } from '../integrations/assistant';
 
 export interface QualifyInput {
   company: string;

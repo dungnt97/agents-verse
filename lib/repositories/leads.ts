@@ -1,10 +1,14 @@
 import 'server-only';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { db } from '@/lib/db/client';
 import { leads as leadsTable, audits as auditsTable, auditScreenshots } from '@/lib/db/schema';
 import { AV, buildAuditFor } from '@/lib/data';
 import type { Lead, AuditResult } from '@/lib/data/types';
 import { USE_DB } from './config';
+
+// The discovery upsert lives in a worker-safe module (the Inngest cron imports it under tsx), but stays
+// part of the leads data-access surface here so callers/tests keep one import site.
+export { upsertDiscoveredLeads } from '@/lib/discovery/upsert-discovered-leads';
 
 // Stages a lead must have reached to appear in audit/demo screens (mirrors auditedLeads()).
 const AUDITED_STAGES = ['audited', 'demo', 'contacted', 'replied', 'won'] as const;
@@ -47,28 +51,4 @@ export async function getAuditScreenshot(leadId: string): Promise<string | null>
   if (!USE_DB) return null;
   const [row] = await db.select({ png: auditScreenshots.png }).from(auditScreenshots).where(eq(auditScreenshots.leadId, leadId)).limit(1);
   return row?.png ?? null;
-}
-
-// Upsert discovery-sourced leads keyed by the unique placeId — re-running discovery refreshes
-// enrichment fields instead of duplicating. Returns the number of rows processed.
-export async function upsertDiscoveredLeads(
-  rows: (typeof leadsTable.$inferInsert)[],
-): Promise<number> {
-  if (rows.length === 0) return 0;
-  await db
-    .insert(leadsTable)
-    .values(rows)
-    .onConflictDoUpdate({
-      target: leadsTable.placeId,
-      set: {
-        websiteUri: sql`excluded.website_uri`,
-        email: sql`excluded.email`,
-        phone: sql`excluded.phone`,
-        site: sql`excluded.site`,
-        websiteScore: sql`excluded.website_score`,
-        formattedAddress: sql`excluded.formatted_address`,
-        businessStatus: sql`excluded.business_status`,
-      },
-    });
-  return rows.length;
 }

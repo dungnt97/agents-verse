@@ -1,4 +1,4 @@
-import 'server-only';
+// Worker-safe (no `server-only`) so the discovery cron can import it under tsx via run-discovery-core.
 import { isIP } from 'node:net';
 
 // SSRF guard for fetching lead URLs. Discovery fetches business homepages that come from Google Places
