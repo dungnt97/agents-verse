@@ -1,4 +1,5 @@
 import 'server-only';
+import { searchBusinessesApify, enrichPlaceApify } from './places-apify';
 
 // Google Places API (New) client via REST. Field masks are passed explicitly per request so
 // the cost-sensitive two-phase split is enforced at the call site:
@@ -69,7 +70,7 @@ interface RawPlace {
 }
 
 // Phase 1 — text search with the minimal (Pro) field mask. Returns only OPERATIONAL places.
-export async function searchBusinesses(opts: {
+async function searchBusinessesGoogle(opts: {
   industry: string;
   city: string;
   maxResults?: number;
@@ -107,7 +108,7 @@ export async function searchBusinesses(opts: {
 }
 
 // Phase 2 — per-place details with the Enterprise field mask. Call only for the filtered top-N.
-export async function enrichPlace(placeId: string): Promise<PlaceEnrichment> {
+async function enrichPlaceGoogle(placeId: string): Promise<PlaceEnrichment> {
   const res = await withBackoff(() =>
     fetch(`${PLACES_BASE}/places/${encodeURIComponent(placeId)}`, {
       headers: {
@@ -123,4 +124,19 @@ export async function enrichPlace(placeId: string): Promise<PlaceEnrichment> {
     websiteUri: res.websiteUri ?? null,
     phone: res.internationalPhoneNumber ?? null,
   };
+}
+
+// Provider dispatch. Default: the official Google Places API (New). Set DISCOVERY_PROVIDER=apify to route
+// discovery through the Apify Google Maps Scraper instead (no Google Cloud billing required) — same
+// interface, so run-discovery is unchanged. Unknown/unset value → Google.
+function useApify(): boolean {
+  return (process.env.DISCOVERY_PROVIDER || 'google').trim().toLowerCase() === 'apify';
+}
+
+export function searchBusinesses(opts: { industry: string; city: string; maxResults?: number }): Promise<DiscoveredPlace[]> {
+  return useApify() ? searchBusinessesApify(opts) : searchBusinessesGoogle(opts);
+}
+
+export function enrichPlace(placeId: string): Promise<PlaceEnrichment> {
+  return useApify() ? enrichPlaceApify(placeId) : enrichPlaceGoogle(placeId);
 }

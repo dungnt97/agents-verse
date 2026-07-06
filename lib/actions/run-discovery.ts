@@ -36,8 +36,12 @@ export async function runDiscovery(input: { industry?: string; city?: string }):
   if (!USE_DB) {
     return { found: 0, enriched: 0, upserted: 0, started: 0, message: 'Discovery requires the database (set USE_DB=true).' };
   }
-  if (!process.env.GOOGLE_MAPS_API_KEY) {
-    return { found: 0, enriched: 0, upserted: 0, started: 0, message: 'GOOGLE_MAPS_API_KEY is not configured.' };
+  // Provider key guard: Apify needs its token, Google (default) needs the Maps key. Degrade with a
+  // clear message when the active provider's credential is missing.
+  const provider = (process.env.DISCOVERY_PROVIDER || 'google').trim().toLowerCase();
+  if (provider === 'apify' ? !process.env.APIFY_API_TOKEN : !process.env.GOOGLE_MAPS_API_KEY) {
+    const need = provider === 'apify' ? 'APIFY_API_TOKEN' : 'GOOGLE_MAPS_API_KEY';
+    return { found: 0, enriched: 0, upserted: 0, started: 0, message: `${need} is not configured.` };
   }
   // Authenticated-only: this spends real (Enterprise-SKU) money, so it must verify the session,
   // not rely on the cookie-existence middleware check.
