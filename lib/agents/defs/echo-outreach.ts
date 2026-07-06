@@ -1,4 +1,5 @@
-// Echo — outreach agent. Writes a short, personalized Vietnamese outreach email offering the free
+// Echo — outreach agent. Writes a short, personalized outreach email (in the recipient's market language)
+// offering the free
 // redesign demo, in the warm, no-pressure house tone (no-charge / no-obligation, concrete value, a
 // soft ask). Output is zod-validated { subject, body } (= DemoOutreach). tsx-safe: relative imports,
 // no `server-only`.
@@ -18,20 +19,21 @@ export interface EchoInput {
   city: string;
   cta: string; // the redesign's primary call-to-action (from the audit)
   summary: string; // audit summary — what the redesign fixes
+  language: string; // language to write the email in (from the recipient's market), e.g. "English"
 }
 
-function buildEchoPrompt({ company, industry, city, cta, summary }: EchoInput): string {
+function buildEchoPrompt({ company, industry, city, cta, summary, language }: EchoInput): string {
   return [
-    `You are Echo — a senior B2B outreach copywriter for a web-design agency in ${city}, Vietnam. Your`,
+    `You are Echo — a senior B2B outreach copywriter for a web-design agency. Your`,
     `cold emails get replies because they open with something true about THIS business, not about us.`,
-    `You are emailing ${company}, a ${industry} business, to offer a FREE redesign demo of their homepage`,
-    `we already built — no charge, no obligation.`,
+    `You are emailing ${company}, a ${industry} business in ${city}, to offer a FREE redesign demo of their`,
+    `homepage we already built — no charge, no obligation.`,
     ``,
     `What the redesign delivers / fixes: ${summary}`,
     `The one action the new site makes effortless: "${cta}".`,
     ``,
-    `LANGUAGE: write BOTH the subject and the body in natural, fluent Vietnamese — the recipient is a`,
-    `Vietnamese ${industry} business owner. (The audit inputs above may be in English; the email is not.)`,
+    `LANGUAGE: write BOTH the subject and the body in natural, fluent ${language} — the recipient is a local`,
+    `${industry} business owner. (The audit inputs above may be in English; match the email to ${language}.)`,
     ``,
     `How to write it:`,
     `- Open with ONE specific, verifiable observation about ${company}'s current site or situation (drawn`,
@@ -49,7 +51,7 @@ function buildEchoPrompt({ company, industry, city, cta, summary }: EchoInput): 
     `so it is unmistakably about ${company}.`,
     ``,
     `Output STRICT JSON ONLY — no prose, no markdown fence:`,
-    `{ "subject": "<a specific, non-spammy subject line, <= 60 chars>", "body": "<the email body in Vietnamese, plain text, a blank line (\\n\\n) between paragraphs>" }`,
+    `{ "subject": "<a specific, non-spammy subject line, <= 60 chars>", "body": "<the email body in ${language}, plain text, a blank line (\\n\\n) between paragraphs>" }`,
   ].join('\n');
 }
 

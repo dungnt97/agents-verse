@@ -3,6 +3,7 @@ import { inngest, type DemoRequestedData } from '../client';
 import { db } from '../../db/client';
 import { leads, audits, generatedDemos } from '../../db/schema';
 import { generateDemoHtml } from '../../agents/pipelines/demo';
+import { demoLanguageForAddress } from '../../demo-gen/locale';
 import { recordActivity } from '../activity-log';
 
 // Durable demo-generation pipeline (runs in the WORKER only — it shells out to the `claude` CLI).
@@ -66,6 +67,7 @@ export const runDemoGen = inngest.createFunction(
           industry: lead.industry,
           city: lead.city,
           url: lead.url,
+          language: demoLanguageForAddress(lead.formattedAddress),
           scores: audit.scores,
           problems: audit.problems,
           redesign: audit.redesign,

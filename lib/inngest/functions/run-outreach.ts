@@ -10,6 +10,7 @@ import {
   outreachChannelConfigured,
   recipientForChannel,
 } from '../../integrations/outreach-channel';
+import { demoLanguageForAddress } from '../../demo-gen/locale';
 import type { AutonomyMode } from '../../data/deal-stage-machine';
 
 // Echo outreach (WORKER only — shells `claude` + makes the outbound email call; relative imports, no
@@ -150,9 +151,10 @@ export const runOutreach = inngest.createFunction(
         company: sendable.company,
         industry: lead?.industry ?? '',
         city: lead?.city ?? '',
+        language: demoLanguageForAddress(lead?.formattedAddress),
         value: lead?.value ?? 0,
         score: lead?.score ?? 0,
-        cta: audit?.redesign?.cta ?? 'xem bản demo mới',
+        cta: audit?.redesign?.cta ?? 'see the new demo',
         summary: audit?.summary ?? 'a faster, mobile-first homepage redesign with a clear call-to-action',
         autonomyMode: (s?.autonomyMode as AutonomyMode | undefined) ?? 'guarded',
       };
@@ -170,8 +172,9 @@ export const runOutreach = inngest.createFunction(
     }
 
     // Draft what the founder reviews + (on email) what sends. Email → Echo's claude draft (memoized so a
-    // later gate/send failure doesn't re-spend it). WhatsApp → a deterministic template preview, since the
-    // send is the approved template and an Echo email draft would be reviewed then thrown away.
+    // later gate/send failure doesn't re-spend it), in the recipient's market language. WhatsApp → a
+    // deterministic template preview, since the send is the approved template and an Echo email draft would
+    // be reviewed then thrown away.
     const draft =
       outreachChannel() === 'whatsapp'
         ? whatsappPreview(loaded.company, `${appUrl()}/demo/${leadId}`)
@@ -182,6 +185,7 @@ export const runOutreach = inngest.createFunction(
               city: loaded.city,
               cta: loaded.cta,
               summary: loaded.summary,
+              language: loaded.language,
             }),
           );
 
