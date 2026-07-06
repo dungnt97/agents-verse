@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { inngest, type AuditRequestedData } from '../client';
 import { db } from '../../db/client';
 import { audits, auditJobs, auditScreenshots, leads } from '../../db/schema';
-import { runPageSpeedAudit } from '../../audit/pagespeed-client';
+import { runPerformanceAudit } from '../../audit/perf-audit';
 import { captureScreenshots } from '../../audit/screenshot';
 import { scoreScreenshots } from '../../audit/vision-scoring';
 import { mapAuditResult } from '../../audit/map-audit-result';
@@ -53,8 +53,8 @@ export const runAudit = inngest.createFunction(
       const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
       if (!lead) throw new Error(`lead not found: ${leadId}`);
 
-      // PSI returns small JSON → its own step (memoized).
-      const psi = await step.run('pagespeed', () => runPageSpeedAudit(lead.url));
+      // Performance audit (PageSpeed hosted, or self-hosted Lighthouse) → small JSON, its own memoized step.
+      const psi = await step.run('pagespeed', () => runPerformanceAudit(lead.url));
 
       // Screenshot + vision in ONE step: the PNG Buffers stay in RAM and never cross a step
       // boundary (which would bloat/serialize-fail); only the small VisionScore JSON is returned.
