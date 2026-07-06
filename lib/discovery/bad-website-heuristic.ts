@@ -1,4 +1,4 @@
-import 'server-only';
+// Worker-safe (no `server-only`) so the discovery cron can import it under tsx via run-discovery-core.
 import { safeFetch } from './safe-fetch';
 
 // Lightweight "weak website" heuristic — fetches the homepage HTML and flags signals of an

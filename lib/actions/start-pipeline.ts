@@ -1,9 +1,9 @@
 'use server';
 
-import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { inngest } from '@/lib/inngest/client';
+import { startPipelineRun } from '@/lib/inngest/start-pipeline-run';
 import { getCurrentUser } from '@/lib/auth/session';
 import { USE_DB } from '@/lib/repositories/config';
 import { db } from '@/lib/db/client';
@@ -16,10 +16,10 @@ export interface StartPipelineResult {
   runId?: string;
 }
 
-// Kick off an autonomous pipeline run for a lead. Web-side only: it opens the run ticket and sends
-// the first Inngest event; the worker runs the actual audit→demo chain via orchestrate-pipeline.
-// Importing the inngest CLIENT (not the functions) keeps the worker engine out of the web bundle.
-// Auth-guarded + degrades gracefully without a database.
+// Kick off an autonomous pipeline run for a lead — the web-side wrapper: auth-gate + resolve the lead's
+// display name for the toast, then delegate the run-ticket insert + first Inngest event to the shared
+// worker-safe startPipelineRun (also used by the discovery cron's auto-chain). Degrades gracefully with
+// no database.
 export async function startPipeline(leadId: string): Promise<StartPipelineResult> {
   if (!USE_DB) return { ok: false, message: 'The pipeline requires the database (set USE_DB=true).' };
   if (!(await getCurrentUser())) throw new Error('Unauthorized');
@@ -31,21 +31,8 @@ export async function startPipeline(leadId: string): Promise<StartPipelineResult
   const [s] = await db.select().from(settings).limit(1);
   const autonomySnapshot = (s?.autonomyMode as AutonomyMode | undefined) ?? 'guarded';
 
-  // The partial-unique active-lead index makes a concurrent/duplicate start a no-op: if a run is
-  // already in flight for this lead, ON CONFLICT DO NOTHING inserts nothing and returning is empty.
-  const runId = randomUUID();
-  const inserted = await db
-    .insert(pipelineRuns)
-    .values({ id: runId, leadId, stage: 'audit', status: 'running', autonomySnapshot })
-    .onConflictDoNothing()
-    .returning({ id: pipelineRuns.id });
-
-  if (inserted.length === 0) {
-    return { ok: false, message: `A pipeline is already running for ${lead.company}.` };
-  }
-
-  // Event `id` dedupes a double-submit: re-sending the same run's first event is a no-op upstream.
-  await inngest.send({ name: 'audit/requested', data: { leadId, runId }, id: `audit/requested:${runId}` });
+  const { ok, runId } = await startPipelineRun(leadId, autonomySnapshot);
+  if (!ok) return { ok: false, message: `A pipeline is already running for ${lead.company}.` };
 
   revalidatePath('/overview');
   revalidatePath('/audits');

@@ -1,4 +1,5 @@
-import 'server-only';
+// Worker-safe: no `server-only` so the Inngest discovery cron (run under tsx) can import this via
+// run-discovery-core. No `'use client'` module imports it, so the removed guard protected nothing.
 import { searchBusinessesApify, enrichPlaceApify } from './places-apify';
 import type { MapsData } from '../data/types';
 

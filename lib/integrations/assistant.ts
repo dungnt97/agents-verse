@@ -1,6 +1,6 @@
-import 'server-only';
-
-// Server-only client for the workspace/marketing assistant chat. Calls the same Anthropic-compatible
+// Server-side client for the workspace/marketing assistant chat. Worker-safe (no `server-only`) so the
+// discovery cron can reach it under tsx via orion-qualify; it still reads secrets from env and no
+// `'use client'` module imports it. Calls the same Anthropic-compatible
 // gateway the `claude` CLI uses (ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN), with the sonnet model id.
 // The assistant is Q&A ONLY — it answers questions about Agents Verse and gives general help; it never
 // executes work. No live account data is injected, so the (public) marketing widget can't leak anything.
