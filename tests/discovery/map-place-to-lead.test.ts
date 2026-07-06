@@ -72,6 +72,7 @@ describe('mapPlaceToLead', () => {
       email: 'sales@acmeplumbing.example',
       phone: '+1 512-555-0100',
       websiteScore: 48,
+      mapsData: null,
     });
   });
 

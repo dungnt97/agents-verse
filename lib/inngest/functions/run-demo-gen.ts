@@ -72,6 +72,7 @@ export const runDemoGen = inngest.createFunction(
           problems: audit.problems,
           redesign: audit.redesign,
           summary: audit.summary,
+          mapsData: lead.mapsData,
         },
         { run: (id, fn) => step.run(id, fn) },
       );

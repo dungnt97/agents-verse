@@ -177,6 +177,23 @@ export interface Redesign {
   template: string;
 }
 
+// Rich Google-Maps business facts captured during discovery (Apify returns these in the same scrape).
+// Fed into demo generation so the demo uses REAL rating/reviews/hours instead of inventing them. All
+// optional — only discovery-sourced leads carry them, and a provider may omit any field.
+export interface MapsReview {
+  text: string;
+  stars?: number | null;
+  name?: string | null;
+}
+export interface MapsData {
+  rating?: number | null; // average star rating (Apify totalScore)
+  reviewsCount?: number | null;
+  reviews?: MapsReview[]; // a few review texts, for real testimonials
+  hours?: string[]; // opening hours as display strings, e.g. "Monday: 9 AM–5 PM"
+  categories?: string[];
+  priceLevel?: string | null; // e.g. "$$"
+}
+
 export interface ScoreProfile {
   visual: number;
   mobile: number;

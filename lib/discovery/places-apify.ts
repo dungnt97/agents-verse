@@ -1,5 +1,6 @@
 import 'server-only';
 import type { DiscoveredPlace, PlaceEnrichment } from './places-client';
+import type { MapsData } from '../data/types';
 
 // Apify "Google Maps Scraper" (compass/crawler-google-places) as a discovery provider — an alternative
 // to the official Google Places API for environments where Google Cloud billing isn't available. ONE
@@ -31,6 +32,40 @@ interface ApifyPlace {
   url?: string;
   permanentlyClosed?: boolean;
   temporarilyClosed?: boolean;
+  // Rich facts — captured into MapsData for demo generation (real content, not invented).
+  totalScore?: number;
+  reviewsCount?: number;
+  reviews?: { text?: string | null; stars?: number | null; name?: string | null }[];
+  openingHours?: { day?: string; hours?: string }[];
+  categories?: string[];
+  price?: string | null;
+}
+
+// Number of review texts to scrape per place (for real testimonials). Each review adds Apify cost, so it
+// is capped + env-tunable; 0 skips review text entirely (rating/hours/categories still come for free).
+const MAX_REVIEWS = Math.max(0, Number(process.env.APIFY_MAX_REVIEWS ?? 5));
+
+// Pull the rich business facts out of a scraped place into the shared MapsData shape. Everything is
+// optional — omit anything the scrape didn't return so demo-gen only ever sees real values.
+function toMapsData(p: ApifyPlace): MapsData | null {
+  const reviews = (p.reviews ?? [])
+    .filter((r) => r?.text?.trim())
+    .slice(0, MAX_REVIEWS)
+    .map((r) => ({ text: r.text!.trim(), stars: r.stars ?? null, name: r.name ?? null }));
+  const hours = (p.openingHours ?? [])
+    .filter((h) => h?.day && h?.hours)
+    .map((h) => `${h.day}: ${h.hours}`);
+  const data: MapsData = {
+    rating: typeof p.totalScore === 'number' ? p.totalScore : null,
+    reviewsCount: typeof p.reviewsCount === 'number' ? p.reviewsCount : null,
+    reviews,
+    hours,
+    categories: p.categories ?? (p.categoryName ? [p.categoryName] : []),
+    priceLevel: p.price ?? null,
+  };
+  // Drop the whole blob if nothing useful was captured.
+  const hasAny = data.rating != null || data.reviewsCount != null || reviews.length || hours.length || (data.categories?.length ?? 0);
+  return hasAny ? data : null;
 }
 
 // Stable id: prefer the actor's placeId, else the Google place_id embedded in its maps URL, else a
@@ -62,6 +97,7 @@ export async function searchBusinessesApify(opts: {
         maxCrawledPlacesPerSearch: Math.min(opts.maxResults ?? 20, 20),
         language: 'en',
         skipClosedPlaces: true,
+        maxReviews: MAX_REVIEWS, // real review texts for testimonials (0 = skip, saves cost)
       }),
       signal: AbortSignal.timeout(RUN_TIMEOUT_MS),
     },
@@ -83,6 +119,7 @@ export async function searchBusinessesApify(opts: {
       lng: p.location?.lng ?? null,
       businessStatus: 'OPERATIONAL',
       primaryType: p.categoryName ?? '',
+      mapsData: toMapsData(p),
     });
   }
   return out;

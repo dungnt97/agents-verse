@@ -5,8 +5,10 @@ import {
   real,
   timestamp,
   doublePrecision,
+  jsonb,
 } from 'drizzle-orm/pg-core';
 import { leadStageEnum, demoStatusEnum, reqStatusEnum } from './enums';
+import type { MapsData } from '../../data/types';
 
 export const leads = pgTable('leads', {
   // String id from the mock (e.g. 'atlas-d') so seeded FK references resolve unchanged.
@@ -38,6 +40,9 @@ export const leads = pgTable('leads', {
   phone: text('phone'),
   // Heuristic bad-website score (0-100) captured during discovery; distinct from `site`.
   websiteScore: real('website_score'),
+  // Rich Maps facts (rating/reviews/hours/categories) captured from the scrape — fed to demo generation
+  // so the demo uses real business facts instead of inventing them. Null for mock/manual leads.
+  mapsData: jsonb('maps_data').$type<MapsData>(),
 
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
