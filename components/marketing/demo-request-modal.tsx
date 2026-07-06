@@ -11,6 +11,7 @@
 import { useState, useEffect } from 'react';
 import { Icon } from '@/components/brand/icon';
 import { Mark } from '@/components/brand/mark';
+import { useI18n } from '@/lib/i18n';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 
 interface FormState {
@@ -31,6 +32,7 @@ export interface DemoRequestModalProps {
 
 export function DemoRequestModal({ open, onClose }: DemoRequestModalProps) {
   const { addRequest } = useWorkspaceState();
+  const { t } = useI18n();
   const [done, setDone] = useState(false);
   const [f, setF] = useState<FormState>(EMPTY);
 
@@ -62,46 +64,46 @@ export function DemoRequestModal({ open, onClose }: DemoRequestModalProps) {
           <>
             <div style={{ padding:'22px 24px 16px', borderBottom:'1px solid var(--border)' }}>
               <div className="row between">
-                <span className="row" style={{ gap:11 }}><Mark size={34} tile /><span style={{ fontSize:13, fontWeight:600, color:'var(--ink-3)' }} className="mono">FREE WORKING DEMO</span></span>
+                <span className="row" style={{ gap:11 }}><Mark size={34} tile /><span style={{ fontSize:13, fontWeight:600, color:'var(--ink-3)' }} className="mono">{t('demoModal.eyebrow')}</span></span>
                 <button className="btn btn-icon btn-ghost focusable" onClick={onClose} style={{ borderColor:'var(--border)', width:32, height:32 }}><Icon name="x" size={16} /></button>
               </div>
-              <h2 style={{ fontSize:24, letterSpacing:'-0.03em', marginTop:14, marginBottom:8 }}>See your new website first.</h2>
-              <p style={{ fontSize:14.5, color:'var(--ink-2)', lineHeight:1.5 }}>Tell us about your business. We’ll audit your current site and send back a working redesign demo — free, no obligation.</p>
+              <h2 style={{ fontSize:24, letterSpacing:'-0.03em', marginTop:14, marginBottom:8 }}>{t('demoModal.title')}</h2>
+              <p style={{ fontSize:14.5, color:'var(--ink-2)', lineHeight:1.5 }}>{t('demoModal.lead')}</p>
             </div>
             <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:14 }}>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-                {field('Business name *','business',{placeholder:'Atlas Dental Clinic'})}
+                {field(t('demoModal.business'),'business',{placeholder:'Atlas Dental Clinic'})}
                 <label style={{ display:'block' }}>
-                  <span style={{ fontSize:12.5, fontWeight:600, color:'var(--ink-2)', display:'block', marginBottom:6 }}>Industry</span>
+                  <span style={{ fontSize:12.5, fontWeight:600, color:'var(--ink-2)', display:'block', marginBottom:6 }}>{t('demoModal.industry')}</span>
                   <select value={f.industry} onChange={e=>setF(s=>({...s,industry:e.target.value}))} style={{ width:'100%', height:42, padding:'0 12px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', fontSize:14, color:'var(--ink)' }}>
                     {['Hospitality','Healthcare','Wellness','Real Estate','Fitness','Automotive','Home Services','Retail','Other'].map(o=><option key={o}>{o}</option>)}
                   </select>
                 </label>
               </div>
-              {field('Current website (optional)','url',{placeholder:'yourbusiness.com — or leave blank if none'})}
+              {field(t('demoModal.website'),'url',{placeholder:t('demoModal.websitePlaceholder')})}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-                {field('Your name *','name',{placeholder:'Jane Doe'})}
-                {field('Email *','email',{placeholder:'you@business.com', type:'email'})}
+                {field(t('demoModal.name'),'name',{placeholder:'Jane Doe'})}
+                {field(t('demoModal.email'),'email',{placeholder:'you@business.com', type:'email'})}
               </div>
               <label style={{ display:'block' }}>
-                <span style={{ fontSize:12.5, fontWeight:600, color:'var(--ink-2)', display:'block', marginBottom:6 }}>Anything specific? (optional)</span>
-                <textarea value={f.message} onChange={e=>setF(s=>({...s,message:e.target.value}))} rows={3} placeholder="What would you love your new site to do?"
+                <span style={{ fontSize:12.5, fontWeight:600, color:'var(--ink-2)', display:'block', marginBottom:6 }}>{t('demoModal.message')}</span>
+                <textarea value={f.message} onChange={e=>setF(s=>({...s,message:e.target.value}))} rows={3} placeholder={t('demoModal.messagePlaceholder')}
                   style={{ width:'100%', padding:'11px 13px', borderRadius:10, border:'1px solid var(--border)', background:'var(--surface)', fontSize:14, color:'var(--ink)', outline:'none', resize:'vertical', fontFamily:'var(--font-sans)' }} />
               </label>
             </div>
             <div className="row between" style={{ padding:'16px 24px', borderTop:'1px solid var(--border)', gap:12 }}>
-              <span className="row" style={{ gap:7, fontSize:12, color:'var(--ink-3)' }}><Icon name="shield" size={14}/> No spam. We only reach out about your demo.</span>
-              <button className="btn btn-primary btn-lg" disabled={!valid} onClick={submit} style={{ opacity: valid?1:0.5, cursor: valid?'pointer':'not-allowed' }}>Request my free demo <Icon name="arrowR" size={17}/></button>
+              <span className="row" style={{ gap:7, fontSize:12, color:'var(--ink-3)' }}><Icon name="shield" size={14}/> {t('demoModal.privacy')}</span>
+              <button className="btn btn-primary btn-lg" disabled={!valid} onClick={submit} style={{ opacity: valid?1:0.5, cursor: valid?'pointer':'not-allowed' }}>{t('demoModal.submit')} <Icon name="arrowR" size={17}/></button>
             </div>
           </>
         ) : (
           <div style={{ padding:'44px 32px', textAlign:'center' }}>
             <div style={{ width:64, height:64, borderRadius:18, margin:'0 auto 22px', display:'grid', placeItems:'center', background:'var(--success-soft)', color:'var(--success)' }}><Icon name="check" size={32} sw={2.4} /></div>
-            <h2 style={{ fontSize:24, letterSpacing:'-0.03em', marginBottom:12 }}>Request received.</h2>
+            <h2 style={{ fontSize:24, letterSpacing:'-0.03em', marginBottom:12 }}>{t('demoModal.successTitle')}</h2>
             <p style={{ fontSize:15.5, color:'var(--ink-2)', lineHeight:1.55, maxWidth:380, margin:'0 auto 26px' }}>
-              Our research room is already on it. We’ll audit <strong style={{color:'var(--ink)'}}>{f.business||'your site'}</strong> and send a working demo to <strong style={{color:'var(--ink)'}}>{f.email}</strong> within 48 hours.
+              {t('demoModal.successPre')}<strong style={{color:'var(--ink)'}}>{f.business||'your site'}</strong>{t('demoModal.successMid')}<strong style={{color:'var(--ink)'}}>{f.email}</strong>{t('demoModal.successPost')}
             </p>
-            <button className="btn btn-primary btn-lg" onClick={onClose}>Done</button>
+            <button className="btn btn-primary btn-lg" onClick={onClose}>{t('demoModal.done')}</button>
           </div>
         )}
       </div>

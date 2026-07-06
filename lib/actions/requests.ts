@@ -1,7 +1,9 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { USE_DB } from '@/lib/repositories/config';
 import { db } from '@/lib/db/client';
 import { demoRequests, leads, reqStatusEnum } from '@/lib/db/schema';
 import { guardMutation, type MutationResult } from './guard';
@@ -25,12 +27,17 @@ export interface CreateDemoRequestInput {
 const clamp = (s: string | undefined, max: number) => (s?.trim() || '').slice(0, max);
 
 export async function createDemoRequest(input: CreateDemoRequestInput): Promise<void> {
+  // Degrade gracefully with no DB (the provider persists to localStorage in demo mode; this guard keeps a
+  // stray call from throwing a raw connection error). The public form reaches this only in DB mode.
+  if (!USE_DB) return;
   const business = clamp(input.business, 200);
   const industry = clamp(input.industry, 80);
   if (!business || !industry) throw new Error('business and industry are required');
 
   await db.insert(demoRequests).values({
-    id: 'rq-' + Date.now(),
+    // Random id, not `Date.now()`: two concurrent public submissions in the same millisecond would
+    // collide on the primary key and one would be lost.
+    id: 'rq-' + randomUUID(),
     business,
     url: clamp(input.url, 300),
     industry,
@@ -70,7 +77,7 @@ export async function convertRequestToLead(id: string): Promise<MutationResult> 
     await db
       .insert(leads)
       .values({
-        id: 'lead-' + Date.now(),
+        id: 'lead-' + randomUUID(),
         company: req.business,
         industry: req.industry,
         city: req.city,

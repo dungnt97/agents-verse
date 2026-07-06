@@ -11,6 +11,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
 import { useToast } from '@/lib/providers/toast-provider';
+import { usePipelineAuditT } from '@/lib/i18n/keys/pipeline-audit';
 import { runDiscovery } from '@/lib/actions/run-discovery';
 
 const inputStyle: React.CSSProperties = {
@@ -30,6 +31,7 @@ export function DiscoveryTrigger() {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const toast = useToast();
+  const { t } = usePipelineAuditT();
 
   const run = () => {
     startTransition(async () => {
@@ -47,15 +49,15 @@ export function DiscoveryTrigger() {
             <Icon name="search" size={15} />
           </span>
           <div>
-            <div style={{ fontSize: 13.5, fontWeight: 600 }}>Lead discovery</div>
-            <div style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>Scan Google Places for businesses with weak websites</div>
+            <div style={{ fontSize: 13.5, fontWeight: 600 }}>{t('discovery.title')}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>{t('discovery.sub')}</div>
           </div>
         </div>
         <div className="row wrap" style={{ gap: 8 }}>
-          <input value={industry} onChange={(e) => setIndustry(e.target.value)} placeholder="Industry" aria-label="Industry" style={{ ...inputStyle, width: 150 }} />
-          <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" aria-label="City" style={{ ...inputStyle, width: 150 }} />
+          <input value={industry} onChange={(e) => setIndustry(e.target.value)} placeholder={t('discovery.industry')} aria-label={t('discovery.industry')} style={{ ...inputStyle, width: 150 }} />
+          <input value={city} onChange={(e) => setCity(e.target.value)} placeholder={t('discovery.city')} aria-label={t('discovery.city')} style={{ ...inputStyle, width: 150 }} />
           <button className="btn btn-primary" onClick={run} disabled={pending} style={{ opacity: pending ? 0.6 : 1, cursor: pending ? 'wait' : 'pointer' }}>
-            {pending ? 'Discovering…' : 'Run discovery'} <Icon name="arrowR" size={15} />
+            {pending ? t('discovery.running') : t('discovery.run')} <Icon name="arrowR" size={15} />
           </button>
         </div>
       </div>

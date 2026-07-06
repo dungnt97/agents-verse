@@ -1,7 +1,9 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { USE_DB } from '@/lib/repositories/config';
 import { db } from '@/lib/db/client';
 import { leads, leadStageEnum } from '@/lib/db/schema';
 import { getCurrentUser } from '@/lib/auth/session';
@@ -20,6 +22,7 @@ export interface CreateLeadInput {
 // (mirrors the client addLead defaults) and dedupes by company name, since there is no DB
 // unique constraint on company. Only invoked in DB mode.
 export async function createLead(input: CreateLeadInput): Promise<void> {
+  if (!USE_DB) return; // degrade gracefully with no DB (provider handles demo mode via localStorage)
   // Authenticated-only — middleware only checks cookie existence, so the action must verify.
   if (!(await getCurrentUser())) throw new Error('Unauthorized');
 
@@ -33,7 +36,7 @@ export async function createLead(input: CreateLeadInput): Promise<void> {
   await db
     .insert(leads)
     .values({
-      id: 'lead-' + Date.now(),
+      id: 'lead-' + randomUUID(),
       company,
       industry,
       city: input.city?.trim() || '—',

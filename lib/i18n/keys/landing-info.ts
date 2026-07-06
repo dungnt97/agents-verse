@@ -253,6 +253,26 @@ export const en: Record<string, string> = {
   'info.security.s5b': 'Systems are monitored continuously. If something goes wrong we mitigate first, then publish what happened on our public Status page.',
   'info.security.s6h': 'Reporting an issue',
   'info.security.s6b': 'Found a vulnerability? Email security@agentsverse.ai. We investigate every report and aim to acknowledge within one business day.',
+
+  // ---- Demo-request modal (public form) ----
+  'demoModal.eyebrow': 'FREE WORKING DEMO',
+  'demoModal.title': 'See your new website first.',
+  'demoModal.lead': 'Tell us about your business. We’ll audit your current site and send back a working redesign demo — free, no obligation.',
+  'demoModal.business': 'Business name *',
+  'demoModal.industry': 'Industry',
+  'demoModal.website': 'Current website (optional)',
+  'demoModal.websitePlaceholder': 'yourbusiness.com — or leave blank if none',
+  'demoModal.name': 'Your name *',
+  'demoModal.email': 'Email *',
+  'demoModal.message': 'Anything specific? (optional)',
+  'demoModal.messagePlaceholder': 'What would you love your new site to do?',
+  'demoModal.privacy': 'No spam. We only reach out about your demo.',
+  'demoModal.submit': 'Request my free demo',
+  'demoModal.successTitle': 'Request received.',
+  'demoModal.successPre': 'Our research room is already on it. We’ll audit ',
+  'demoModal.successMid': ' and send a working demo to ',
+  'demoModal.successPost': ' within 48 hours.',
+  'demoModal.done': 'Done',
 };
 
 export const vi: Record<string, string> = {
@@ -500,6 +520,26 @@ export const vi: Record<string, string> = {
   'info.security.s5b': 'Hệ thống được giám sát liên tục. Nếu có sự cố, chúng tôi giảm thiểu trước, sau đó công bố những gì đã xảy ra trên trang Trạng thái công khai.',
   'info.security.s6h': 'Báo cáo sự cố',
   'info.security.s6b': 'Tìm thấy lỗ hổng? Email security@agentsverse.ai. Chúng tôi điều tra mọi báo cáo và cố gắng xác nhận trong vòng một ngày làm việc.',
+
+  // ---- Demo-request modal (public form) ----
+  'demoModal.eyebrow': 'DEMO HOẠT ĐỘNG MIỄN PHÍ',
+  'demoModal.title': 'Xem website mới của bạn trước.',
+  'demoModal.lead': 'Cho chúng tôi biết về doanh nghiệp của bạn. Chúng tôi sẽ audit trang hiện tại và gửi lại một bản demo redesign hoạt động — miễn phí, không ràng buộc.',
+  'demoModal.business': 'Tên doanh nghiệp *',
+  'demoModal.industry': 'Ngành',
+  'demoModal.website': 'Website hiện tại (không bắt buộc)',
+  'demoModal.websitePlaceholder': 'yourbusiness.com — hoặc để trống nếu chưa có',
+  'demoModal.name': 'Tên của bạn *',
+  'demoModal.email': 'Email *',
+  'demoModal.message': 'Có gì cụ thể không? (không bắt buộc)',
+  'demoModal.messagePlaceholder': 'Bạn muốn website mới làm được điều gì?',
+  'demoModal.privacy': 'Không spam. Chúng tôi chỉ liên hệ về bản demo của bạn.',
+  'demoModal.submit': 'Nhận demo miễn phí',
+  'demoModal.successTitle': 'Đã nhận yêu cầu.',
+  'demoModal.successPre': 'Phòng nghiên cứu của chúng tôi đã bắt tay vào việc. Chúng tôi sẽ audit ',
+  'demoModal.successMid': ' và gửi bản demo hoạt động tới ',
+  'demoModal.successPost': ' trong vòng 48 giờ.',
+  'demoModal.done': 'Xong',
 };
 
 // Local overlay maps keyed by Lang so useLandingInfoT() can resolve without

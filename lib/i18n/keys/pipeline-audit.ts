@@ -85,6 +85,14 @@ export const en = {
   'audits.statusQueued':  'Queued',
   'audits.statusRunning': 'Auditing…',
   'audits.statusFailed':  'Audit failed',
+
+  // ---- Discovery trigger (Google Places lead scan) ----
+  'discovery.title':       'Lead discovery',
+  'discovery.sub':         'Scan Google Places for businesses with weak websites',
+  'discovery.industry':    'Industry',
+  'discovery.city':        'City',
+  'discovery.run':         'Run discovery',
+  'discovery.running':     'Discovering…',
 } as const;
 
 export type PipelineAuditKey = keyof typeof en;
@@ -165,6 +173,14 @@ export const vi: Record<PipelineAuditKey, string> = {
   'audits.statusQueued':  'Trong hàng đợi',
   'audits.statusRunning': 'Đang chấm…',
   'audits.statusFailed':  'Audit lỗi',
+
+  // ---- Discovery trigger (Google Places lead scan) ----
+  'discovery.title':       'Tìm kiếm lead',
+  'discovery.sub':         'Quét Google Places tìm doanh nghiệp có website yếu',
+  'discovery.industry':    'Ngành',
+  'discovery.city':        'Thành phố',
+  'discovery.run':         'Chạy tìm kiếm',
+  'discovery.running':     'Đang tìm…',
 };
 
 // Local overlay maps for pipeline-audit keys. Keyed by Lang so the hook can
