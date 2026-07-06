@@ -78,10 +78,13 @@ async function searchBusinessesGoogle(opts: {
   industry: string;
   city: string;
   maxResults?: number;
+  regionCode?: string;
 }): Promise<DiscoveredPlace[]> {
   const body = {
     textQuery: `${opts.industry} in ${opts.city}`,
     maxResultCount: Math.min(opts.maxResults ?? 20, 20),
+    // Bias results to the market's country (CLDR region code, lowercase) when the planner supplies one.
+    ...(opts.regionCode ? { regionCode: opts.regionCode.toLowerCase() } : {}),
   };
   const res = await withBackoff(() =>
     fetch(`${PLACES_BASE}/places:searchText`, {
@@ -137,7 +140,7 @@ function useApify(): boolean {
   return (process.env.DISCOVERY_PROVIDER || 'google').trim().toLowerCase() === 'apify';
 }
 
-export function searchBusinesses(opts: { industry: string; city: string; maxResults?: number }): Promise<DiscoveredPlace[]> {
+export function searchBusinesses(opts: { industry: string; city: string; maxResults?: number; regionCode?: string }): Promise<DiscoveredPlace[]> {
   return useApify() ? searchBusinessesApify(opts) : searchBusinessesGoogle(opts);
 }
 

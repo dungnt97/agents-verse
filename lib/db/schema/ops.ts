@@ -1,5 +1,6 @@
 import { pgTable, text, integer, real, timestamp, jsonb } from 'drizzle-orm/pg-core';
 import { autonomyModeEnum, escalationStatusEnum } from './enums';
+import type { MarketPlan } from '../../discovery/market-planner';
 import { deals } from './pipeline';
 import { pipelineRuns } from './pipeline-runs';
 
@@ -67,5 +68,8 @@ export const settings = pgTable('settings', {
   autonomyMode: autonomyModeEnum('autonomy_mode').notNull().default('guarded'),
   guardrails: jsonb('guardrails').$type<Record<string, unknown>>(),
   pricing: jsonb('pricing').$type<Record<string, unknown>>(),
+  // Guided-auto market pool: founder-selected countries + niches + a master switch for the autonomous
+  // hunter (see lib/discovery/market-planner). Flexible jsonb so the pool can evolve without a migration.
+  marketPlan: jsonb('market_plan').$type<MarketPlan>(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
