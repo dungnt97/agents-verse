@@ -34,6 +34,10 @@ function mapsFactsBlock(m: MapsData | null | undefined): string {
     lines.push(`- Real customer reviews (pool to CURATE) — SELECT the 3-5 STRONGEST as the testimonials: prefer specific, story-rich reviews that name what was great over generic one-liners ("Great!", "Love it"). Keep the reviewer's own words + first name; never invent or embellish a quote:`);
     for (const r of m.reviews) lines.push(`  · ${r.stars != null ? `${r.stars}★ ` : ''}"${r.text.replace(/\s+/g, ' ').slice(0, 240)}"${r.name ? ` — ${r.name}` : ''}`);
   }
+  if (m.photos?.length) {
+    lines.push(`- Real venue photos (the client's OWN Google Maps photos) — EMBED these as the site's PRIMARY imagery (hero / gallery / section backgrounds); the research brief's VENUE PHOTOS block says which to feature + where. Use real photos over stock; each <img> needs a descriptive alt + an onerror gradient fallback. Source URLs:`);
+    for (const u of m.photos.slice(0, 8)) lines.push(`  · ${u}`);
+  }
   return lines.length ? `REAL GOOGLE MAPS FACTS (ground the copy in these — do NOT contradict or invent around them):\n${lines.join('\n')}` : '';
 }
 
@@ -207,13 +211,19 @@ function surgicalConstraints(): string {
 }
 
 // PASS 2 — Build the page from the spec.
-export function buildBuildPrompt(input: DemoGenInput, spec: string): string {
+export function buildBuildPrompt(input: DemoGenInput, spec: string, researchBrief = ''): string {
+  // Surface the brief's curated VENUE PHOTOS to the BUILDER directly. The ~300-word spec routinely drops the
+  // long photo URLs, so without this the real photos never reach the built HTML and it falls back to stock.
+  const photoDirective = /VENUE PHOTOS/i.test(researchBrief)
+    ? `=== VENUE PHOTOS (from research — EMBED THESE REAL PHOTOS as the primary imagery: copy the exact URLs into <img src>, honour the placements, give each a real alt + an onerror fallback) ===\n${researchBrief.trim()}\n=== END VENUE PHOTOS ===`
+    : '';
   return [
     `You are a world-class front-end engineer building exactly what your creative director specced. Follow the spec's direction, palette, the TWO distinct fonts, the focal point, and the ONE signature move — faithfully and boldly. Build the spec's bold STRUCTURE; do NOT quietly fall back to the generic hero → row-of-equal-cards → testimonials → footer template (that is the failure mode to avoid). The signature move + the concept's unconventional layout are the point — realise them, don't sand them toward a safe, conventional category landing.`,
     ``,
     `=== DESIGN SPEC ===`,
     spec,
     `=== END SPEC ===`,
+    photoDirective,
     ``,
     clientBlock(input),
     ``,

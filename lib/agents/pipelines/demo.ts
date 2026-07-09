@@ -133,7 +133,7 @@ export async function generateDemoHtml(input: DemoGenInput, step: StepRunner = i
 
   // Pass 2 — Nova builds the page from the spec. The expensive pass; checkpointed so a later failure
   // or a worker restart never re-spends it.
-  const built = await step.run('build', () => runAgent(novaBuilder, { input, spec }));
+  const built = await step.run('build', () => runAgent(novaBuilder, { input, spec, researchBrief }));
 
   // Passes 3-5 — render, expert review board, synthesise, revise. Best-effort in one step: any failure
   // falls back to `built`, and the /tmp PNGs live only within this step.

@@ -8,6 +8,9 @@ import { makeHtmlValidator } from '../validators';
 export interface BuildInput {
   input: DemoGenInput;
   spec: string;
+  /** The Vega research brief — carries the curated VENUE PHOTOS block (real photo URLs + placement) so the
+   *  builder embeds the real photos even when the ~300-word spec drops their long URLs. */
+  researchBrief?: string;
 }
 
 export interface ReviseInput {
@@ -31,7 +34,7 @@ export const novaBuilder: AgentDef<BuildInput, string> = {
   // before finishing. Give it a few turns + 15 min so a big build completes (the prompt also tells it to
   // emit HTML directly without tools). 600s/1-turn previously SIGKILLed/erred big builds mid-stream.
   limits: { timeoutMs: 900_000, maxTurns: 4 },
-  buildPrompt: ({ input, spec }) => buildBuildPrompt(input, spec),
+  buildPrompt: ({ input, spec, researchBrief }) => buildBuildPrompt(input, spec, researchBrief),
   validate: html,
 };
 
