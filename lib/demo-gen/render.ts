@@ -16,17 +16,18 @@ interface PwPage {
 interface PwContext { newPage(): Promise<PwPage>; close(): Promise<void> }
 interface PwBrowser { newContext(opts: Record<string, unknown>): Promise<PwContext>; close(): Promise<void> }
 
-// The critique screenshots feed a vision model. Two bounds: HARD_MAX_PX guards a runaway page, and each
-// delivered slice stays around SLICE_PX so the model receives it at a legible resolution — a single very
-// tall image gets downscaled until text is unreadable AND sections below the old cap were dropped
-// entirely (which is how an empty-void section once shipped unreviewed). A tall page is captured as
-// ordered top→bottom slices; MAX_SLICES is set so slice COUNT follows page height (each slice stays
-// ≤ SLICE_PX) rather than the height being crammed into a fixed slice count — a MAX_SLICES too small
-// (was 3) made each slice on a tall page balloon to ~5,000px and downscale the Vietnamese copy to mush.
-// ceil(HARD_MAX_PX / SLICE_PX) = 7, so 8 means the cap never forces an over-tall slice.
-const HARD_MAX_PX = 16000;
+// The critique screenshots feed a vision model AND are held in memory by both Chromium and the claude CLI,
+// so they are the worker's peak-memory driver. Real venue photos make pages taller (more/bigger slices),
+// which was OOM-killing the 2-4g worker mid-run. Bounds: HARD_MAX_PX guards a runaway page; each delivered
+// slice stays around SLICE_PX for a legible resolution (a single very tall image downscales text to mush);
+// and MAX_SLICES caps the slice COUNT so an extremely tall page can't balloon the image budget. A tall
+// page is captured as ordered top→bottom slices — MAX_SLICES ≥ ceil(HARD_MAX_PX / SLICE_PX) = 5 so the cap
+// never forces an over-tall slice. DEVICE_SCALE_FACTOR < 1 renders each slice at fewer pixels (still legible
+// for critique) to keep the vision passes within the container's memory limit.
+const HARD_MAX_PX = 13000;
 const SLICE_PX = 2600;
-const MAX_SLICES = 8;
+const MAX_SLICES = 6;
+const DEVICE_SCALE_FACTOR = 0.75;
 
 // The viewport widths the board reviews at. Exported so the prompt labels each slice with the SAME
 // width the page was actually rendered at (a mismatch makes reviewers reason about the wrong canvas).
@@ -54,7 +55,7 @@ export async function renderHtmlToPng(html: string, htmlPath: string, pngPath: s
     const context = await browser.newContext({
       viewport: { width: viewportWidth, height: mobile ? 844 : 900 },
       isMobile: mobile,
-      deviceScaleFactor: 1,
+      deviceScaleFactor: DEVICE_SCALE_FACTOR,
     });
     const page = await context.newPage();
     await page.goto('file://' + htmlPath, { waitUntil: 'networkidle', timeout: 30000 });
