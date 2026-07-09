@@ -6,6 +6,7 @@ import { runPerformanceAudit } from '../../audit/perf-audit';
 import { captureScreenshots } from '../../audit/screenshot';
 import { scoreScreenshots } from '../../audit/vision-scoring';
 import { mapAuditResult } from '../../audit/map-audit-result';
+import { greenfieldAudit } from '../../audit/greenfield-audit';
 import { recordActivity } from '../activity-log';
 
 // Durable audit pipeline (runs in the WORKER only). Relative imports + no `server-only` — this
@@ -52,6 +53,42 @@ export const runAudit = inngest.createFunction(
       // Read outside a step (cheap, idempotent on retry) — keeps Date fields live (no step serialize).
       const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
       if (!lead) throw new Error(`lead not found: ${leadId}`);
+
+      // GREENFIELD lead (the auto-hunter's target: contactable but NO website) — its url is a placeholder
+      // and Lighthouse throws INVALID_URL on it, so there is nothing to audit. Save a "build a first site"
+      // brief and hand off to demo-gen (which designs from the real venue photos + niche), skipping the
+      // URL-based performance + screenshot + vision passes entirely.
+      if (!/^https?:\/\//i.test(lead.url ?? '')) {
+        const mapped = greenfieldAudit(lead);
+        await step.run('save-greenfield', async () => {
+          await db
+            .insert(audits)
+            .values({ leadId, ...mapped })
+            .onConflictDoUpdate({ target: audits.leadId, set: { ...mapped } });
+          const dims = Object.values(mapped.scores);
+          const site = Math.round(dims.reduce((sum, n) => sum + n, 0) / dims.length);
+          const score = Math.min(95, site + 40);
+          await db.update(leads).set({ site, score }).where(eq(leads.id, leadId));
+          await db
+            .insert(auditJobs)
+            .values({ leadId, status: 'done', finishedAt: new Date() })
+            .onConflictDoUpdate({
+              target: auditJobs.leadId,
+              set: { status: 'done', error: null, finishedAt: new Date(), updatedAt: new Date() },
+            });
+        });
+        if (runId) {
+          await step.sendEvent('emit-audit-completed', {
+            name: 'audit/completed',
+            data: { leadId, runId, outcome: 'ok' as const },
+            id: `audit/completed:${runId}`,
+          });
+        }
+        await step.run('log-activity-greenfield', async () => {
+          await recordActivity({ agent: 'vega', room: 'audit', type: 'audit', text: `Audited ${lead.company} — greenfield (no current website)`, status: 'success' });
+        });
+        return { leadId, status: 'done' as const };
+      }
 
       // Performance audit (PageSpeed hosted, or self-hosted Lighthouse) → small JSON, its own memoized step.
       const psi = await step.run('pagespeed', () => runPerformanceAudit(lead.url));
