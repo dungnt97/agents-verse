@@ -14,6 +14,7 @@ import { runWebappQa } from '../../demo-gen/webapp-qa';
 import { formatQaReport, hasBlockingQa, majorQaCount } from '../../demo-gen/qa-findings';
 import { captureScreenshots, closeBrowser } from '../../audit/screenshot';
 import { vegaResearcher } from '../defs/vega-researcher';
+import { fetchVenuePhotos } from '../../demo-gen/fetch-venue-photos';
 import { writeFile } from 'node:fs/promises';
 import type { DemoGenInput } from '../../demo-gen/prompt';
 
@@ -79,16 +80,28 @@ export async function generateDemoHtml(input: DemoGenInput, step: StepRunner = i
   // into a brief, so the director designs from the real brand instead of inventing one. Any failure
   // (bad URL, capture error) yields an empty brief and the director falls back to the audit summary.
   const researchBrief = await step.run('research', async () => {
+    const rid = `${process.pid}-${Date.now()}`;
+    // Current-site screenshot is best-effort AND now often absent by design: the auto-hunter targets
+    // businesses with NO standalone site, so a capture failure must NOT sink the pass — the venue photos
+    // then carry the visual brand. Read ONLY the desktop shot — one full-page screenshot already costs
+    // ~150k vision tokens, and two would blow past the model's 200k context window.
+    let oldSitePngs: string[] = [];
     try {
-      const rid = `${process.pid}-${Date.now()}`;
       const shots = await captureScreenshots(input.url);
-      // Read ONLY the desktop shot — one full-page screenshot already costs ~150k vision tokens, and two
-      // would blow past the model's 200k context window (the cause of an earlier silent research failure).
       const dOld = `/tmp/old-${rid}-d.png`;
       await writeFile(dOld, shots.desktop);
-      await closeBrowser();
-      const brief = await runAgent(vegaResearcher, { input, oldSitePngs: [dOld] });
-      console.error('[demo-gen] research brief length:', brief.length);
+      oldSitePngs = [dOld];
+    } catch (e) {
+      console.error('[demo-gen] no current-site capture (greenfield/social-only lead):', e instanceof Error ? e.message : e);
+    } finally {
+      await closeBrowser().catch(() => {});
+    }
+    // Real venue photos for Vega to view + curate into the brief. Cap tighter when we ALSO have a full-page
+    // site shot (~150k tokens) so the two together don't overflow context; a no-site lead can afford more.
+    const venuePhotos = await fetchVenuePhotos(input.mapsData?.photos ?? [], { max: oldSitePngs.length ? 3 : 6 });
+    try {
+      const brief = await runAgent(vegaResearcher, { input, oldSitePngs, venuePhotos });
+      console.error(`[demo-gen] research brief length: ${brief.length} | venue photos: ${venuePhotos.length}`);
       return brief;
     } catch (e) {
       console.error('[demo-gen] research pass failed (best-effort, continuing):', e instanceof Error ? e.message : e);

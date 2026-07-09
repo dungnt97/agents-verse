@@ -192,6 +192,7 @@ export interface MapsData {
   hours?: string[]; // opening hours as display strings, e.g. "Monday: 9 AM–5 PM"
   categories?: string[];
   priceLevel?: string | null; // e.g. "$$"
+  photos?: string[]; // real venue photo URLs (Google-hosted) — demo-gen curates + embeds the best
 }
 
 export interface ScoreProfile {

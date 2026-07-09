@@ -31,7 +31,7 @@ function mapsFactsBlock(m: MapsData | null | undefined): string {
   if (m.categories?.length) lines.push(`- Google categories: ${m.categories.join(', ')}.`);
   if (m.priceLevel) lines.push(`- Price level: ${m.priceLevel}.`);
   if (m.reviews?.length) {
-    lines.push(`- Real customer reviews — use these as the testimonials (verbatim or lightly tightened; keep the reviewer's meaning + first name if given, never invent fake quotes):`);
+    lines.push(`- Real customer reviews (pool to CURATE) — SELECT the 3-5 STRONGEST as the testimonials: prefer specific, story-rich reviews that name what was great over generic one-liners ("Great!", "Love it"). Keep the reviewer's own words + first name; never invent or embellish a quote:`);
     for (const r of m.reviews) lines.push(`  · ${r.stars != null ? `${r.stars}★ ` : ''}"${r.text.replace(/\s+/g, ' ').slice(0, 240)}"${r.name ? ` — ${r.name}` : ''}`);
   }
   return lines.length ? `REAL GOOGLE MAPS FACTS (ground the copy in these — do NOT contradict or invent around them):\n${lines.join('\n')}` : '';
@@ -59,22 +59,35 @@ function clientBlock(input: DemoGenInput): string {
 
 // PASS 0 — research (best-effort). Ground the redesign in the client's REAL brand (from their current
 // site) and benchmark best-in-class niche references, so the director designs from reality not invention.
-export function buildResearchPrompt(input: DemoGenInput, oldSitePngs: string[]): string {
+export function buildResearchPrompt(
+  input: DemoGenInput,
+  oldSitePngs: string[],
+  venuePhotos: { path: string; url: string }[] = [],
+): string {
   const shots = oldSitePngs.length
     ? oldSitePngs.map((pth, i) => `- current-site shot ${i + 1}: ${pth}`).join('\n')
-    : '- (current-site screenshot unavailable — work from the audit summary)';
+    : '- (current-site screenshot unavailable — work from the audit summary + the venue photos below)';
+  const photoBlock = venuePhotos.length
+    ? [
+        ``,
+        `PART 1b — REAL VENUE PHOTOS (the client's OWN Google Maps photos — these are the demo's PRIMARY imagery, not stock):`,
+        ...venuePhotos.map((p, i) => `- venue photo ${i + 1}: file ${p.path}  ·  EMBED URL: ${p.url}`),
+        `Use your Read tool to VIEW every venue photo file above, then JUDGE each like a photo editor: QUALITY (sharp, well-lit, good composition — not blurry, dark, tilted, or cluttered) and RELEVANCE (shows the actual space, product, food, or people — not a logo, a menu scan, a receipt, or a random screenshot). SELECT the best 3-5. In your brief add a "VENUE PHOTOS" block listing ONLY the chosen ones, each as: EMBED URL — what it shows — best placement (hero / gallery / a section background). Discard weak or off-topic shots; if none are usable, write "VENUE PHOTOS: none usable".`,
+      ].join('\n')
+    : '';
   return [
-    `You are a brand + web-design researcher at a top studio prepping a redesign pitch for "${input.company}" (${input.industry}, ${input.city}). Produce a TIGHT research brief (markdown, ~200 words) the creative director designs from. Output ONLY the brief.`,
+    `You are a brand + web-design researcher at a top studio prepping a redesign pitch for "${input.company}" (${input.industry}, ${input.city}). Produce a TIGHT research brief (markdown, ~250 words) the creative director designs from. Output ONLY the brief.`,
     ``,
     `Audit context: ${input.summary}`,
     ``,
-    `PART 1 — CLIENT REALITY (ground the redesign; do NOT invent a new company): use your Read tool to VIEW the client's CURRENT site:`,
+    `PART 1 — CLIENT REALITY (ground the redesign; do NOT invent a new company). ${oldSitePngs.length ? `Use your Read tool to VIEW the client's CURRENT site:` : `The client has NO standalone website to view — build the brand read from the venue photos + audit context:`}`,
     shots,
     `Extract the REAL brand to carry forward — brand/wordmark + its actual colours (hex), the real product/listings + photo style, the genuine value proposition + tone — and the 2-3 worst things to KILL in the redesign.`,
+    photoBlock,
     ``,
     `PART 2 — REFERENCE BAR (benchmark the niche): from your knowledge of best-in-class ${input.industry} websites (global + the ${input.city} market), name 2-3 worth rivalling and extract concrete, CURRENT design cues to steal: layout system, type-pairing energy, colour mood, signature interactions, what makes a 2026 ${input.industry} site feel premium.`,
     ``,
-    `Output exactly two blocks — "CLIENT REALITY" (brand name, colours, real assets, tone, kill-list) and "REFERENCE BAR" (named sites + concrete design cues). Specific and factual; no preamble.`,
+    `Output the blocks — "CLIENT REALITY" (brand name, colours, real assets, tone, kill-list), ${venuePhotos.length ? `"VENUE PHOTOS" (the chosen photos as instructed), ` : ``}and "REFERENCE BAR" (named sites + concrete design cues). Specific and factual; no preamble.`,
   ].join('\n');
 }
 
@@ -116,7 +129,7 @@ export function buildDirectorPrompt(input: DemoGenInput, researchBrief: string, 
     clientBlock(input),
     ``,
     researchBrief.trim()
-      ? `=== RESEARCH BRIEF (ground your design in this — REAL brand + REAL references, not invention) ===\n${researchBrief.trim()}\n=== END RESEARCH BRIEF ===\nCarry the client's REAL brand from the brief (its actual name, colours, assets, tone) and rival the named references; do NOT invent a generic company or a category-cliché palette.`
+      ? `=== RESEARCH BRIEF (ground your design in this — REAL brand + REAL references, not invention) ===\n${researchBrief.trim()}\n=== END RESEARCH BRIEF ===\nCarry the client's REAL brand from the brief (its actual name, colours, assets, tone) and rival the named references; do NOT invent a generic company or a category-cliché palette. If the brief has a "VENUE PHOTOS" block, put those exact EMBED URLs + their placements into your spec's imagery notes so the builder embeds the REAL venue photos as the primary imagery (stock only fills a gap).`
       : ``,
     ``,
     concept.trim()
@@ -155,7 +168,7 @@ function outputRule(allowRead: boolean): string {
   const toolClause = allowRead
     ? `FIRST use your Read tool to VIEW every screenshot referenced above, THEN respond with the HTML DIRECTLY in your message — call no OTHER tools and write no files.`
     : `Respond with the HTML DIRECTLY in your message — do NOT call any tools and do NOT write files.`;
-  return `OUTPUT: ONE complete self-contained HTML5 document (doctype → </html>), all CSS in a single <style>, all JS in one <script> before </body>. Only external resources: Google Fonts <link> and Unsplash images (https://images.unsplash.com/photo-...). Output ONLY raw HTML — no markdown fences, no commentary. ${toolClause} Do not stop early; emit the whole document in one go.`;
+  return `OUTPUT: ONE complete self-contained HTML5 document (doctype → </html>), all CSS in a single <style>, all JS in one <script> before </body>. Only external resources: Google Fonts <link>, the REAL VENUE PHOTO URLs from the spec/brief (Google-hosted, e.g. https://lh3.googleusercontent.com/...), and Unsplash images (https://images.unsplash.com/photo-...) to fill any gap. Output ONLY raw HTML — no markdown fences, no commentary. ${toolClause} Do not stop early; emit the whole document in one go.`;
 }
 
 // Safety rules a surgical (measured-layout / web-app-QA) fix must ALSO honour so it never re-introduces
@@ -177,7 +190,7 @@ function craftConstraints(input: DemoGenInput, opts: { allowRead?: boolean } = {
     DECORATION_SAFETY_RULE,
     `TYPE: load and actually use BOTH fonts — display face for headings only, body face for text. Extreme size/weight contrast, tight display tracking, text-wrap:balance on headings, a single H1, body line-height 1.4-1.6, WCAG-AA contrast. Never one family for everything. NAV & UI LABELS stay SMALL (~0.9-1rem) and use white-space:nowrap so nav links, buttons and badges NEVER break mid-phrase to a second line — the big clamp() display sizes are for HERO and section headings ONLY, never for nav/labels/inputs.`,
     `SPACING & LAYOUT: define a 4px-base spacing scale as CSS custom properties and use only those tokens (no ad-hoc pixels). Cap main content ~1200-1320px (full-bleed bands may bleed background/imagery but keep TEXT grid-aligned). Use flex/grid + gap; vary section rhythm. Intentional asymmetric whitespace is a FEATURE — keep it; just don't pad a thin section into an empty slab, strand a capped column alone in a wide track (size the track to its content, center it, or add a second real element), or ship a multi-item set whose cards have mismatched fields. When a SECONDARY card group (testimonials, features, pricing, stats — not the signature showcase, which follows STRUCTURE MANDATE) does use a card grid, lay it out with CSS grid or flex and a column count that fills each row cleanly for the item count — never CSS multi-column (columns/column-count), which reflows and orphans cards. The top header/nav is COMPACT and fits on ONE row at desktop — if its items won't fit, collapse to a menu/hamburger button rather than letting links wrap or overflow. A header that overlaps the hero (transparent / fixed at the top) MUST use light text with a subtle dark top-scrim so the brand + nav stay legible over the imagery, then switch to dark text once it docks to a solid light bar on scroll. No inline label, button, chip or nav item may wrap to two lines or spill past its container at any width. Real responsive layout, mobile-first, flawless at 375 / 768 / 1440px.`,
-    `IMAGERY (curate, don't scatter): real Unsplash photos via <img src>, each with descriptive alt + width/height (or aspect-ratio) so nothing shifts, painting immediately. All photos share ONE consistent grade — apply a unifying brand-accent tint over each via mix-blend-mode or a brand-tinted ::after/gradient overlay so disparate stock reads as shot for one brand. Prefer few large images over many small. No emoji icons (use inline SVG); no placeholder boxes. EVERY <img> MUST carry an onerror handler that, if the photo fails to load (a dead/invalid Unsplash id), swaps in a brand-tinted gradient block of the SAME size — never let a broken-image icon ship. Prefer Unsplash ids you are confident exist; append ?w=1600&q=80 for sizing.`,
+    `IMAGERY (curate, don't scatter): the client's REAL VENUE PHOTOS (the URLs carried in the spec/brief) are the PRIMARY imagery — use them for the hero, the gallery/showcase, and section backgrounds, because they show the ACTUAL place. Reach for Unsplash ONLY to fill a specific gap the venue photos don't cover. Every <img> has descriptive alt + width/height (or aspect-ratio) so nothing shifts, painting immediately. You MAY unify disparate shots with a subtle shared brand-accent tint (mix-blend-mode or a brand-tinted ::after/gradient overlay) — but keep the real photos recognisable, never wash them out. Prefer few large images over many small. No emoji icons (use inline SVG); no placeholder boxes. EVERY <img> MUST carry an onerror handler that, if the photo fails to load, swaps in a brand-tinted gradient block of the SAME size — never let a broken-image icon ship. For any Unsplash gap-filler, append ?w=1600&q=80.`,
     `INTERACTIVITY: where the niche promises a tool (search, filter, "định giá"/quote, booking), implement a CONVINCING vanilla-JS mock that computes a real result from the inputs — it must actually respond. Make the CTA "${input.redesign.cta}" unmissable; on mobile add a sticky primary-action bar where the niche expects it.`,
     `MOTION (vanilla, gate behind @media (prefers-reduced-motion: reduce)): IntersectionObserver staggered scroll reveals, hover micro-interactions with cubic-bezier/spring easing, tactile :active scale(.98), a sticky header that solidifies + blurs, a button-in-button trailing icon (arrow in its own circle, never a naked icon). ${NO_JS_SAFE_RULE}`,
     `CONTENT: natural, fluent, specific ${input.language} for ${input.city} — realistic, factually-coherent names/listings/numbers, never lorem or "TODO". When REAL GOOGLE MAPS FACTS are given above, BUILD FROM THEM: the real reviews become the testimonials (keep the reviewer's words + first name; never fabricate quotes), the real rating + review-count is the trust proof, the real opening hours fill the contact/booking section — never invent numbers that contradict them. Keep the brand name "${input.company}".`,
