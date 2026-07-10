@@ -17,6 +17,10 @@ export interface DemoGenInput {
   problems: string[];
   redesign: AuditResult['redesign'];
   summary: string;
+  /** Real phone (from enrichment) — the contact CTA must use it verbatim, never a made-up number. */
+  phone?: string | null;
+  /** Real formatted address (from Maps) — for the contact/location section. */
+  address?: string | null;
   /** Real Google-Maps facts (rating/reviews/hours) to build from instead of inventing. */
   mapsData?: MapsData | null;
 }
@@ -55,6 +59,8 @@ function clientBlock(input: DemoGenInput): string {
     `Problems found:`,
     ...input.problems.map((p) => `- ${p}`),
     `Honor this brief from the audit — CTA "${input.redesign.cta}", tone "${input.redesign.content}", sections: ${input.redesign.sections.join(', ')}.`,
+    input.phone ? `Real phone — put this EXACT number on every call/contact/booking CTA; NEVER invent or alter a phone number: ${input.phone}` : '',
+    input.address ? `Real address — use verbatim in the contact/location/hours section (do not invent a street): ${input.address}` : '',
     mapsFactsBlock(input.mapsData),
   ]
     .filter(Boolean)
@@ -197,7 +203,7 @@ function craftConstraints(input: DemoGenInput, opts: { allowRead?: boolean } = {
     `IMAGERY (curate, don't scatter): the client's REAL VENUE PHOTOS (the URLs carried in the spec/brief) are the PRIMARY imagery — use them for the hero, the gallery/showcase, and section backgrounds, because they show the ACTUAL place. Reach for Unsplash ONLY to fill a specific gap the venue photos don't cover. Every <img> has descriptive alt + width/height (or aspect-ratio) so nothing shifts, painting immediately. You MAY unify disparate shots with a subtle shared brand-accent tint (mix-blend-mode or a brand-tinted ::after/gradient overlay) — but keep the real photos recognisable, never wash them out. Prefer few large images over many small. No emoji icons (use inline SVG); no placeholder boxes. EVERY <img> MUST carry an onerror handler that, if the photo fails to load, swaps in a brand-tinted gradient block of the SAME size — never let a broken-image icon ship. For any Unsplash gap-filler, append ?w=1600&q=80.`,
     `INTERACTIVITY: where the niche promises a tool (search, filter, "định giá"/quote, booking), implement a CONVINCING vanilla-JS mock that computes a real result from the inputs — it must actually respond. Make the CTA "${input.redesign.cta}" unmissable; on mobile add a sticky primary-action bar where the niche expects it.`,
     `MOTION (vanilla, gate behind @media (prefers-reduced-motion: reduce)): IntersectionObserver staggered scroll reveals, hover micro-interactions with cubic-bezier/spring easing, tactile :active scale(.98), a sticky header that solidifies + blurs, a button-in-button trailing icon (arrow in its own circle, never a naked icon). ${NO_JS_SAFE_RULE}`,
-    `CONTENT: natural, fluent, specific ${input.language} for ${input.city} — realistic, factually-coherent names/listings/numbers, never lorem or "TODO". When REAL GOOGLE MAPS FACTS are given above, BUILD FROM THEM: the real reviews become the testimonials (keep the reviewer's words + first name; never fabricate quotes), the real rating + review-count is the trust proof, the real opening hours fill the contact/booking section — never invent numbers that contradict them. Keep the brand name "${input.company}".`,
+    `CONTENT: natural, fluent, specific ${input.language} for ${input.city} — realistic, factually-coherent names/listings/numbers, never lorem or "TODO". When REAL GOOGLE MAPS FACTS are given above, BUILD FROM THEM: the real reviews become the testimonials (keep the reviewer's words + first name; never fabricate quotes), the real rating + review-count is the trust proof, the real opening hours fill the contact/booking section — never invent numbers that contradict them. NEVER invent or alter a PHONE NUMBER or STREET ADDRESS — use the real phone + address given above VERBATIM everywhere contact info appears; if a fact isn't provided, omit it rather than fabricate. Keep the brand name "${input.company}".`,
     `NEVER (instant AI / dated tells): Inter/Roboto/Open Sans or one font for everything; purple→blue / purple→pink gradients; pure #000; a flat texture-less background; three equal cards in a tidy row; a generic stat bar; emoji icons; the same radius on everything; a centered-H1-over-dark-photo hero; round fake numbers and clichés ("Elevate", "Seamless", "Unleash"). Introduce no colours, fonts, or radii the spec did not name.`,
   ].join('\n');
 }
