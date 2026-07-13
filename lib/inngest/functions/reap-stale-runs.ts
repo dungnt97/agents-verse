@@ -16,6 +16,24 @@ const CRON = process.env.REAP_STALE_RUNS_CRON || '*/30 * * * *';
 // retry-and-resume — so a legitimately slow run is never reaped. Override via PIPELINE_RUN_TIMEOUT_MIN.
 const TIMEOUT_MIN = Number(process.env.PIPELINE_RUN_TIMEOUT_MIN) || 120;
 
+// Minimal shape of the Inngest step tool used by this function — lets the handler be unit-tested with a
+// trivial `{ run: (id, fn) => fn() }` mock against a real Postgres, without the Inngest runtime.
+type StepLike = { run<T>(id: string, fn: () => Promise<T>): Promise<T> };
+
+// The reap pass, extracted so it is testable in isolation. Fails every run stuck in 'running' past the
+// timeout; the WHERE clause is the whole guarantee (only 'running', never a founder gate or the kill switch).
+export async function reapStaleRunsRun(step: StepLike): Promise<{ reaped: number }> {
+  return step.run('reap', async () => {
+    const cutoff = new Date(Date.now() - TIMEOUT_MIN * 60_000);
+    const reaped = await db
+      .update(pipelineRuns)
+      .set({ status: 'failed', error: `reaped: no progress for over ${TIMEOUT_MIN} min`, updatedAt: new Date() })
+      .where(and(eq(pipelineRuns.status, 'running'), lt(pipelineRuns.updatedAt, cutoff)))
+      .returning({ id: pipelineRuns.id });
+    return { reaped: reaped.length };
+  });
+}
+
 export const reapStaleRuns = inngest.createFunction(
   {
     id: 'reap-stale-runs',
@@ -23,15 +41,7 @@ export const reapStaleRuns = inngest.createFunction(
     retries: 0,
     triggers: [{ cron: CRON }],
   },
-  async ({ step }) => {
-    return step.run('reap', async () => {
-      const cutoff = new Date(Date.now() - TIMEOUT_MIN * 60_000);
-      const reaped = await db
-        .update(pipelineRuns)
-        .set({ status: 'failed', error: `reaped: no progress for over ${TIMEOUT_MIN} min`, updatedAt: new Date() })
-        .where(and(eq(pipelineRuns.status, 'running'), lt(pipelineRuns.updatedAt, cutoff)))
-        .returning({ id: pipelineRuns.id });
-      return { reaped: reaped.length };
-    });
-  },
+  // The cast bridges Inngest's Jsonify-wrapped step type to the simplified StepLike the extracted handler
+  // uses; safe because the step results here carry no Date fields to round-trip.
+  ({ step }) => reapStaleRunsRun(step as unknown as StepLike),
 );
