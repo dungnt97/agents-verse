@@ -5,12 +5,10 @@
    ========================================================================= */
 'use client';
 
-import { useState } from 'react';
 import { wrap } from './layout-constants';
 import { Icon } from '@/components/brand/icon';
 import { Logo } from '@/components/brand/logo';
 import { Reveal } from '@/components/ui/reveal';
-import { SiteMock } from '@/components/site-mock';
 import { FloorMap } from '@/components/floor-map';
 import { useI18n } from '@/lib/i18n';
 

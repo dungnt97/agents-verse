@@ -10,7 +10,7 @@ import {
   outreachChannelConfigured,
   recipientForChannel,
 } from '../../integrations/outreach-channel';
-import { demoLanguageForAddress } from '../../demo-gen/locale';
+import { demoLanguageForAddress } from '../../data/locale';
 import type { AutonomyMode } from '../../data/deal-stage-machine';
 
 // Echo outreach (WORKER only — shells `claude` + makes the outbound email call; relative imports, no

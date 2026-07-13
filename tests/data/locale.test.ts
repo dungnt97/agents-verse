@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { demoLanguageForAddress } from '@/lib/demo-gen/locale';
+import { demoLanguageForAddress } from '@/lib/data/locale';
 
 describe('demoLanguageForAddress', () => {
   it('defaults English for the target markets', () => {

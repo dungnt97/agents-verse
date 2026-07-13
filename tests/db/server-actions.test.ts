@@ -298,12 +298,20 @@ describe.skipIf(!hasDb)('workspace server actions — USE_DB=true integration (s
       if (leadId) await db.update(leads).set({ demo: demoSnapshot }).where(eq(leads.id, leadId));
     });
 
-    it('updateDemoStatus writes leads.demo (the derived status), keyed by leadId', async () => {
-      const target = demoSnapshot === 'sent' ? 'review' : 'sent';
-      const res = await updateDemoStatus(leadId, target);
+    it('updateDemoStatus writes leads.demo forward (the derived status), keyed by leadId', async () => {
+      await db.update(leads).set({ demo: 'draft' }).where(eq(leads.id, leadId)); // known starting point
+      const res = await updateDemoStatus(leadId, 'review');
       expect(res).toEqual({ ok: true });
       const [l] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
-      expect(l.demo).toBe(target);
+      expect(l.demo).toBe('review');
+    });
+
+    it('refuses to move a demo BACKWARD (stale-tab downgrade guard)', async () => {
+      await db.update(leads).set({ demo: 'sent' }).where(eq(leads.id, leadId));
+      const res = await updateDemoStatus(leadId, 'review'); // sent → review is a downgrade
+      expect(res.ok).toBe(false);
+      const [l] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+      expect(l.demo).toBe('sent'); // unchanged
     });
 
     it('updateDemoStatus rejects an invalid status without mutating the lead', async () => {

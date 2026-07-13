@@ -1,7 +1,7 @@
 import { getGeneratedDemo } from '@/lib/repositories/generated-demos';
 import { getBuild } from '@/lib/repositories/builds';
 import { getLeadPublicContext } from '@/lib/repositories/leads';
-import { demoLanguageForAddress } from '@/lib/demo-gen/locale';
+import { demoLanguageForAddress } from '@/lib/data/locale';
 
 // Serves the AI-generated redesign demo for a lead as a standalone HTML page (this is the URL the
 // "View demo" button opens and that a prospect would be sent). Public on purpose — a demo is meant
@@ -50,8 +50,8 @@ function demoResponse(html: string, status = 200): Response {
   });
 }
 
-function placeholder(title: string, body: string, status = 200): Response {
-  const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8">
+function placeholder(title: string, body: string, lang: 'en' | 'vi', status = 200): Response {
+  const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title><style>
 body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
@@ -60,6 +60,21 @@ font-family:system-ui,sans-serif;background:#0b1220;color:#e6edf6;text-align:cen
 </style></head><body><div class="card"><h1>${title}</h1><p>${body}</p></div></body></html>`;
   return demoResponse(html, status);
 }
+
+// Prospect-facing status copy in the lead's market language. Never leak an INTERNAL instruction ("generate
+// in the workspace") here — this page is public.
+const PLACEHOLDER_COPY = {
+  Vietnamese: {
+    none: ['Chưa có bản xem trước', 'Bản xem trước cho doanh nghiệp này chưa sẵn sàng. Vui lòng quay lại sau nhé.'],
+    generating: ['Đang tạo bản xem trước…', 'Chúng tôi đang dựng bản thiết kế — vui lòng tải lại trang sau ít phút.'],
+    failed: ['Chưa tải được bản xem trước', 'Vui lòng thử lại sau ít phút.'],
+  },
+  English: {
+    none: ['Preview not ready', 'The preview for this business is not ready yet. Please check back soon.'],
+    generating: ['Building your preview…', "We're putting together the design — please refresh in a few minutes."],
+    failed: ["Couldn't load the preview", 'Please try again in a few minutes.'],
+  },
+} as const;
 
 export async function GET(_req: Request, { params }: { params: Promise<{ leadId: string }> }): Promise<Response> {
   const { leadId } = await params;
@@ -70,16 +85,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ leadId:
     return demoResponse(build.html);
   }
 
+  // Load the lead once for both the injected CTA and the localized status placeholders.
+  const lead = await getLeadPublicContext(leadId);
+  const language = demoLanguageForAddress(lead?.formattedAddress);
+  const copy = PLACEHOLDER_COPY[language === 'Vietnamese' ? 'Vietnamese' : 'English'];
+  const langTag = language === 'Vietnamese' ? 'vi' : 'en';
+
   const demo = await getGeneratedDemo(leadId);
 
-  if (!demo) return placeholder('Chưa có demo', 'Demo cho lead này chưa được tạo. Bấm “Generate demo” trong workspace.', 404);
+  if (!demo) return placeholder(copy.none[0], copy.none[1], langTag, 404);
   // Serve the existing demo even while a re-generation is in flight — the current html stays valid until
   // the new version lands, so "Improve with AI" never makes a live demo go dark. This is the PRE-SALE demo
   // (not a delivered build), so it carries the "Interested?" CTA into the inquiry page, in the lead's language.
-  if (demo.html) {
-    const lead = await getLeadPublicContext(leadId);
-    return demoResponse(withInquiryCta(demo.html, leadId, demoLanguageForAddress(lead?.formattedAddress)));
-  }
-  if (demo.status === 'generating') return placeholder('Đang tạo demo…', 'AI đang dựng bản redesign — tải lại trang sau ít phút.');
-  return placeholder('Tạo demo thất bại', demo.error ?? 'Vui lòng thử tạo lại.', 500);
+  if (demo.html) return demoResponse(withInquiryCta(demo.html, leadId, language));
+  if (demo.status === 'generating') return placeholder(copy.generating[0], copy.generating[1], langTag);
+  return placeholder(copy.failed[0], copy.failed[1], langTag, 500);
 }
