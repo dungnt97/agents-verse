@@ -19,7 +19,9 @@ export async function upsertDiscoveredLeads(
         websiteUri: sql`excluded.website_uri`,
         email: sql`excluded.email`,
         phone: sql`excluded.phone`,
-        site: sql`excluded.site`,
+        // `site` and `score` are deliberately NOT refreshed: once the audit runs it becomes the source of
+        // truth for both, and re-discovery would clobber the measured score with the crude bad-website
+        // heuristic. Discovery still sets `site` when it INSERTs a brand-new lead — it just never overwrites.
         websiteScore: sql`excluded.website_score`,
         formattedAddress: sql`excluded.formatted_address`,
         businessStatus: sql`excluded.business_status`,

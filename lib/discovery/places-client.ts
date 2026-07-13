@@ -134,11 +134,12 @@ async function enrichPlaceGoogle(placeId: string): Promise<PlaceEnrichment> {
   };
 }
 
-// Provider dispatch. Default: the official Google Places API (New). Set DISCOVERY_PROVIDER=apify to route
-// discovery through the Apify Google Maps Scraper instead (no Google Cloud billing required) — same
-// interface, so run-discovery is unchanged. Unknown/unset value → Google.
+// Provider dispatch. Default: the Apify Google Maps Scraper — it returns the rich Maps facts (photos,
+// reviews, hours) that demo generation grounds the site in, and needs no Google Cloud billing. Set
+// DISCOVERY_PROVIDER=google to use the official Google Places API (New) instead (note: it does NOT return
+// photos/reviews, so demos lose real venue imagery). Same interface either way. Unknown/unset value → Apify.
 function useApify(): boolean {
-  return (process.env.DISCOVERY_PROVIDER || 'google').trim().toLowerCase() === 'apify';
+  return (process.env.DISCOVERY_PROVIDER || 'apify').trim().toLowerCase() !== 'google';
 }
 
 export function searchBusinesses(opts: { industry: string; city: string; maxResults?: number; regionCode?: string }): Promise<DiscoveredPlace[]> {

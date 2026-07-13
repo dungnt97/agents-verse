@@ -14,6 +14,7 @@ export const en = {
   'set.sectionEscalation': 'Escalation rules',
   'set.sectionCost':       'AI cost limits',
   'set.sectionAgents':     'Agent limits',
+  'set.sectionMarket':     'Market Hunter',
 
   /* ── Settings: guardrails sidebar widget ──────────────────────────────── */
   'set.guardrailsActive': 'Guardrails active',
@@ -111,6 +112,18 @@ export const en = {
   'set.colReview':   'Review',
   'set.colActive':   'Active',
 
+  /* ── Settings: Market Hunter panel ─────────────────────────────────────── */
+  'set.marketTitle':       'Market Hunter',
+  'set.marketDesc':        'Where the autonomous hunter looks for new leads, and whether it runs at all.',
+  'set.marketEnable':      'Autonomous hunting',
+  'set.marketEnableDesc':  'When on, the cron picks the next country/metro/niche from your pool below and runs discovery on its own.',
+  'set.marketCountries':   'Countries',
+  'set.marketCountriesDesc': 'Markets the hunter is allowed to search.',
+  'set.marketNiches':      'Niches',
+  'set.marketNichesDesc':  'Business types the hunter looks for.',
+  'set.marketAutonomyNote': 'Hunting still needs Guarded or Full Auto — it stays off while autonomy is set to Manual/Review, even if enabled here.',
+  'set.marketEmptyPool':   'Pick at least one country and one niche before turning hunting on.',
+
   /* ── Activity: header + export ─────────────────────────────────────────── */
   'act.exportLog':          'Export log',
   'act.searchPlaceholder':  'Search activity…',
@@ -187,6 +200,7 @@ export const vi: Record<keyof typeof en, string> = {
   'set.sectionEscalation': 'Quy tắc chuyển xử lý',
   'set.sectionCost':       'Giới hạn chi phí AI',
   'set.sectionAgents':     'Giới hạn agent',
+  'set.sectionMarket':     'Săn thị trường',
 
   /* ── Settings: guardrails sidebar widget ──────────────────────────────── */
   'set.guardrailsActive': 'Rào chắn đang bật',
@@ -283,6 +297,18 @@ export const vi: Record<keyof typeof en, string> = {
   'set.colMaxDay':   'Tối đa / ngày',
   'set.colReview':   'Duyệt',
   'set.colActive':   'Hoạt động',
+
+  /* ── Settings: Market Hunter panel ─────────────────────────────────────── */
+  'set.marketTitle':         'Săn thị trường',
+  'set.marketDesc':          'Nơi bộ săn tự động tìm lead mới, và có chạy hay không.',
+  'set.marketEnable':        'Săn tự động',
+  'set.marketEnableDesc':    'Khi bật, cron sẽ tự chọn quốc gia/khu vực/ngành tiếp theo trong nhóm bên dưới và tự chạy discovery.',
+  'set.marketCountries':     'Quốc gia',
+  'set.marketCountriesDesc': 'Thị trường bộ săn được phép tìm kiếm.',
+  'set.marketNiches':        'Ngành',
+  'set.marketNichesDesc':    'Loại hình doanh nghiệp bộ săn tìm kiếm.',
+  'set.marketAutonomyNote':  'Vẫn cần chế độ tự chủ Guarded hoặc Full Auto — dù bật ở đây, việc săn vẫn tắt khi tự chủ đang ở Manual/Review.',
+  'set.marketEmptyPool':     'Chọn ít nhất một quốc gia và một ngành trước khi bật săn tự động.',
 
   /* ── Activity: header + export ─────────────────────────────────────────── */
   'act.exportLog':         'Xuất nhật ký',

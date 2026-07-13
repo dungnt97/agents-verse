@@ -5,6 +5,8 @@ import { USE_DB } from '@/lib/repositories/config';
 import { db } from '@/lib/db/client';
 import { settings, autonomyModeEnum } from '@/lib/db/schema';
 import { getCurrentUser } from '@/lib/auth/session';
+import { MARKET_CATALOG, MARKET_NICHES } from '@/lib/discovery/market-catalog';
+import type { MarketPlan } from '@/lib/discovery/market-planner';
 import { guardMutation, type MutationResult } from './guard';
 
 type AutonomyMode = (typeof autonomyModeEnum.enumValues)[number];
@@ -50,6 +52,32 @@ export async function updatePricing(pricing: Record<string, unknown>): Promise<M
     .insert(settings)
     .values({ id: 'default', pricing })
     .onConflictDoUpdate({ target: settings.id, set: { pricing, updatedAt: new Date() } });
+  revalidatePath('/settings');
+  return { ok: true };
+}
+
+// Persist the founder's market-hunting pool (countries + niches + master switch) to the settings
+// singleton. Validates against the catalog so a stale/tampered payload can never enable hunting on
+// an out-of-catalog market, and refuses to enable an empty pool (the planner would have nothing to
+// hunt — see planHasWork in market-planner.ts).
+export async function updateMarketPlan(plan: MarketPlan): Promise<MutationResult> {
+  const blocked = await guardMutation();
+  if (blocked) return blocked;
+
+  const validCodes = new Set(MARKET_CATALOG.map((c) => c.code));
+  const countries = (plan.countries ?? []).filter((c) => validCodes.has(c));
+  const niches = (plan.niches ?? []).filter((n) => MARKET_NICHES.includes(n));
+  const enabled = !!plan.enabled;
+
+  if (enabled && (countries.length === 0 || niches.length === 0)) {
+    return { ok: false, message: 'Pick at least one country and one niche before turning hunting on.' };
+  }
+
+  const marketPlan: MarketPlan = { countries, niches, enabled };
+  await db
+    .insert(settings)
+    .values({ id: 'default', marketPlan })
+    .onConflictDoUpdate({ target: settings.id, set: { marketPlan, updatedAt: new Date() } });
   revalidatePath('/settings');
   return { ok: true };
 }

@@ -21,7 +21,10 @@ import type { AutonomyMode } from '../../data/deal-stage-machine';
 // sendable-guard (don't email a lead already contacted or without a ready demo), a payload-stable
 // idempotency key, and a mark-sent step that also clears any parked draft escalation.
 const escId = (leadId: string) => `esc-outreach-${leadId}`;
-const appUrl = () => process.env.APP_URL || process.env.BETTER_AUTH_URL || '';
+// Public origin for the demo link in every outreach message. Trailing slash trimmed so the link is
+// `<origin>/demo/<id>`, never `<origin>//demo/<id>`. Empty when neither var is set — loadSendable refuses
+// to send in that case rather than mail a broken relative `/demo/<id>` link.
+const appUrl = () => (process.env.APP_URL || process.env.BETTER_AUTH_URL || '').replace(/\/$/, '');
 const unsubscribeFor = (leadId: string) =>
   `mailto:${process.env.OUTREACH_REPLY_TO || process.env.OUTREACH_FROM || 'unsubscribe@localhost'}?subject=Unsubscribe%20${leadId}`;
 
@@ -43,8 +46,13 @@ type Sendable = { recipient: string; company: string } | { skip: string };
 // of throw+retry). `recipient` is the email OR phone depending on OUTREACH_CHANNEL.
 async function loadSendable(leadId: string): Promise<Sendable> {
   if (!outreachChannelConfigured()) return { skip: `outreach channel not configured (${outreachChannel()})` };
+  // A relative demo link is a dead link in an email/message. Refuse to send (rather than mail a broken
+  // `/demo/<id>`) when no absolute public origin is configured — set APP_URL or BETTER_AUTH_URL.
+  if (!/^https?:\/\//i.test(appUrl())) return { skip: 'APP_URL / BETTER_AUTH_URL unset — refusing to send a relative demo link' };
   const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
   if (!lead) return { skip: 'lead not found' };
+  // Hard opt-out: a prospect who replied "STOP" is never contacted again (persistent across runs).
+  if (lead.doNotContact) return { skip: 'lead opted out (do-not-contact)' };
   if (lead.demo === 'sent') return { skip: 'already contacted' };
   // The demo flag only tracks OUR send; a lead the founder moved by hand (contacted/replied/won) must
   // never receive a cold "see your new demo" message — and markSent would then downgrade their stage.
@@ -91,7 +99,8 @@ export const runOutreach = inngest.createFunction(
     id: 'run-outreach',
     retries: 1,
     concurrency: [
-      { limit: Number(process.env.CLAUDE_AGENT_CONCURRENCY) || 2 },
+      // Shares the global `claude`-CLI budget with every other claude function (see run-demo-gen).
+      { scope: 'account', key: '"claude-agent"', limit: Number(process.env.CLAUDE_AGENT_CONCURRENCY) || 2 },
       { limit: 1, key: 'event.data.leadId' },
     ],
     triggers: [{ event: 'outreach/requested' }, { event: 'outreach/approved' }],

@@ -3,7 +3,7 @@ import { inngest, type DemoRequestedData } from '../client';
 import { db } from '../../db/client';
 import { leads, audits, generatedDemos } from '../../db/schema';
 import { generateDemoHtml } from '../../agents/pipelines/demo';
-import { demoLanguageForAddress } from '../../demo-gen/locale';
+import { leadToDemoGenInput } from '../../demo-gen/lead-to-input';
 import { recordActivity } from '../activity-log';
 
 // Durable demo-generation pipeline (runs in the WORKER only — it shells out to the `claude` CLI).
@@ -16,15 +16,14 @@ export const runDemoGen = inngest.createFunction(
     // so a pass that loses a multi-minute gateway spike gets re-attempted across Inngest's longer
     // (minutes) backoff windows — on top of runAgent's in-pass retries — before the run is failed.
     retries: 2,
-    // Two caps: the keyless entry caps THIS function's concurrent generations (fn-scoped); the keyed
-    // entry serializes per lead so two requests for one lead never generate at once. A keyless limit is
-    // NOT shared across functions, and five worker functions now declare the same one from
-    // CLAUDE_AGENT_CONCURRENCY (demo-gen, build, outreach, support, reply) — so the true ceiling on
-    // concurrent `claude` CLI processes is 5 × CLAUDE_AGENT_CONCURRENCY. Size the env var against the
-    // VPS memory and the subscription burst budget with that multiplier in mind; a shared ceiling would
-    // require an account-scoped concurrency KEY on every one of them.
+    // Two caps: the first is a GLOBAL `claude`-CLI budget SHARED across every worker function via an
+    // account-scoped concurrency key — all five claude functions (demo-gen, build, outreach, support,
+    // reply) declare the identical `scope:'account', key:'"claude-agent"'` so they form ONE queue capped
+    // at CLAUDE_AGENT_CONCURRENCY total (a keyless fn-scoped limit is per-function, which would let the
+    // real ceiling reach 5× that). The keyed entry serializes per lead. A sixth claude function must reuse
+    // the same scope+key to stay inside the budget.
     concurrency: [
-      { limit: Number(process.env.CLAUDE_AGENT_CONCURRENCY) || 2 },
+      { scope: 'account', key: '"claude-agent"', limit: Number(process.env.CLAUDE_AGENT_CONCURRENCY) || 2 },
       { limit: 1, key: 'event.data.leadId' },
     ],
     triggers: [{ event: 'demo/requested' }],
@@ -64,20 +63,7 @@ export const runDemoGen = inngest.createFunction(
       // build → review-revise). A retry / worker restart resumes from the last completed pass instead
       // of re-spending the whole ~20-32 min run — the expensive ~6-min build is never redone once done.
       const html = await generateDemoHtml(
-        {
-          company: lead.company,
-          industry: lead.industry,
-          city: lead.city,
-          url: lead.url,
-          language: demoLanguageForAddress(lead.formattedAddress),
-          scores: audit.scores,
-          problems: audit.problems,
-          redesign: audit.redesign,
-          summary: audit.summary,
-          phone: lead.phone,
-          address: lead.formattedAddress,
-          mapsData: lead.mapsData,
-        },
+        leadToDemoGenInput(lead, audit),
         { run: (id, fn) => step.run(id, fn) },
       );
 

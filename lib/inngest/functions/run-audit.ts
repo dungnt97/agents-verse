@@ -7,7 +7,22 @@ import { captureScreenshots } from '../../audit/screenshot';
 import { scoreScreenshots } from '../../audit/vision-scoring';
 import { mapAuditResult } from '../../audit/map-audit-result';
 import { greenfieldAudit } from '../../audit/greenfield-audit';
+import { assertPublicUrl } from '../../discovery/safe-fetch';
 import { recordActivity } from '../activity-log';
+
+// Does this lead have a real, fetchable website? A bare domain ("acme.com", no scheme) counts as a real
+// site; the "(no site yet)" placeholder, an empty value, and anything unparseable count as no site. Using
+// a scheme test here (`/^https?:/`) would mis-classify every bare-domain lead as greenfield and skip the
+// real audit — the audit gate must key on "is there a site", not "is the URL fully-qualified".
+function hasWebsite(u: string | null | undefined): boolean {
+  if (!u || !u.trim()) return false;
+  try {
+    const p = new URL(u.includes('://') ? u : `https://${u}`);
+    return (p.protocol === 'http:' || p.protocol === 'https:') && p.hostname.includes('.');
+  } catch {
+    return false;
+  }
+}
 
 // Durable audit pipeline (runs in the WORKER only). Relative imports + no `server-only` — this
 // chain executes under tsx. Steps are memoized so a retry resumes after the last completed step.
@@ -54,11 +69,10 @@ export const runAudit = inngest.createFunction(
       const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
       if (!lead) throw new Error(`lead not found: ${leadId}`);
 
-      // GREENFIELD lead (the auto-hunter's target: contactable but NO website) — its url is a placeholder
-      // and Lighthouse throws INVALID_URL on it, so there is nothing to audit. Save a "build a first site"
-      // brief and hand off to demo-gen (which designs from the real venue photos + niche), skipping the
-      // URL-based performance + screenshot + vision passes entirely.
-      if (!/^https?:\/\//i.test(lead.url ?? '')) {
+      // GREENFIELD lead (the auto-hunter's target: contactable but NO website) — there is nothing to audit.
+      // Save a "build a first site" brief and hand off to demo-gen (which designs from the real venue photos
+      // + niche), skipping the URL-based performance + screenshot + vision passes entirely.
+      if (!hasWebsite(lead.url)) {
         const mapped = greenfieldAudit(lead);
         await step.run('save-greenfield', async () => {
           await db
@@ -90,13 +104,26 @@ export const runAudit = inngest.createFunction(
         return { leadId, status: 'done' as const };
       }
 
+      // SSRF guard: the lead URL comes from Google Places (attacker-influenceable) and both the Lighthouse
+      // engine and the screenshot capture navigate to it from INSIDE the Docker network. Validate once,
+      // before any navigation, and reject an internal/private target (a throw lands in the catch below →
+      // mark-failed, the correct outcome). Normalises a bare domain to an absolute https:// URL too.
+      const safeUrl = assertPublicUrl(lead.url).toString();
+
+      // Fail fast on a keyless deploy: the vision pass hard-requires GEMINI_API_KEY (inventing neutral
+      // scores would fabricate the pipeline's sort key), so throw before burning a Chromium capture rather
+      // than after. The greenfield branch above returns first, so keyless greenfield audits still work.
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY is required to audit a lead that has a website');
+      }
+
       // Performance audit (PageSpeed hosted, or self-hosted Lighthouse) → small JSON, its own memoized step.
-      const psi = await step.run('pagespeed', () => runPerformanceAudit(lead.url));
+      const psi = await step.run('pagespeed', () => runPerformanceAudit(safeUrl));
 
       // Screenshot + vision in ONE step: the PNG Buffers stay in RAM and never cross a step
       // boundary (which would bloat/serialize-fail); only the small VisionScore JSON is returned.
       const vision = await step.run('screenshot-and-score', async () => {
-        const shots = await captureScreenshots(lead.url);
+        const shots = await captureScreenshots(safeUrl);
         // Cache the desktop screenshot (base64) as the real "current website" preview. Stored INSIDE this
         // step so the PNG Buffer never crosses a step boundary; only the small score JSON is returned.
         const png = shots.desktop.toString('base64');

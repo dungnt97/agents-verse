@@ -56,8 +56,10 @@ export interface OutreachSend {
 }
 
 // A plain-text version of the draft for chat channels — Echo's body plus the demo link on its own line.
+// Personal channels carry no CAN-SPAM unsubscribe header (only the email path does), so append a good-faith
+// keyword opt-out. An inbound "STOP" is honored in handle-reply, which marks the lead do-not-contact.
 function plainOutreachText(body: string, demoUrl: string): string {
-  return `${body.trim()}\n\n${demoUrl}`;
+  return `${body.trim()}\n\n${demoUrl}\n\nReply STOP to opt out.`;
 }
 
 // Send the outreach on the active channel. Returns a uniform {ok,error} (never throws) so the caller's

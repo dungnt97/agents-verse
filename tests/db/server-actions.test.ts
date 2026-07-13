@@ -13,10 +13,10 @@ vi.mock('@/lib/auth/session', () => ({
 }));
 
 import { db } from '@/lib/db/client';
-import { leads, demoRequests, demos, settings } from '@/lib/db/schema';
+import { leads, demoRequests, settings } from '@/lib/db/schema';
 import { createLead, updateLeadStage } from '@/lib/actions/leads';
 import { createDemoRequest, updateRequestStatus, convertRequestToLead } from '@/lib/actions/requests';
-import { setAutonomyMode, updateGuardrails, updatePricing } from '@/lib/actions/settings';
+import { setAutonomyMode, updateGuardrails, updatePricing, updateMarketPlan } from '@/lib/actions/settings';
 import { updateDemoStatus } from '@/lib/actions/demos';
 
 // Integration tests for the workspace server actions against the real USE_DB=true path on a
@@ -195,6 +195,7 @@ describe.skipIf(!hasDb)('workspace server actions — USE_DB=true integration (s
     let autonomySnapshot: string | null = null;
     let guardrailsSnapshot: Record<string, unknown> | null = null;
     let pricingSnapshot: Record<string, unknown> | null = null;
+    let marketPlanSnapshot: typeof settings.$inferSelect.marketPlan = null;
 
     beforeAll(async () => {
       const [s] = await db.select().from(settings).limit(1);
@@ -203,6 +204,7 @@ describe.skipIf(!hasDb)('workspace server actions — USE_DB=true integration (s
       autonomySnapshot = s.autonomyMode;
       guardrailsSnapshot = (s.guardrails as Record<string, unknown> | null) ?? null;
       pricingSnapshot = (s.pricing as Record<string, unknown> | null) ?? null;
+      marketPlanSnapshot = s.marketPlan;
     });
 
     afterAll(async () => {
@@ -212,6 +214,7 @@ describe.skipIf(!hasDb)('workspace server actions — USE_DB=true integration (s
           autonomyMode: (autonomySnapshot ?? 'guarded') as typeof settings.$inferInsert.autonomyMode,
           guardrails: guardrailsSnapshot,
           pricing: pricingSnapshot,
+          marketPlan: marketPlanSnapshot,
         })
         .where(eq(settings.id, settingsId));
     });
@@ -245,56 +248,71 @@ describe.skipIf(!hasDb)('workspace server actions — USE_DB=true integration (s
       const [s] = await db.select().from(settings).where(eq(settings.id, settingsId)).limit(1);
       expect(s.pricing).toMatchObject(marker);
     });
+
+    it('updateMarketPlan persists a valid pool', async () => {
+      const res = await updateMarketPlan({ countries: ['US', 'GB'], niches: ['nail salons', 'dental clinics'], enabled: true });
+      expect(res).toEqual({ ok: true });
+      const [s] = await db.select().from(settings).where(eq(settings.id, settingsId)).limit(1);
+      expect(s.marketPlan).toEqual({ countries: ['US', 'GB'], niches: ['nail salons', 'dental clinics'], enabled: true });
+    });
+
+    it('updateMarketPlan filters out an invalid country/niche before persisting', async () => {
+      const res = await updateMarketPlan({
+        countries: ['US', 'NOT-A-COUNTRY'],
+        niches: ['nail salons', 'not-a-real-niche'],
+        enabled: true,
+      });
+      expect(res).toEqual({ ok: true });
+      const [s] = await db.select().from(settings).where(eq(settings.id, settingsId)).limit(1);
+      expect(s.marketPlan).toEqual({ countries: ['US'], niches: ['nail salons'], enabled: true });
+    });
+
+    it('updateMarketPlan rejects enabled-with-empty-pool without mutating the row', async () => {
+      // Seed a known-good, disabled plan first so we can assert it's left untouched.
+      await updateMarketPlan({ countries: ['US'], niches: ['nail salons'], enabled: false });
+      const res = await updateMarketPlan({ countries: ['NOT-A-COUNTRY'], niches: ['not-a-real-niche'], enabled: true });
+      expect(res.ok).toBe(false);
+      expect(res.message).toBeTruthy();
+      const [s] = await db.select().from(settings).where(eq(settings.id, settingsId)).limit(1);
+      expect(s.marketPlan).toEqual({ countries: ['US'], niches: ['nail salons'], enabled: false });
+    });
   });
 
   // --- demos.ts ---------------------------------------------------------------------------
+  // updateDemoStatus is keyed by LEAD, not a demos-row id: the Demos screen derives each card's status
+  // from leads.demo (joined with generated_demos), and under the production default SEED_DEMO_DATA=false the
+  // legacy demos table is empty — writing it updated 0 rows and the founder's click did nothing. These tests
+  // pin the corrected behavior (writes leads.demo) so the silent no-op can't return.
   describe('demos.ts', () => {
-    let demoId = '';
-    let statusSnapshot = '';
-    let clientStatusSnapshot = '';
-    let labelSnapshot = '';
-    let clsSnapshot = '';
+    let leadId = '';
+    let demoSnapshot: typeof leads.$inferSelect.demo = 'none';
 
     beforeAll(async () => {
-      const [d] = await db.select().from(demos).orderBy(demos.id).limit(1);
-      expect(d).toBeTruthy(); // seed must have demos
-      demoId = d.id;
-      statusSnapshot = d.status;
-      clientStatusSnapshot = d.clientStatus;
-      labelSnapshot = d.statusLabel;
-      clsSnapshot = d.statusCls;
+      const [l] = await db.select().from(leads).orderBy(leads.id).limit(1);
+      expect(l).toBeTruthy(); // seed must have leads
+      leadId = l.id;
+      demoSnapshot = l.demo;
     });
 
     afterAll(async () => {
-      if (demoId) {
-        await db
-          .update(demos)
-          .set({
-            status: statusSnapshot as typeof demos.$inferInsert.status,
-            clientStatus: clientStatusSnapshot,
-            statusLabel: labelSnapshot,
-            statusCls: clsSnapshot,
-          })
-          .where(eq(demos.id, demoId));
-      }
+      if (leadId) await db.update(leads).set({ demo: demoSnapshot }).where(eq(leads.id, leadId));
     });
 
-    it('updateDemoStatus moves a seeded demo to a valid status and syncs the badge fields', async () => {
-      const target = statusSnapshot === 'sent' ? 'review' : 'sent';
-      const res = await updateDemoStatus(demoId, target);
+    it('updateDemoStatus writes leads.demo (the derived status), keyed by leadId', async () => {
+      const target = demoSnapshot === 'sent' ? 'review' : 'sent';
+      const res = await updateDemoStatus(leadId, target);
       expect(res).toEqual({ ok: true });
-      const [d] = await db.select().from(demos).where(eq(demos.id, demoId)).limit(1);
-      expect(d.status).toBe(target);
-      expect(d.clientStatus).toBe(target); // action keeps clientStatus in sync with status
+      const [l] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+      expect(l.demo).toBe(target);
     });
 
-    it('updateDemoStatus rejects an invalid status without mutating the row', async () => {
-      const [before] = await db.select().from(demos).where(eq(demos.id, demoId)).limit(1);
-      const res = await updateDemoStatus(demoId, 'not-a-status');
+    it('updateDemoStatus rejects an invalid status without mutating the lead', async () => {
+      const [before] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+      const res = await updateDemoStatus(leadId, 'not-a-status');
       expect(res.ok).toBe(false);
       expect(res.message).toContain('invalid demo status');
-      const [after] = await db.select().from(demos).where(eq(demos.id, demoId)).limit(1);
-      expect(after.status).toBe(before.status);
+      const [after] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+      expect(after.demo).toBe(before.demo);
     });
   });
 });

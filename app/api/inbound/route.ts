@@ -47,14 +47,16 @@ export async function POST(req: Request): Promise<Response> {
   // misdirected email never 500s a public webhook (Resend would retry on a 5xx).
   const [lead] = await db.select().from(leads).where(eq(leads.email, parsed.from)).limit(1);
   if (!lead) return new Response('ignored (no matching lead)', { status: 200 });
+  // A reply from a known lead with no deal yet is the FIRST contact — the Closer creates the deal from it
+  // (handle-reply), so use a deterministic dealId and always emit. A pre-existing deal keeps its own id.
   const [deal] = await db.select().from(deals).where(eq(deals.leadId, lead.id)).limit(1);
-  if (!deal) return new Response('ignored (no matching deal)', { status: 200 });
+  const dealId = deal?.id ?? `deal-${lead.id}`;
 
   // svix-id makes the emit idempotent across Resend's at-least-once webhook delivery.
   await inngest.send({
     name: 'reply/received',
-    data: { dealId: deal.id, leadId: lead.id, text: parsed.text },
-    id: `reply/received:${deal.id}:${id}`,
+    data: { dealId, leadId: lead.id, text: parsed.text },
+    id: `reply/received:${dealId}:${id}`,
   });
   return new Response('ok', { status: 200 });
 }

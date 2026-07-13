@@ -13,6 +13,7 @@ import { runBuild } from './functions/run-build';
 import { runSupport } from './functions/run-support';
 import { sendProposal } from './functions/send-proposal';
 import { autoDiscovery } from './functions/auto-discovery';
+import { reapStaleRuns } from './functions/reap-stale-runs';
 import { closeBrowser } from '../audit/screenshot';
 // NOTE: the Postgres pool is drained by lib/db/client.ts's own SIGTERM handler (imported
 // transitively via run-audit). This entrypoint only owns the Inngest connection + the browser,
@@ -23,12 +24,12 @@ async function main(): Promise<void> {
     apps: [
       {
         client: inngest,
-        functions: [runAudit, runDemoGen, orchestratePipeline, handleReply, runOutreach, runBuild, runSupport, sendProposal, autoDiscovery],
+        functions: [runAudit, runDemoGen, orchestratePipeline, handleReply, runOutreach, runBuild, runSupport, sendProposal, autoDiscovery, reapStaleRuns],
       },
     ],
   });
   console.log(
-    '[worker] connected to Inngest; audit + demo + orchestrator + closer + outreach + build + support + proposal + auto-discovery functions registered',
+    '[worker] connected to Inngest; audit + demo + orchestrator + closer + outreach + build + support + proposal + auto-discovery + reap-stale-runs functions registered',
   );
 
   for (const signal of ['SIGTERM', 'SIGINT'] as const) {

@@ -135,7 +135,7 @@ function DemoDrawer({ demo, onClose, onAction }: { demo: Demo; onClose: () => vo
   const changeStatus = (status: Parameters<typeof updateDemoStatus>[1], successMsg: string) => {
     if (!useDb) { onAction(successMsg, 'success'); return; }
     startTransition(async () => {
-      const r = await updateDemoStatus(d.id, status);
+      const r = await updateDemoStatus(d.leadId, status);
       onAction(r.message ?? successMsg, r.ok ? 'success' : 'warning');
       router.refresh();
     });
