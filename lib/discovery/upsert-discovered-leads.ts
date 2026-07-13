@@ -17,6 +17,9 @@ export async function upsertDiscoveredLeads(
       target: leads.placeId,
       set: {
         websiteUri: sql`excluded.website_uri`,
+        // Keep `url` (the audit's greenfield-vs-real signal) in lockstep with a refreshed websiteUri, so a
+        // lead that gained or lost a real site since first discovery is re-classified instead of frozen.
+        url: sql`excluded.url`,
         email: sql`excluded.email`,
         phone: sql`excluded.phone`,
         // `site` and `score` are deliberately NOT refreshed: once the audit runs it becomes the source of
