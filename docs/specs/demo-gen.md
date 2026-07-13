@@ -53,6 +53,12 @@ On success the function also sets `leads.demo = 'review'` — but **only** from 
 `status === 'ready'` **and** it has `html`) **in preference to** the raw generated demo; then the demo `html` if present (even while a
 re-generation is in flight, so "Improve with AI" never makes a live demo go dark); else a status placeholder.
 
+Onto the PRE-SALE demo (`generatedDemos` html, NOT a delivered `builds` row) the route injects a trusted
+"Interested?" CTA (`withInquiryCta`) — a plain `<a>` (inline style only) linking to `/inquire/[leadId]`, in the
+lead's language. Because `DEMO_CSP` blocks scripts calling home and forms (D6), the demo itself can't capture a
+response; a top-level `<a>` navigation is not blocked, so the CTA carries the prospect to the trusted first-party
+inquiry page instead. The CTA is added by the route, not the LLM HTML, so it is guaranteed present.
+
 ## THE FACT-GROUNDING CONTRACT
 
 The product's core claim is that the demo shows the client's **real** business, not an invented one. A real fact

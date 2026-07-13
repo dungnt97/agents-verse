@@ -79,6 +79,7 @@ This is the **only** place routes are enumerated. Verify with `find app -name pa
 | `/login` | `app/login/page.tsx` | client |
 | `/overview` `/command` `/rooms` `/rooms/[id]` `/agents/[id]` `/leads` `/audits` `/demos` `/deals` `/deals/[id]/proposal` `/activity` `/settings` | `app/(workspace)/…/page.tsx` | **async Server Components** — they `await` repositories and pass serializable props to `'use client'` screens |
 | `/agents` `/requests` | `app/(workspace)/agents/page.tsx`, `app/(workspace)/requests/page.tsx` | the only two `'use client'` workspace pages |
+| `/inquire/[leadId]` | `app/inquire/[leadId]/page.tsx` | **public** — the prospect's response page reached from the demo's injected CTA: a lead-scoped chat + a requirements form that writes a `demo_requests` inquiry for `/requests`. Trusted first-party page (normal CSP), unlike the sandboxed `/demo` |
 
 **Route handlers** (`route.ts`):
 
@@ -88,6 +89,7 @@ This is the **only** place routes are enumerated. Verify with `find app -name pa
 | `/audit-shot/[leadId]` | `app/audit-shot/[leadId]/route.ts` | auth-gated PNG (the captured old-site screenshot) |
 | `/api/auth/[...all]` | Better Auth handler | public by design; `disableSignUp: true` is what keeps it safe (D5) |
 | `/api/chat` | `app/api/chat/route.ts` | public, rate-limited (D7) |
+| `/api/inquire-chat` | `app/api/inquire-chat/route.ts` | public, rate-limited; the per-demo inquiry chat (lead-scoped system prompt, never quotes a price); 503-degrades to the form when the gateway/DB is off |
 | `/api/inbound` | Resend/Svix inbound email | signature-verified (D2) |
 | `/api/whatsapp` | WhatsApp Cloud webhook | signature-verified (D2) |
 | `/api/telegram` | Telegram bot webhook | secret-token check; notify + ack only, never emits `reply/received` |

@@ -29,7 +29,9 @@ export function assistantConfigured(): boolean {
 
 // Open a streaming Messages request against the gateway. Throws on a connection/non-OK error BEFORE any
 // bytes stream, so the route can cleanly fall back (degrade) instead of committing to a broken stream.
-export async function connectAssistant(messages: ChatTurn[], signal?: AbortSignal): Promise<Response> {
+// `system` overrides the default Q&A prompt — the per-demo inquiry chat passes its own (lead-scoped,
+// qualify-lightly, never-quote-a-price) system prompt.
+export async function connectAssistant(messages: ChatTurn[], signal?: AbortSignal, system: string = SYSTEM_PROMPT): Promise<Response> {
   const res = await fetch(`${base()}/v1/messages`, {
     method: 'POST',
     headers: {
@@ -40,7 +42,7 @@ export async function connectAssistant(messages: ChatTurn[], signal?: AbortSigna
     body: JSON.stringify({
       model: process.env.AGENT_MODEL_SONNET,
       max_tokens: 600,
-      system: SYSTEM_PROMPT,
+      system,
       stream: true,
       messages,
     }),
