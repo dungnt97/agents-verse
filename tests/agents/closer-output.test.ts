@@ -70,12 +70,19 @@ describe('buildCloserPrompt — data-fence hardening + length cap + hold option'
   const base = {
     deal: { client: 'Nhà hàng Sen', industry: 'restaurant', city: 'HCMC', pkg: 'website', value: 25000, stage: 'pricing' as const },
     legalNextStages: ['quoted', 'lost'] as const,
+    language: 'Vietnamese',
   };
 
   it('gives the deal value a currency unit and offers "hold" as a recommendation', () => {
     const p = buildCloserPrompt({ ...base, text: 'giá bao nhiêu?' });
     expect(p).toContain('25,000 USD');
     expect(p).toContain('"hold"');
+  });
+
+  it('writes the suggested reply in the client language it is given (not hardcoded Vietnamese)', () => {
+    const en = buildCloserPrompt({ ...base, deal: { ...base.deal, city: 'Austin TX' }, language: 'English', text: 'how much?' });
+    expect(en).toContain('written in English');
+    expect(en).not.toContain('Vietnam'); // no hardcoded country/language leaks in for an English-market deal
   });
 
   it('neutralises a literal </reply> so a crafted reply cannot break out of the data fence', () => {

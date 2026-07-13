@@ -13,9 +13,12 @@ import { dirname, resolve, relative } from 'node:path';
 
 const ROOT = resolve(__dirname, '..', '..');
 
+// The worker entrypoint imports EVERY durable function it registers, so walking from it covers the whole
+// worker runtime closure — every current function and any future one added to the entrypoint, automatically.
+// The extra explicit entries are the web/worker-shared modules whose safety the entrypoint doesn't reach.
 const ENTRY_FILES = [
+  'lib/inngest/worker-entrypoint.ts',
   'lib/discovery/run-discovery-core.ts',
-  'lib/inngest/functions/auto-discovery.ts',
   'lib/inngest/start-pipeline-run.ts',
 ];
 

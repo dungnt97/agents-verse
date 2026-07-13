@@ -64,6 +64,7 @@ describe('closer-sales: terminal deal (empty legal next stages)', () => {
       deal: { client: 'X', industry: 'spa', city: 'Hue', pkg: 'Premium', value: 1000, stage: 'won' },
       legalNextStages: [],
       text: 'thanks',
+      language: 'English',
     });
     expect(p).toContain('(none — deal is terminal)');
   });

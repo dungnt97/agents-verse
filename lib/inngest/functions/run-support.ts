@@ -4,12 +4,13 @@ import { db } from '../../db/client';
 import { deals, leads, escalations, settings } from '../../db/schema';
 import { runAgent } from '../../agents/runner';
 import { miraSupport } from '../../agents/defs/mira-support';
+import { demoLanguageForAddress } from '../../demo-gen/locale';
 import { sendEmail, supportEmailHtml, resendConfigured } from '../../integrations/resend';
 import type { AutonomyMode } from '../../data/deal-stage-machine';
 
 // Mira onboarding (WORKER only — shells `claude` + sends transactional email; relative imports, no
-// `server-only`). When a deal is WON she drafts a Vietnamese asset-request email and either sends it
-// (full autonomy) or parks it as a `support` escalation for the founder to approve — mirroring Echo's
+// `server-only`). When a deal is WON she drafts an asset-request email in the client's market language and
+// either sends it (full autonomy) or parks it as a `support` escalation for the founder to approve — Echo's
 // gate. The email is transactional (a client who just signed), so no unsubscribe footer. Idempotent
 // per lead. Decoupled from pipeline_runs (driven by deal/won, like Cipher's build).
 const escId = (leadId: string) => `esc-support-${leadId}`;
@@ -29,7 +30,8 @@ export const runSupport = inngest.createFunction(
     id: 'run-support',
     retries: 1,
     concurrency: [
-      { limit: Number(process.env.CLAUDE_AGENT_CONCURRENCY) || 2 },
+      // Shares the global `claude`-CLI budget with every other claude function (see run-demo-gen).
+      { scope: 'account', key: '"claude-agent"', limit: Number(process.env.CLAUDE_AGENT_CONCURRENCY) || 2 },
       { limit: 1, key: 'event.data.leadId' },
     ],
     triggers: [{ event: 'deal/won' }, { event: 'support/approved' }],
@@ -102,6 +104,7 @@ export const runSupport = inngest.createFunction(
         city: lead.city,
         pkg: deal?.pkg ?? 'website',
         value: deal?.value ?? 0,
+        language: demoLanguageForAddress(lead.formattedAddress),
         autonomyMode: (s?.autonomyMode as AutonomyMode | undefined) ?? 'guarded',
       };
     });
@@ -113,6 +116,7 @@ export const runSupport = inngest.createFunction(
         industry: loaded.industry,
         city: loaded.city,
         pkg: loaded.pkg,
+        language: loaded.language,
       }),
     );
 

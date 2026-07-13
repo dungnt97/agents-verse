@@ -19,7 +19,8 @@ export const runBuild = inngest.createFunction(
     id: 'run-build',
     retries: 1,
     concurrency: [
-      { limit: Number(process.env.CLAUDE_AGENT_CONCURRENCY) || 2 },
+      // Shares the global `claude`-CLI budget with every other claude function (see run-demo-gen).
+      { scope: 'account', key: '"claude-agent"', limit: Number(process.env.CLAUDE_AGENT_CONCURRENCY) || 2 },
       { limit: 1, key: 'event.data.leadId' },
     ],
     triggers: [{ event: 'deal/won' }],

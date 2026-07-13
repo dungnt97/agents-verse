@@ -78,13 +78,14 @@ export function agentPromptPreview(id: string): string | null {
         // (the old hardcoded list included 'call', which is NOT legal from 'quoted').
         legalNextStages: [...nextStages('quoted')],
         text: SAMPLE_REPLY,
+        language: SAMPLE.language,
       });
     case 'cipher':
       return cipherCoder.buildPrompt({
         company: SAMPLE.company, industry: SAMPLE.industry, city: SAMPLE.city, summary: SAMPLE.summary,
       });
     case 'mira':
-      return miraSupport.buildPrompt({ client: SAMPLE.company, industry: SAMPLE.industry, city: SAMPLE.city, pkg: SAMPLE_PKG });
+      return miraSupport.buildPrompt({ client: SAMPLE.company, industry: SAMPLE.industry, city: SAMPLE.city, pkg: SAMPLE_PKG, language: SAMPLE.language });
     default:
       return null;
   }

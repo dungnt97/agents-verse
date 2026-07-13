@@ -222,7 +222,14 @@ export async function auditLayout(html: string): Promise<LayoutDefect[]> {
               }
             }
           }
-        } catch { /* header legibility probe is best-effort */ }
+        } catch (err) {
+          // The probe is best-effort — EXCEPT a missing `sharp` silently disables header-contrast detection
+          // for every demo. sharp ships transitively (next, baileys); if it ever stops resolving, surface it
+          // loudly rather than degrading in silence.
+          if (err instanceof Error && /cannot find module\s+['"]?sharp|sharp['"]?\s+(?:is not|not found)/i.test(err.message)) {
+            console.warn('[layout-audit] sharp is unavailable — header-contrast detection is DISABLED. Ensure sharp resolves (it ships transitively via next/baileys; add it as a direct dependency if that changes).');
+          }
+        }
         await page.evaluate(SCROLL_SCRIPT);
         for (let i = 0; i < 15; i++) {
           const pending = await page.evaluate<number>(PENDING_IMAGES);

@@ -1,7 +1,7 @@
-// Mira — client support / onboarding agent. After a deal is WON, she writes a warm Vietnamese
-// onboarding email that thanks the client and requests the assets needed to start production (logo,
-// brand colors, photos, copy, business hours). Output is zod-validated { subject, body }. tsx-safe:
-// relative imports, no `server-only`.
+// Mira — client support / onboarding agent. After a deal is WON, she writes a warm onboarding email (in
+// the client's own market language) that thanks the client and requests the assets needed to start
+// production (logo, brand colors, photos, copy, business hours). Output is zod-validated { subject, body }.
+// tsx-safe: relative imports, no `server-only`.
 import { z } from 'zod';
 import type { AgentDef } from '../types';
 import { makeJsonValidator } from '../validators';
@@ -17,13 +17,15 @@ export interface MiraInput {
   industry: string;
   city: string;
   pkg: string; // the package the client bought
+  /** Language the onboarding email must be written in (the client's market language, e.g. "English"). */
+  language: string;
 }
 
-function buildMiraPrompt({ client, industry, city, pkg }: MiraInput): string {
+function buildMiraPrompt({ client, industry, city, pkg, language }: MiraInput): string {
   return [
-    `You are Mira — a senior client-success lead at a web-design agency in ${city}, Vietnam. ${client}, a`,
-    `${industry} business, just signed for the "${pkg}" package. Write a SHORT, warm Vietnamese ONBOARDING`,
-    `email that makes them feel in great hands and gets production moving.`,
+    `You are Mira — a senior client-success lead at a web-design agency serving ${city}. ${client}, a`,
+    `${industry} business, just signed for the "${pkg}" package. Write a SHORT, warm ONBOARDING email in`,
+    `${language} (the client's language) that makes them feel in great hands and gets production moving.`,
     ``,
     `The email should thank them genuinely, set a friendly confident tone, and ask — as a clear, scannable`,
     `checklist — for the assets you need to start building their real site: logo (vector if possible), brand`,

@@ -105,7 +105,7 @@ describe('sendOutreach dispatch', () => {
     process.env.OUTREACH_CHANNEL = 'telegram-user';
     const r = await sendOutreach({ ...send, recipient: '+84906200434' });
     expect(r.ok).toBe(true);
-    expect(tgUser).toHaveBeenCalledWith('+84906200434', 'Chào Acme\n\nhttps://app/demo/lead-1');
+    expect(tgUser).toHaveBeenCalledWith('+84906200434', 'Chào Acme\n\nhttps://app/demo/lead-1\n\nReply STOP to opt out.');
     expect(email).not.toHaveBeenCalled();
     expect(wa).not.toHaveBeenCalled();
   });
@@ -114,6 +114,6 @@ describe('sendOutreach dispatch', () => {
     process.env.OUTREACH_CHANNEL = 'whatsapp-personal';
     const r = await sendOutreach({ ...send, recipient: '+84906200434' });
     expect(r.ok).toBe(true);
-    expect(waPersonal).toHaveBeenCalledWith('+84906200434', 'Chào Acme\n\nhttps://app/demo/lead-1');
+    expect(waPersonal).toHaveBeenCalledWith('+84906200434', 'Chào Acme\n\nhttps://app/demo/lead-1\n\nReply STOP to opt out.');
   });
 });

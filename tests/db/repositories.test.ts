@@ -154,5 +154,53 @@ describe.skipIf(!hasDb)('repositories — USE_DB=true integration (seeded Postgr
       expect(rows).toHaveLength(1);
       expect(rows[0].email).toBe('after@integration-test.example');
     });
+
+    it('does NOT overwrite an audited site score on re-discovery', async () => {
+      await upsertDiscoveredLeads([{ ...baseRow, site: 30 }]);
+      // The audit later becomes the source of truth for `site`.
+      await db.update(leadsTable).set({ site: 88 }).where(eq(leadsTable.placeId, placeId));
+      // A re-discovery carrying the crude heuristic site must NOT clobber the measured value.
+      await upsertDiscoveredLeads([{ ...baseRow, site: 12 }]);
+      const [row] = await db.select().from(leadsTable).where(eq(leadsTable.placeId, placeId));
+      expect(row.site).toBe(88);
+    });
+  });
+
+  // Regression guard for the franchise-collision bug: two DIFFERENT businesses that share a company name
+  // (two branches across metros) both come back from discovery with distinct placeIds. A full UNIQUE(company)
+  // made one of them raise 23505 and fail the ENTIRE multi-row insert (nothing saved, market not recorded,
+  // cron re-picks it forever). The partial index `(company) WHERE place_id IS NULL` must let them coexist.
+  describe('upsertDiscoveredLeads — same-company franchise branches (partial-unique index)', () => {
+    const company = 'Franchise Integration Clinic';
+    const idA = 'place-franchise-test-A';
+    const idB = 'place-franchise-test-B';
+    const row = (placeId: string, city: string): typeof leadsTable.$inferInsert => ({
+      id: placeId,
+      company,
+      industry: 'Testing',
+      city,
+      url: '(no site yet)',
+      site: 0,
+      score: 0,
+      value: 1500,
+      agent: 'vega',
+      stage: 'found',
+      demo: 'none',
+      placeId,
+    });
+    const clean = async () => {
+      await db.delete(leadsTable).where(eq(leadsTable.placeId, idA));
+      await db.delete(leadsTable).where(eq(leadsTable.placeId, idB));
+    };
+    beforeAll(clean);
+    afterAll(clean);
+
+    it('inserts both same-name branches in one pass (no 23505)', async () => {
+      const n = await upsertDiscoveredLeads([row(idA, 'Austin TX'), row(idB, 'Dallas TX')]);
+      expect(n).toBe(2);
+      const rows = await db.select().from(leadsTable).where(eq(leadsTable.company, company));
+      expect(rows).toHaveLength(2);
+      expect(rows.map((r) => r.placeId).sort()).toEqual([idA, idB]);
+    });
   });
 });

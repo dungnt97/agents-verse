@@ -1,104 +1,63 @@
-# Development Roadmap — Agents Verse
+# Development Roadmap
 
-**Last updated:** June 24, 2026
-
-## Project Status Overview
-
-Agents Verse now runs the **full autonomous agency funnel**: discover → audit → demo → outreach → reply → deal → delivery, with a central pipeline orchestrator, human-in-the-loop gates, and a cost ledger. All six phases of the `agent-company-flow` plan have landed (the runtime/registry, the orchestrator + `pipeline_runs` ledger, approval gates + kill-switch, the Closer sales-brain, Echo outreach + Resend, and Phase 6 delivery — Cipher build-prep, Mira onboarding, the Resend inbound webhook, and the Ledger cost meter). Email send/receive is **key-gated** on Resend; everything else runs on the existing Claude CLI/gateway token. `typecheck`, `lint`, `test`, and `build` are green with no DB or keys.
+**What this file owns:** done-vs-pending per subsystem, and what each one needs before it can actually run.
+**What it does not own:** architecture (`specs/`), env vars (`env-reference.md`), rules (`invariants.md`).
+Counts are never stated here — the code is the count; `npm run test` is the gate.
 
 ---
 
-## Build-Out Status by Subsystem
+## Status by subsystem
 
-| Subsystem | Area | Status | Notes |
-|-----------|------|--------|-------|
-| **Phase 0** | Foundation (DB schema, seed, auth, dual-mode) | ✅ Done | Drizzle + Postgres 17 + Better Auth. Migrations in `drizzle/migrations/`, idempotent seed. Single direct DB connection (postgres-js client-side pool, no pooler). |
-| **Subsystem 1** | Lead Discovery (Google Places / Apify, email scraping) | ✅ Code-complete | 2-phase: Pro search + optional Enterprise enrichment. Cheerio-based email extraction. Requires `GOOGLE_MAPS_API_KEY` (or `APIFY_API_TOKEN`) to execute. Daily cap configurable. Also runs **autonomously**: a self-hosted Inngest **cron** (`auto-discovery`, default 9am daily via `AUTO_DISCOVERY_CRON`) hunts the founder's market pool through a worker-safe `run-discovery-core` shared with the manual action — self-gated on `autonomyMode` + `marketPlan.enabled` (both default off), with built-in per-day caps for unattended runs. |
-| **Subsystem 2** | Website Audit (PageSpeed + Playwright + Gemini, durable Inngest) | ✅ Code-complete | 8-dimensional scoring (visual, mobile, cta, trust, seo, speed, content, conversion). Screenshot + vision analysis. Self-hosted Inngest worker + Redis. Requires `GEMINI_API_KEY`, `GOOGLE_PAGESPEED_API_KEY`, `INNGEST_*` keys. |
-| **Docker & Deploy** | Self-hosted on single VPS (web + db + redis + inngest + worker) | ✅ Done | Compose file: entrypoint runs migrate → seed → start. Reverse proxy (Caddy/Nginx) for TLS. Backup script (`scripts/backup.sh`) provided but off-site upload is user's responsibility. |
-| **Subsystem 3** | Demo Generation (multi-pass Claude pipeline → rendered redesign page) | ✅ Code-complete | The worker shells the **`claude` CLI** — pointed at the self-hosted **9router** gateway (`ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` + `AGENT_MODEL_OPUS`) or, as a fallback, a direct subscription via `CLAUDE_CODE_OAUTH_TOKEN`. Concept-driven pipeline (art direction solved per-brand, NOT a locked per-industry DNA): research → divergent concepting → creative-director spec → build → niche-aware **expert review board** (UI/UX, conversion copy, domain expert, art director) reads desktop+mobile screenshots → synthesise → revise, then deterministic layout + web-app-QA guards. Output stored in `generated_demos`, served standalone at `/demo/[leadId]`; the audit screen's "Generate demo" / "View demo" buttons drive it. Needs the worker image (bundles the CLI + Playwright). |
-| **Subsystem 4** | Outreach & Email (Echo, Resend API, CAN-SPAM, approval gates) | ✅ Code-complete (key-gated) | `lib/agents/defs/echo-outreach.ts` drafts a VN demo-offer email; `run-outreach.ts` sends via `lib/integrations/resend.ts` with CAN-SPAM (real From/Reply-To, one-click List-Unsubscribe). Gated by autonomy (`full` sends, else founder approves an `outreach` escalation). Degrades `{ok:false}` without `RESEND_API_KEY`. |
-| **Subsystem 5** | Deal Automation (stage machine + Closer brain + approval gate) | ✅ Done | Enforced deal stage machine (`lib/data/deal-stage-machine.ts`) + autonomy/value gate. The **Closer** (`lib/agents/defs/closer-sales.ts` + `handle-reply.ts`) interprets a client reply (zod-validated `recommendedStage`, `DEAL_CONF_FLOOR` never bypassed) and auto-advances or escalates. ReviewCenter + Command Center show open escalations only. Production timeline is interactive. |
-| **Pipeline orchestrator** | Central `pipeline_runs` ledger + `decideNextHop` + gates + kill-switch | ✅ Done | One durable orchestrator routes audit→demo→outreach under the live autonomy gate; idempotent conditional stage writes; per-run pause + global kill-switch (live autonomy re-read per hop); founder approve/reject = resume/halt. Discovery auto-starts a run per fresh lead (guarded/full, capped by `PIPELINE_DAILY_CAP`). |
-| **Subsystem 6** | Delivery + inbound + finance (Cipher, Mira, inbound webhook, Ledger) | ✅ Code-complete (inbound key-gated) | On `deal/won`: **Cipher** (`run-build.ts`) optimizes the demo into a delivery build (SEO/OG/JSON-LD/sitemap in `builds`; degrades to deterministic metadata without a key) and **Mira** (`run-support.ts`) drafts the onboarding/asset-request email (gated like Echo). **Resend inbound webhook** (`app/api/inbound/route.ts`, Svix-verified, `RESEND_INBOUND_SECRET`) feeds client replies to the Closer. **Ledger** estimates daily AI spend from `pipeline_runs` and raises a `cost` escalation near the cap. |
+| Subsystem | State | Runs only when… |
+|---|---|---|
+| **Foundation** — Postgres, Drizzle schema, migrations, seed, repositories, Better Auth, dual-mode | Shipped | `USE_DB=true` + a migrated, seeded database. Without it the whole app falls back to the mock `AV` singleton. |
+| **1 — Lead Discovery** (`lib/discovery/`) | Shipped | `DISCOVERY_PROVIDER` **defaults to `apify`** (needs `APIFY_API_TOKEN`, no Google account at all); set it to `google` for the official Places API (`GOOGLE_MAPS_API_KEY` + GCP billing). Real venue photos + reviews (`mapsData`) exist on the Apify path only — which is why it is the default. |
+| **1b — Autonomous market hunt** (`auto-discovery` cron, `market-planner.ts`) | Shipped | The **Market Hunter** editor in Settings (or SQL) with `settings.market_plan` enabled, a discovery provider, **and** an autonomy mode of `guarded`/`full`. |
+| **2 — Website Audit** (`lib/audit/`, `run-audit`) | Shipped | Perf: keyless by default — with no Google key the worker runs self-hosted Lighthouse in its own Chromium. Vision: **`GEMINI_API_KEY` is mandatory for any lead with a website** (`run-audit` fast-fails without it, before it spends a Chromium capture). The greenfield path — a lead with no real website (an empty or `(no site yet)` placeholder url; a bare domain like `acme.com` counts as a site via `hasWebsite`) — needs **no external key at all**. |
+| **3 — Demo Generation** (`lib/demo-gen/`, `run-demo-gen`) | Shipped | A `claude` CLI backend in the **worker**: `ANTHROPIC_BASE_URL` (the 9router gateway) or `CLAUDE_CODE_OAUTH_TOKEN`, plus an `AGENT_MODEL_<TIER>` per tier the pipeline requests. Requires an `audits` row for the lead. |
+| **4 — Outreach** (`run-outreach`, `lib/integrations/`) | Shipped | The **active** channel's credentials (`OUTREACH_CHANNEL`): Resend, WhatsApp Cloud, the Telegram userbot, or personal WhatsApp. Degrades to `{ok:false}` when the key is absent; never throws. Unattended sending happens **only** in autonomy `full` — every other mode parks an approval gate. |
+| **4b — Inbound** (`/api/inbound`, `/api/telegram`, `/api/whatsapp`) | Shipped | The matching webhook secret — the route is disabled without it. Resend and WhatsApp verify an HMAC signature over the raw body (`verifyResendSignature`, `verifyWhatsAppSignature`); Telegram compares the `x-telegram-bot-api-secret-token` header against `TELEGRAM_WEBHOOK_SECRET`. Nothing is parsed before that check. |
+| **5 — Deals / Closer** (`handle-reply`, `deal-stage-machine.ts`) | Shipped | The gateway (the Closer shells `claude`). The first inbound reply from a known lead materializes the `deals` row, so no pre-existing deal is required. |
+| **5b — Proposals / PDF** (`lib/proposals/`, `send-proposal`) | Shipped | `RESEND_API_KEY` + `OUTREACH_FROM` to email it; the print view works without a key. |
+| **6 — Delivery + Ledger** (`run-build` Cipher, `run-support` Mira, cost meter) | Shipped | Gateway for the build/onboarding drafts (Cipher degrades to deterministic metadata without one); Resend to send Mira's onboarding email. The Ledger is deterministic — no key. |
+| **Pipeline orchestrator** (`orchestrate-pipeline`, `pipeline_runs`) | Shipped | `USE_DB=true` + a reachable Inngest. Routes audit → demo → outreach under the live autonomy gate, with per-run pause/resume as the founder's stop button. **There is no global kill-switch** — the levers are the autonomy mode and per-run pause. |
+| **Assistant chat** (`/api/chat`) | Shipped | Gateway env on **web**. Without it, the widget falls back to built-in rule-based replies. |
+| **Docker / self-host** (`web, db, redis, inngest, 9router, worker`) | Shipped | See `deployment-guide.md`. |
 
----
-
-## What's Ready to Ship (Right Now)
-
-- Landing page + 9 info pages (marketing).
-- Login gate (founder auth via Better Auth, demo cookie fallback).
-- Workspace shell (sidebar, top bar, command palette, review center).
-- All 14 workspace screens: overview, command, rooms, agents, leads, audits, demos, deals, settings, activity, requests.
-- Real lead discovery (Google Places API) — executed by "Run discovery" button on `/leads`.
-- Real website audits (PageSpeed + Playwright + Gemini) — queued via `/audits/[id]` "Run real audit" button; job state tracked in `audit_jobs` table.
-- Mutable state machine: lead stage, demo approval, deal status, autonomy mode, settings — all persist to Postgres via server actions.
-- Docker Compose deployment with zero-downtime migrations (idempotent) and seeded founder account.
-
-**Demo mode (zero credentials):** Drop `npm run dev`, land on `/` with mock data in localStorage. Routes, screens, and all UI fully functional. Perfect for showcase or testing.
-
-**Production mode (requires keys):** `USE_DB=true` + `.env.local` + `docker compose up` → full-stack SaaS on a VPS with real Postgres, real auth, durable jobs.
+Everything above is green under `npm run typecheck`, `npm run test`, and `npm run build` with **no database and no keys** — that is the standard gate, and it must stay true.
 
 ---
 
-## Known Limitations & Open Items
+## Open items (honest list — each verified against the code)
 
-### Must-Fix Before Production Run
-- **Playwright base image:** Confirm `mcr.microsoft.com/playwright:v1.60.0-noble` does **not** pin `NODE_ENV=production` (would skip `tsx` and break the worker).
-- **Inngest self-hosted flags:** Verify exact `inngest start` command-line flags and that `worker.connect()` is supported for pinned Inngest version (v1.27.0).
-- **Gemini model:** Default `gemini-2.5-flash` is overridable via `GEMINI_MODEL` env var; confirm current vision model at deploy time.
-- **PageSpeed key fallback:** `GOOGLE_PAGESPEED_API_KEY` is optional; falls back to `GOOGLE_MAPS_API_KEY` if unset. Verify this in tests if both are needed.
+### Reliability holes
 
-### Design / UX
-- **Audit headline numbers:** After a real audit, the report header (`site`, `score`, delta) still reflects the lead's **stored** values; only the 8-dim breakdown updates. Updating the lead's headline score from the audit result is a **deliberate open decision** (touches user-facing number, risky).
-- **Lead conversion:** `convertToLead()` in demo mode mutates localStorage; in DB mode, it creates a real `leads` row from a `demoRequests` row. Verify both paths in staging.
-- **Escalation gates:** Exact thresholds (deal value, cost budget, confidence floor for auto-approval) are in `settings.ts` as defaults; confirm these match business logic with product/growth.
+- **The worker-safety test guards almost nothing.** `tests/discovery/run-discovery-core-worker-safety.test.ts` walks the runtime import closure of its `ENTRY_FILES` — only `run-discovery-core.ts`, `auto-discovery.ts` and `start-pipeline-run.ts`. Of everything registered in `worker-entrypoint.ts`, just `auto-discovery` sits inside that closure: a `server-only` or `@/`-alias regression in `run-audit`, `run-demo-gen`, `run-outreach`, `run-build`, `run-support`, `handle-reply`, `orchestrate-pipeline`, `reap-stale-runs` or `send-proposal` stays invisible until the worker boots. Widening `ENTRY_FILES` is the cheapest durability win in the repo.
 
-### Testing & Coverage
-- Vitest suite (`npm run test`, **150 tests**) covers pure/logic critical paths (i18n parity, `format`, discovery dedup + mapping, audit scoring/result mapping, deal stage-machine + approval gate, `USE_DB` flag). Plus a DB-mode integration suite (`npm run test:db`, **44 tests / 4 files**): repository dual-mode, deal automation, mutation server actions (leads/requests/settings/demos), production actions, and audit-job reads — all against a real seeded Postgres. Next: the audit worker chain (Playwright/Gemini — key-gated) + auth-gate/middleware path tests.
-- CI (`.github/workflows/ci.yml`, Node 22 / npm 10): `verify` job runs typecheck → lint → test → build (no secrets, mock mode); `test-db` job spins up `postgres:17` + db:migrate → db:seed → test:db.
-- Lint (`npm run lint`), typecheck (`npm run typecheck`), test (`npm run test`), and build all pass; dev server works in both modes.
+### Coverage gaps worth naming
 
-### Documentation
-- Audit subsystem details (PageSpeed fields, Gemini prompt, scoring rubric) are in `lib/audit/` module comments and `docs/system-architecture.md` § 9.10.
-- Lead discovery details (Places API fields, dedup strategy, email scraping) are in `lib/discovery/` and `docs/system-architecture.md` § 9.9.
-- Dual-mode patterns (repository layer, server actions, provider switches) are in `docs/code-standards.md` and `docs/CLAUDE.md`.
+- No test exercises the audit worker chain (`run-audit`, `greenfield-audit`, `screenshot`, `vision-scoring`, `pagespeed-client`) or the in-worker send step.
+- `run-discovery-core` has no behavioral coverage — the caps, the eligibility gates, the auto-chain and the upsert are all untested; only the static worker-safety walker touches the file.
+- The auth gate, middleware and `guardMutation` paths remain thin.
+- `npm run coverage` exists but is **not** a CI gate.
 
 ---
 
-## Remaining / Deferred
+## Deliberate non-goals
 
-The agency funnel is feature-complete. What's left is operational config, deliberate deferrals, and polish.
-
-### Operational (config, not code)
-- **Resend keys** to actually send/receive email: `RESEND_API_KEY` + `OUTREACH_FROM` (outbound), `RESEND_INBOUND_SECRET` (inbound webhook). Without them, outreach/Mira degrade and `/api/inbound` returns 503 (replies stay founder-paste).
-- **`PIPELINE_DAILY_CAP`** bounds how many runs discovery auto-starts per day (Claude-CLI burst guard).
-- **Off-site backup**: `scripts/backup.sh` now does env-driven encrypt (`BACKUP_GPG_PASSPHRASE`) + upload (`RCLONE_REMOTE`); the founder supplies the passphrase + an `rclone config` remote.
-- **Assistant chat keys**: the global `ChatWidget` is now a real streaming Q&A assistant (`app/api/chat` → the gateway, sonnet, token-by-token). Set `ANTHROPIC_BASE_URL`+`ANTHROPIC_AUTH_TOKEN`+`AGENT_MODEL_SONNET` on `web` to enable it; without them it degrades to the built-in rule-based replies (demo mode unchanged). Q&A only — no work execution, no live-account data injection; the public endpoint is rate-limited + input-capped.
-
-### Deferred (deliberate, with reasons)
-- **Orion LLM qualifier** — ✅ built. `lib/discovery/orion-qualify.ts` calls the assistant gateway (`completeText`, sonnet) from the discovery server action in `web` — no worker promotion needed — to estimate a per-lead redesign value + priority + rationale, clamped to $500–$20,000. It **always degrades** to a deterministic estimate (derived from the real heuristic score) when the gateway is off or the answer is unusable, and retries a transient gateway 503 first. Enabled by `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` + `AGENT_MODEL_SONNET`; live on the dashboard overlay.
-- **Demo archival** — NOT needed. `generated_demos` is keyed by `leadId` (one row per lead, overwritten on re-gen), so the "demo URL explosion" concern can't occur; no archival mechanism required.
-- **Per-agent chat personas** — the per-agent mini-chat in the agent-detail screen stays rule-based; only the global assistant bubble is wired to live Claude.
-
-### Polish (open)
-- **Per-agent real-time spend**: the dashboard now overlays an ESTIMATED per-agent daily cost (`lib/data/agent-rates.ts`) for agents with a countable unit (orion/vega/kira/atlas/nova/iris/echo); closer/mira/ledger keep seeded cost (no clean per-agent counter yet).
-- **Tests still open**: the audit worker chain (Playwright/Gemini, key-gated) and the in-worker Resend send step. Auth-gate/middleware/guard remain thin.
+- **Demo archival** — `generated_demos` is keyed by `leadId` (one row per lead, overwritten on re-gen), so there is no demo-URL explosion to archive.
+- **Per-agent mini-chat** — stays rule-based; only the global assistant bubble talks to the gateway.
+- **Per-agent real-time spend** — the dashboard overlays an *estimated* daily cost from `lib/data/agent-rates.ts` for agents with a countable unit; the rest keep their seeded value. A real per-agent counter is not planned.
+- **Hand-written changelog** — `git log` is the changelog.
 
 ---
 
-## Related Documentation
+## Open questions for the founder
 
-- **Deployment:** `docs/deployment-guide.md` — full VPS setup, Docker Compose, Caddy/Nginx, backup strategy.
-- **System Architecture:** `docs/system-architecture.md` — detailed Sections 9.9 (Lead Discovery) and 9.10 (Audit).
-- **Code Standards:** `docs/code-standards.md` — dual-mode patterns, server actions, repositories.
-- **CLAUDE.md:** Root project file — quick reference for architecture, conventions, and where things live.
+- Autonomy defaults, the cost cap, and the confidence floor ship as defaults in settings — are those the numbers the business commits to?
 
 ---
 
-## Unresolved Questions
+## Where to look next
 
-- **Business logic:** Exact autonomy mode defaults, cost budget thresholds, confidence minimums for escalation — verify with product/growth.
-- **Demo URLs:** Should demo sites be stateless previews (ephemeral, no database) or persistent (stored in S3/blob, durable)? Affects Subsystem 3 design.
-- **Outreach volume:** Expected daily/weekly outreach volume? Impacts rate limiting and Resend plan tier.
-- **Backup retention:** How many backups to retain on-disk? How often to test-restore? Document in `scripts/backup.sh`.
+`invariants.md` (the rules) · `env-reference.md` (every key) · `specs/architecture-map.md` (orientation) · `specs/` (one contract per subsystem) · `deployment-guide.md` (how to stand it up) · `product-vision.md` (why any of it exists).

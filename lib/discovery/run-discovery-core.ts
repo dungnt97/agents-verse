@@ -53,11 +53,12 @@ export interface DiscoveryResult {
 // hunted market → contact-gated auto-chain → log activity. Assumes the DB is live (callers guard USE_DB);
 // self-guards the provider key. Never revalidates or checks auth — that is the web wrapper's job.
 export async function runDiscoveryCore(input: { industry?: string; city?: string; auto?: boolean }): Promise<DiscoveryResult> {
-  // Provider-key guard (shared precondition for both callers): Apify needs its token, Google (default) the
-  // Maps key. Degrade with a clear message when the active provider's credential is missing.
-  const provider = (process.env.DISCOVERY_PROVIDER || 'google').trim().toLowerCase();
-  if (provider === 'apify' ? !process.env.APIFY_API_TOKEN : !process.env.GOOGLE_MAPS_API_KEY) {
-    const need = provider === 'apify' ? 'APIFY_API_TOKEN' : 'GOOGLE_MAPS_API_KEY';
+  // Provider-key guard (shared precondition for both callers): Apify (the default) needs its token, Google
+  // the Maps key. Only an explicit DISCOVERY_PROVIDER=google selects Google; everything else is Apify — keep
+  // this in lockstep with useApify() in places-client. Degrade with a clear message when the key is missing.
+  const useGoogle = (process.env.DISCOVERY_PROVIDER || 'apify').trim().toLowerCase() === 'google';
+  if (useGoogle ? !process.env.GOOGLE_MAPS_API_KEY : !process.env.APIFY_API_TOKEN) {
+    const need = useGoogle ? 'GOOGLE_MAPS_API_KEY' : 'APIFY_API_TOKEN';
     return { found: 0, enriched: 0, upserted: 0, started: 0, message: `${need} is not configured.` };
   }
 

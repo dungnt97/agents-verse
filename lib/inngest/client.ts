@@ -48,8 +48,10 @@ export interface PipelineControlData {
 }
 export type PipelineControlName = 'pipeline/resumed' | 'pipeline/halted';
 
-// A client's reply to an outreach/demo, ingested by the founder pasting it (inbound webhook is a later
-// phase). The Closer worker interprets it and advances or escalates the linked deal.
+// A client's reply to an outreach/demo. Emitted by the inbound webhooks — /api/inbound (Resend inbound
+// email, deduped on the svix delivery id) and /api/whatsapp (WhatsApp Cloud, deduped on the message id) —
+// which map the sender to a lead → deal, and by the `ingestReply` server action (a manual escape hatch
+// with no UI calling it). The Closer worker interprets the text and advances or escalates the linked deal.
 export interface ReplyReceivedData {
   dealId: string;
   leadId?: string;

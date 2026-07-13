@@ -15,10 +15,12 @@ import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { useI18n } from '@/lib/i18n/i18n-provider';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { AUTONOMY } from '@/components/workspace/autonomy-control';
-import { updateGuardrails, updatePricing } from '@/lib/actions/settings';
+import { updateGuardrails, updatePricing, updateMarketPlan } from '@/lib/actions/settings';
 import { useWorkspaceState } from '@/lib/providers/workspace-state-provider';
 import { useToast } from '@/lib/providers/toast-provider';
 import type { WorkspaceSettings } from '@/lib/repositories/ops';
+import { MARKET_CATALOG, MARKET_NICHES } from '@/lib/discovery/market-catalog';
+import { DEFAULT_MARKET_PLAN, type MarketPlan } from '@/lib/discovery/market-planner';
 
 /* -------------------------------------------------------------------------
    Prop types
@@ -173,6 +175,7 @@ export function SettingsScreen({ settings }: SettingsScreenProps) {
     { id: 'autonomy',   label: t('set.sectionAutonomy'),   icon: 'shield'  },
     { id: 'pricing',    label: t('set.sectionPricing'),    icon: 'dollar'  },
     { id: 'cost',       label: t('set.sectionCost'),       icon: 'bolt'    },
+    { id: 'market',     label: t('set.sectionMarket'),     icon: 'globe'   },
   ];
 
   const [sec, setSec] = useState('autonomy');
@@ -194,6 +197,19 @@ export function SettingsScreen({ settings }: SettingsScreenProps) {
     business: num(pr.businessWebsite, 2400),
     monthly: num(pr.monthlyGrowthCare, 240),
   }));
+
+  // Market Hunter pool (countries + niches + master switch) — persisted (settings.marketPlan).
+  const [marketPlan, setMarketPlan] = useState<MarketPlan>(() => settings?.marketPlan ?? DEFAULT_MARKET_PLAN);
+  const toggleCountry = (code: string) =>
+    setMarketPlan(p => ({
+      ...p,
+      countries: p.countries.includes(code) ? p.countries.filter(c => c !== code) : [...p.countries, code],
+    }));
+  const toggleNiche = (niche: string) =>
+    setMarketPlan(p => ({
+      ...p,
+      niches: p.niches.includes(niche) ? p.niches.filter(n => n !== niche) : [...p.niches, niche],
+    }));
 
 
 
@@ -224,11 +240,13 @@ export function SettingsScreen({ settings }: SettingsScreenProps) {
                 businessWebsite: prices.business,
                 monthlyGrowthCare: prices.monthly,
               });
-              if (grResult.ok && prResult.ok) {
+              /* Persist the Market Hunter pool (countries, niches, master switch) */
+              const mpResult = await updateMarketPlan(marketPlan);
+              if (grResult.ok && prResult.ok && mpResult.ok) {
                 router.refresh();
                 onAction('Settings saved', 'success');
               } else {
-                const msg = grResult.message ?? prResult.message ?? 'Save failed';
+                const msg = grResult.message ?? prResult.message ?? mpResult.message ?? 'Save failed';
                 onAction(msg, 'danger');
               }
             });
@@ -398,6 +416,46 @@ export function SettingsScreen({ settings }: SettingsScreenProps) {
           )}
 
           {/* ── Agent limits ── */}
+
+          {/* ── Market Hunter ── */}
+          {sec === 'market' && (
+            <Panel title={t('set.marketTitle')} desc={t('set.marketDesc')}>
+              <SettingRow title={t('set.marketEnable')} desc={t('set.marketEnableDesc')}>
+                <Toggle on={marketPlan.enabled} onChange={v => setMarketPlan(p => ({ ...p, enabled: v }))} />
+              </SettingRow>
+              <SettingRow title={t('set.marketCountries')} desc={t('set.marketCountriesDesc')}>
+                <div className="row wrap" style={{ gap: 8, justifyContent: 'flex-end', maxWidth: 480 }}>
+                  {MARKET_CATALOG.map(c => (
+                    <button
+                      key={c.code}
+                      onClick={() => toggleCountry(c.code)}
+                      className={'chip' + (marketPlan.countries.includes(c.code) ? ' active' : '')}
+                      style={{ height: 32 }}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </SettingRow>
+              <SettingRow title={t('set.marketNiches')} desc={t('set.marketNichesDesc')} last>
+                <div className="row wrap" style={{ gap: 8, justifyContent: 'flex-end', maxWidth: 480 }}>
+                  {MARKET_NICHES.map(n => (
+                    <button
+                      key={n}
+                      onClick={() => toggleNiche(n)}
+                      className={'chip' + (marketPlan.niches.includes(n) ? ' active' : '')}
+                      style={{ height: 32 }}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </SettingRow>
+              <p style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 14, lineHeight: 1.4 }}>
+                {t('set.marketAutonomyNote')}
+              </p>
+            </Panel>
+          )}
         </div>
       </div>
     </div>

@@ -25,9 +25,11 @@ describe('agent def buildPrompt builders', () => {
     expect(p).toMatch(/STRICT JSON/i);
   });
   it('miraSupport builds an onboarding prompt for the client + package', () => {
-    const p = miraSupport.buildPrompt({ client: 'UrbanFit', industry: 'fitness', city: 'Bangkok', pkg: 'Business Website' });
+    const p = miraSupport.buildPrompt({ client: 'UrbanFit', industry: 'fitness', city: 'Bangkok', pkg: 'Business Website', language: 'English' });
     expect(p).toContain('UrbanFit');
     expect(p).toContain('Business Website');
+    expect(p).toContain('English'); // onboarding email localized
+    expect(p).not.toContain('Vietnam'); // no hardcoded Vietnamese
     expect(p).toMatch(/STRICT JSON/i);
   });
   it('closerSales builds a reply-interpretation prompt fenced with the legal next stages + reply text', () => {
@@ -35,6 +37,7 @@ describe('agent def buildPrompt builders', () => {
       deal: { client: 'Nova Realty', industry: 'real estate', city: 'Miami', pkg: 'Premium', value: 6400, stage: 'quoted' },
       legalNextStages: ['won', 'approval', 'lost'],
       text: 'We want to proceed but need a call first.',
+      language: 'English',
     });
     expect(p).toContain('Nova Realty');
     expect(p).toContain('quoted');

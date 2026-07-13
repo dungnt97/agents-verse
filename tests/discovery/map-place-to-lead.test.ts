@@ -178,6 +178,43 @@ describe('mapPlaceToLead', () => {
       expect(result.url).toBe('(no site yet)');
       expect(result.websiteUri).toBeNull();
     });
+
+    // The auto-hunter pipelines social-only and dead-site leads as "no real website" — so `url` (the audit's
+    // greenfield signal) must be the placeholder, while `websiteUri` keeps the raw value for display/dedup.
+    it('treats a social-only link as greenfield url but keeps the raw websiteUri', () => {
+      const result = mapPlaceToLead({
+        place: makePlace(),
+        enrichment: makeEnrichment({ websiteUri: 'https://facebook.com/acmeplumbing' }),
+        assessment: makeAssessment({ reachable: true }),
+        email: null,
+        industry: 'Plumbing',
+      });
+      expect(result.url).toBe('(no site yet)');
+      expect(result.websiteUri).toBe('https://facebook.com/acmeplumbing');
+    });
+
+    it('treats an assessed-unreachable site as greenfield url but keeps the raw websiteUri', () => {
+      const result = mapPlaceToLead({
+        place: makePlace(),
+        enrichment: makeEnrichment({ websiteUri: 'https://dead-site.example' }),
+        assessment: makeAssessment({ reachable: false }),
+        email: null,
+        industry: 'Plumbing',
+      });
+      expect(result.url).toBe('(no site yet)');
+      expect(result.websiteUri).toBe('https://dead-site.example');
+    });
+
+    it('keeps a present, non-social site that was not assessed (does not force greenfield)', () => {
+      const result = mapPlaceToLead({
+        place: makePlace(),
+        enrichment: makeEnrichment({ websiteUri: 'https://real-site.example' }),
+        assessment: null,
+        email: null,
+        industry: 'Plumbing',
+      });
+      expect(result.url).toBe('https://real-site.example');
+    });
   });
 
   describe('company fallback', () => {

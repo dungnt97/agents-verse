@@ -1,4 +1,5 @@
 import { leads } from '../db/schema';
+import { isSocialOrDirectory } from './website-presence';
 import type { DiscoveredPlace, PlaceEnrichment } from './places-client';
 import type { SiteAssessment } from './bad-website-heuristic';
 
@@ -26,12 +27,21 @@ export function mapPlaceToLead(args: {
   const parts = place.formattedAddress.split(',').map((s) => s.trim());
   const city = parts.length >= 3 ? parts[parts.length - 3] : place.formattedAddress;
 
+  // The audit gate (run-audit) keys greenfield-vs-real off `url`, so it must NOT carry a URL the audit would
+  // treat as a real site when discovery classified the lead as no-real-website. A lead is greenfield when we
+  // are CONFIDENT there is no real site: no website at all, a social/directory link, or a site we assessed
+  // and found unreachable. A present, non-social site that simply wasn't assessed keeps its URL (we don't
+  // build a "first website" for a business that has one we just didn't check). This mirrors the auto-hunter's
+  // hasRealWebsite eligibility gate, which — for enriched leads (always assessed) — makes the two agree.
+  const greenfield =
+    !enrichment.websiteUri || isSocialOrDirectory(enrichment.websiteUri) || assessment?.reachable === false;
+
   return {
     id: 'place-' + place.id,
     company: place.displayName || '(unknown)',
     industry,
     city: city || '—',
-    url: enrichment.websiteUri ?? '(no site yet)',
+    url: greenfield || !enrichment.websiteUri ? '(no site yet)' : enrichment.websiteUri,
     site: assessment?.score ?? 0,
     score: assessment?.score ?? 0,
     value: qualified?.value ?? 0,
