@@ -216,11 +216,14 @@ describe('mapAuditResult — redesign direction', () => {
     expect(redesign.sections.length).toBeGreaterThan(0);
   });
 
-  it('falls back to the Healthcare redesign for an unknown industry', () => {
+  it('falls back to the neutral local-service redesign for an unknown industry', () => {
     const lead = makeLead({ industry: 'NonexistentIndustry' });
-    const healthcareDerived = buildAuditFor(makeLead({ industry: 'Healthcare' }));
+    const derived = buildAuditFor(lead);
     const { redesign } = mapAuditResult({ lead, psi: makePsi(), vision: makeVision() });
-    expect(redesign).toEqual(healthcareDerived.redesign);
+    expect(redesign).toEqual(derived.redesign);
+    // A generic local business, not the clinical/patient default.
+    expect(redesign.cta).toBe('Get in touch');
+    expect(redesign.template).toBe('Local business demo template');
   });
 
   it('returns a fully-shaped Redesign object', () => {

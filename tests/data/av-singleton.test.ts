@@ -228,11 +228,11 @@ describe('AV.audit / buildAuditFor', () => {
     expect(res.id).toBe('atlas-d'); // leads[0]
   });
 
-  it('synthesizes scores + Healthcare redesign for an unmapped lead/industry', () => {
+  it('synthesizes scores + a neutral local-service redesign for an unmapped industry', () => {
     const lead: Lead = {
       id: 'synthetic',
       company: 'Synthetic Co',
-      industry: 'Aerospace', // not in REDESIGN → Healthcare fallback
+      industry: 'Aerospace', // no niche brief → neutral local-service default, NOT the clinical/patient one
       city: 'Nowhere',
       url: 'synthetic.example.com',
       site: 50,
@@ -246,7 +246,8 @@ describe('AV.audit / buildAuditFor', () => {
     // Derived scores from site when no profile exists.
     expect(res.scores.visual).toBe(44); // site - 6
     expect(res.scores.speed).toBe(64); // site + 14
-    expect(res.redesign.template).toBe('Clinic demo template'); // Healthcare fallback
+    expect(res.redesign.template).toBe('Local business demo template'); // neutral default
+    expect(res.redesign.cta).toBe('Get in touch'); // not a patient-booking CTA
     // confidence = min(97, 70 + round((90-50)/2)) = min(97, 90) = 90.
     expect(res.confidence).toBe(90);
     expect(res.summary).toContain("Synthetic Co's");
@@ -302,7 +303,7 @@ describe('AV.demos / AV.demoByLead', () => {
     expect(d.outreach.subject).toContain('Lumi Spa Studio');
   });
 
-  it('applies the nova-r agent branch and Healthcare changes fallback', () => {
+  it('applies the nova-r agent branch and derives niche changes', () => {
     const d = AV.demoByLead('nova-r')!;
     expect(d.agents).toEqual(['atlas', 'nova']);
     expect(d.changes.length).toBeGreaterThan(0);

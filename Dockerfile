@@ -5,6 +5,12 @@
 # --- build stage: install all deps + produce the production build ---
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
+# ws's native accelerators (bufferutil/utf-8-validate — pulled in via telegram/baileys) are compiled by
+# node-gyp during `npm ci`, which needs a C toolchain + python3 the slim base doesn't ship (fails with
+# "Could not find any Python installation"). Install them first so the web image builds reproducibly.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends build-essential python3 \
+  && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .

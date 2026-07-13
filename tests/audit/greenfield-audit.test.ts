@@ -12,10 +12,9 @@ describe('greenfieldAudit', () => {
     expect(Object.keys(a.scores).sort()).toEqual(['content', 'conversion', 'cta', 'mobile', 'seo', 'speed', 'trust', 'visual']);
   });
 
-  it('produces a "first-website" redesign brief with the required sections + a booking CTA', () => {
+  it('always marks the brief as a first website with sections + a CTA', () => {
     expect(a.redesign.template).toBe('first-website');
-    expect(a.redesign.sections).toContain('hero');
-    expect(a.redesign.sections).toContain('book');
+    expect(a.redesign.sections.length).toBeGreaterThan(0);
     expect(a.redesign.cta.length).toBeGreaterThan(0);
   });
 
@@ -24,5 +23,19 @@ describe('greenfieldAudit', () => {
     expect(a.summary).toContain('acupuncture');
     expect(a.problems.length).toBeGreaterThan(0);
     expect(a.confidence).toBeGreaterThan(0);
+  });
+
+  it('fits the brief to the niche — a booking vertical books, a trade quotes', () => {
+    const dental = greenfieldAudit({ company: 'Bright Smiles', industry: 'dental clinics' });
+    expect(dental.redesign.cta).toBe('Book an appointment');
+    expect(dental.redesign.template).toBe('first-website'); // greenfield marker survives the niche brief
+    expect(dental.summary).toContain('Book an appointment');
+
+    const plumber = greenfieldAudit({ company: 'RapidFlow Plumbing', industry: 'plumbers' });
+    expect(plumber.redesign.cta).toBe('Get a free estimate'); // NOT the healthcare booking default
+    expect(plumber.redesign.sections.join(' ')).toMatch(/estimate/i);
+    // The summary interpolates brief.cta — pin it on a NON-booking niche so a regression that re-hardcodes
+    // the booking phrase into the summary (which the dental case can't catch) is caught here.
+    expect(plumber.summary).toContain('Get a free estimate');
   });
 });
