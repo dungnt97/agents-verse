@@ -18,6 +18,27 @@ export async function getLeads(): Promise<Lead[]> {
   return db.select().from(leadsTable);
 }
 
+// Minimal, PUBLIC-SAFE lead context for the /inquire page (a prospect who received the demo visits it).
+// Returns only the business's own facts — never internal fields (value/score/etc.). Null when unknown.
+export interface LeadPublicContext {
+  company: string;
+  industry: string;
+  city: string;
+  formattedAddress: string | null;
+}
+export async function getLeadPublicContext(leadId: string): Promise<LeadPublicContext | null> {
+  if (!USE_DB) {
+    const l = AV.leads.find((x) => x.id === leadId);
+    return l ? { company: l.company, industry: l.industry, city: l.city, formattedAddress: null } : null;
+  }
+  const [l] = await db
+    .select({ company: leadsTable.company, industry: leadsTable.industry, city: leadsTable.city, formattedAddress: leadsTable.formattedAddress })
+    .from(leadsTable)
+    .where(eq(leadsTable.id, leadId))
+    .limit(1);
+  return l ?? null;
+}
+
 export async function auditedLeads(): Promise<Lead[]> {
   if (!USE_DB) return AV.auditedLeads();
   return db

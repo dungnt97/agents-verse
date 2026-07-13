@@ -74,6 +74,11 @@ export const demoRequests = pgTable('demo_requests', {
   name: text('name').notNull(),
   email: text('email').notNull(),
   message: text('message').notNull(),
+  // Set when this row is a demo INQUIRY — an existing lead responding to the demo we sent them (via the
+  // /inquire page), rather than a brand-new inbound request. Lets the founder see it is a known lead and
+  // avoid creating a duplicate on convert. NULL for ordinary marketing-form requests. ON DELETE SET NULL so
+  // deleting the lead keeps the inquiry record.
+  leadId: text('lead_id').references(() => leads.id, { onDelete: 'set null' }),
   // Relative time label kept for UI fidelity ('12m ago'); createdAt is the real clock.
   t: text('t').notNull(),
   status: reqStatusEnum('status').notNull(),
