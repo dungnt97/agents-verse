@@ -37,13 +37,34 @@ const controlStyle: React.CSSProperties = {
 // Title-case a lowercase niche for display while keeping the raw value for the search query.
 const label = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 
+// Vietnamese display labels for the niches (the VALUE stays the English MARKET_NICHES string — it is the
+// actual Google-Maps search term for the English market — only the label shown in VI mode is translated).
+// City names are proper nouns and stay English.
+const NICHE_VI: Record<string, string> = {
+  'nail salons': 'Tiệm nail',
+  'dental clinics': 'Phòng khám nha khoa',
+  'med spas': 'Med spa / thẩm mỹ viện',
+  'hair salons': 'Salon tóc',
+  chiropractors: 'Nắn chỉnh cột sống',
+  'law firms': 'Văn phòng luật',
+  'hvac contractors': 'Nhà thầu điện lạnh (HVAC)',
+  plumbers: 'Thợ sửa ống nước',
+  roofers: 'Thợ lợp mái',
+  'real estate agents': 'Môi giới bất động sản',
+  dentists: 'Nha sĩ',
+  physiotherapists: 'Vật lý trị liệu',
+  'veterinary clinics': 'Phòng khám thú y',
+  gyms: 'Phòng gym',
+};
+const nicheLabel = (n: string, lang: string) => (lang === 'vi' ? NICHE_VI[n] ?? label(n) : label(n));
+
 export function DiscoveryTrigger() {
   const [industry, setIndustry] = useState(MARKET_NICHES[0]);
   const [city, setCity] = useState(MARKET_CATALOG[0].metros[0]);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const toast = useToast();
-  const { t } = usePipelineAuditT();
+  const { t, lang } = usePipelineAuditT();
 
   const run = () => {
     startTransition(async () => {
@@ -68,7 +89,7 @@ export function DiscoveryTrigger() {
         <div className="row wrap" style={{ gap: 8 }}>
           <select value={industry} onChange={(e) => setIndustry(e.target.value)} aria-label={t('discovery.industry')} style={{ ...controlStyle, width: 168 }}>
             {MARKET_NICHES.map((n) => (
-              <option key={n} value={n}>{label(n)}</option>
+              <option key={n} value={n}>{nicheLabel(n, lang)}</option>
             ))}
           </select>
           <select value={city} onChange={(e) => setCity(e.target.value)} aria-label={t('discovery.city')} style={{ ...controlStyle, width: 190 }}>
