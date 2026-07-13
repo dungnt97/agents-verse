@@ -34,5 +34,8 @@ describe('greenfieldAudit', () => {
     const plumber = greenfieldAudit({ company: 'RapidFlow Plumbing', industry: 'plumbers' });
     expect(plumber.redesign.cta).toBe('Get a free estimate'); // NOT the healthcare booking default
     expect(plumber.redesign.sections.join(' ')).toMatch(/estimate/i);
+    // The summary interpolates brief.cta — pin it on a NON-booking niche so a regression that re-hardcodes
+    // the booking phrase into the summary (which the dental case can't catch) is caught here.
+    expect(plumber.summary).toContain('Get a free estimate');
   });
 });

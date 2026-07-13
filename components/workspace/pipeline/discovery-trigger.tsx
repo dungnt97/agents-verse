@@ -56,7 +56,11 @@ const NICHE_VI: Record<string, string> = {
   'veterinary clinics': 'Phòng khám thú y',
   gyms: 'Phòng gym',
 };
-const nicheLabel = (n: string, lang: string) => (lang === 'vi' ? NICHE_VI[n] ?? label(n) : label(n));
+// EN display overrides where naive title-casing degrades an acronym ("Hvac Contractors" → "HVAC Contractors").
+const NICHE_EN: Record<string, string> = {
+  'hvac contractors': 'HVAC Contractors',
+};
+const nicheLabel = (n: string, lang: string) => (lang === 'vi' ? NICHE_VI[n] ?? label(n) : NICHE_EN[n] ?? label(n));
 
 export function DiscoveryTrigger() {
   const [industry, setIndustry] = useState(MARKET_NICHES[0]);

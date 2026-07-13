@@ -33,7 +33,9 @@ describe('nicheBrief', () => {
     expect(nicheBrief('law firms').cta).toBe('Request a consultation');
     expect(nicheBrief('real estate agents').cta).toBe('Get a home valuation');
     expect(nicheBrief('gyms').cta).toBe('Start a free trial');
-    // Appointment verticals legitimately book.
+    // Appointment verticals legitimately book — but a med spa consults, not books, so pin its distinct CTA
+    // (the loop above only checks non-emptiness, so a silent regression to 'Book an appointment' would pass).
+    expect(nicheBrief('med spas').cta).toBe('Book a consultation');
     expect(nicheBrief('dental clinics').cta).toBe('Book an appointment');
     expect(nicheBrief('nail salons').cta).toBe('Book an appointment');
   });
