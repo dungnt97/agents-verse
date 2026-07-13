@@ -7,22 +7,9 @@ import { captureScreenshots } from '../../audit/screenshot';
 import { scoreScreenshots } from '../../audit/vision-scoring';
 import { mapAuditResult } from '../../audit/map-audit-result';
 import { greenfieldAudit } from '../../audit/greenfield-audit';
-import { assertPublicUrl } from '../../discovery/safe-fetch';
+import { safeFetch } from '../../discovery/safe-fetch';
+import { hasAuditableWebsite } from '../../discovery/website-presence';
 import { recordActivity } from '../activity-log';
-
-// Does this lead have a real, fetchable website? A bare domain ("acme.com", no scheme) counts as a real
-// site; the "(no site yet)" placeholder, an empty value, and anything unparseable count as no site. Using
-// a scheme test here (`/^https?:/`) would mis-classify every bare-domain lead as greenfield and skip the
-// real audit — the audit gate must key on "is there a site", not "is the URL fully-qualified".
-function hasWebsite(u: string | null | undefined): boolean {
-  if (!u || !u.trim()) return false;
-  try {
-    const p = new URL(u.includes('://') ? u : `https://${u}`);
-    return (p.protocol === 'http:' || p.protocol === 'https:') && p.hostname.includes('.');
-  } catch {
-    return false;
-  }
-}
 
 // Durable audit pipeline (runs in the WORKER only). Relative imports + no `server-only` — this
 // chain executes under tsx. Steps are memoized so a retry resumes after the last completed step.
@@ -72,7 +59,7 @@ export const runAudit = inngest.createFunction(
       // GREENFIELD lead (the auto-hunter's target: contactable but NO website) — there is nothing to audit.
       // Save a "build a first site" brief and hand off to demo-gen (which designs from the real venue photos
       // + niche), skipping the URL-based performance + screenshot + vision passes entirely.
-      if (!hasWebsite(lead.url)) {
+      if (!hasAuditableWebsite(lead.url)) {
         const mapped = greenfieldAudit(lead);
         await step.run('save-greenfield', async () => {
           await db
@@ -104,18 +91,23 @@ export const runAudit = inngest.createFunction(
         return { leadId, status: 'done' as const };
       }
 
-      // SSRF guard: the lead URL comes from Google Places (attacker-influenceable) and both the Lighthouse
-      // engine and the screenshot capture navigate to it from INSIDE the Docker network. Validate once,
-      // before any navigation, and reject an internal/private target (a throw lands in the catch below →
-      // mark-failed, the correct outcome). Normalises a bare domain to an absolute https:// URL too.
-      const safeUrl = assertPublicUrl(lead.url).toString();
-
       // Fail fast on a keyless deploy: the vision pass hard-requires GEMINI_API_KEY (inventing neutral
       // scores would fabricate the pipeline's sort key), so throw before burning a Chromium capture rather
       // than after. The greenfield branch above returns first, so keyless greenfield audits still work.
       if (!process.env.GEMINI_API_KEY) {
         throw new Error('GEMINI_API_KEY is required to audit a lead that has a website');
       }
+
+      // SSRF guard: the lead URL comes from discovery (attacker-influenceable) and both the Lighthouse engine
+      // and the screenshot capture navigate to it from INSIDE the Docker network. Resolve + validate the FULL
+      // redirect chain up front (safeFetch re-checks every hop) and navigate only to the settled public URL —
+      // so the perf engine, which unlike the screenshot page has no per-request guard, can't be 3xx-walked to
+      // an internal host. A throw (blocked host / too many redirects) lands in the catch → mark-failed.
+      const safeUrl = await step.run('resolve-url', async () => {
+        const { res, finalUrl } = await safeFetch(lead.url, { timeoutMs: 15000 });
+        await res.body?.cancel().catch(() => {}); // validation only — don't download the body
+        return finalUrl;
+      });
 
       // Performance audit (PageSpeed hosted, or self-hosted Lighthouse) → small JSON, its own memoized step.
       const psi = await step.run('pagespeed', () => runPerformanceAudit(safeUrl));

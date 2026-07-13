@@ -36,3 +36,19 @@ export function hasRealWebsite(websiteUri: string | null | undefined, reachable:
   if (isSocialOrDirectory(websiteUri)) return false;
   return reachable;
 }
+
+// Purely SYNTACTIC "is this a fetchable website URL?" — used by the audit to choose the real-audit path vs
+// the greenfield ("first website") brief. A bare domain ("acme.com") counts; the "(no site yet)" placeholder,
+// empty/whitespace, a dotless host, and anything unparseable do not. Distinct from hasRealWebsite: this asks
+// "is there a URL to audit at all", NOT "is it a genuine, reachable, non-social site" (map-place-to-lead has
+// already applied that richer test when it set the lead's url). Keying on URL SHAPE, not a scheme test, so a
+// bare-domain lead isn't mis-filed as greenfield.
+export function hasAuditableWebsite(url: string | null | undefined): boolean {
+  if (!url || !url.trim()) return false;
+  try {
+    const p = new URL(url.includes('://') ? url : `https://${url}`);
+    return (p.protocol === 'http:' || p.protocol === 'https:') && p.hostname.includes('.');
+  } catch {
+    return false;
+  }
+}

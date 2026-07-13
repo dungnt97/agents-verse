@@ -4,6 +4,8 @@ import { db } from '../../db/client';
 import { deals, settings, escalations, leads } from '../../db/schema';
 import { runAgent } from '../../agents/runner';
 import { closerSales } from '../../agents/defs/closer-sales';
+import { demoLanguageForAddress } from '../../demo-gen/locale';
+import { isOptOut } from '../../data/opt-out';
 import {
   decideReplyOutcome,
   nextStages,
@@ -13,12 +15,6 @@ import {
   type AutonomyMode,
 } from '../../data/deal-stage-machine';
 
-// A strict opt-out: only an unambiguous keyword message counts as "STOP", so a normal reply that merely
-// mentions the word ("please don't stop emailing me") is never misread as an opt-out.
-const OPT_OUT_KEYWORDS = new Set(['stop', 'stop all', 'unsubscribe', 'unsub', 'opt out', 'opt-out', 'remove me']);
-function isOptOut(text: string): boolean {
-  return OPT_OUT_KEYWORDS.has(text.trim().toLowerCase().replace(/[.!]+$/, ''));
-}
 // Package label for a deal the Closer materializes from a first reply — the founder renames it in the deal.
 const NEW_DEAL_PKG = 'Business Website';
 const posNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
@@ -104,6 +100,12 @@ export const handleReply = inngest.createFunction(
 
       const [deal] = await db.select().from(deals).where(eq(deals.id, dealId)).limit(1);
       if (deal) {
+        // The deal row doesn't store the address; read the lead so the Closer replies in the client's language.
+        const [lead] = await db
+          .select({ formattedAddress: leads.formattedAddress })
+          .from(leads)
+          .where(eq(leads.id, deal.leadId))
+          .limit(1);
         return {
           create: false as const,
           leadId: deal.leadId,
@@ -113,6 +115,7 @@ export const handleReply = inngest.createFunction(
           pkg: deal.pkg,
           value: deal.value,
           stage: deal.stage as DealStage,
+          language: demoLanguageForAddress(lead?.formattedAddress),
           autonomyMode,
           threshold,
         };
@@ -131,6 +134,7 @@ export const handleReply = inngest.createFunction(
         value: lead.value,
         price,
         stage: 'created' as DealStage,
+        language: demoLanguageForAddress(lead.formattedAddress),
         autonomyMode,
         threshold,
       };
@@ -155,6 +159,7 @@ export const handleReply = inngest.createFunction(
         },
         legalNextStages,
         text,
+        language: loaded.language,
       }),
     );
 

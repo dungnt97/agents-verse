@@ -4,6 +4,7 @@ import { leads, deals } from '@/lib/db/schema';
 import { inngest } from '@/lib/inngest/client';
 import { USE_DB } from '@/lib/repositories/config';
 import { verifyWhatsAppSignature, parseWhatsAppInbound } from '@/lib/integrations/whatsapp-inbound';
+import { inboundRateLimited } from '@/lib/integrations/inbound-rate-limit';
 
 // WhatsApp Cloud API webhook. GET = Meta's one-time verification handshake. POST = an inbound message →
 // emits `reply/received` so the Closer interprets it (mirrors the Resend inbound route). Security: POST
@@ -61,6 +62,9 @@ export async function POST(req: Request): Promise<Response> {
     .where(sql`regexp_replace(coalesce(${leads.phone}, ''), '[^0-9]', '', 'g') = ${parsed.from}`)
     .limit(1);
   if (!lead) return new Response('ignored (no matching lead)', { status: 200 });
+  // Sender phone is only transport-verified (HMAC), not authenticated — cap inbound per lead so a spoofer
+  // can't burn Closer spend or grief a lead into do-not-contact. 200 so Meta doesn't retry the dropped one.
+  if (inboundRateLimited(lead.id, Date.now())) return new Response('rate-limited', { status: 200 });
   // First inbound message from a known lead with no deal → the Closer creates the deal (handle-reply).
   // Deterministic dealId so the emit is idempotent and per-deal serialization holds before the row exists.
   const [deal] = await db.select().from(deals).where(sql`${deals.leadId} = ${lead.id}`).limit(1);

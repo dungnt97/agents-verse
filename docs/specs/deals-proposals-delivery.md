@@ -78,10 +78,12 @@ Their durability contract is an `onFailure` escalation, not a fact.
 
 ### 1. Reply → deal move (`handleReply`, worker)
 
-**Opt-out short-circuit (before any deal work).** An unambiguous opt-out reply (`stop`, `unsubscribe`, `opt out`, … —
-an exact keyword match, so "please don't stop emailing me" is never misread) sets `leads.doNotContact` and resolves any
-parked `esc-outreach-<leadId>` draft, then returns — the lead can never be re-contacted (the suppression side lives in
-[outreach-inbound.md](./outreach-inbound.md)). It needs the `leadId` the inbound webhooks always carry.
+**Opt-out short-circuit (before any deal work).** An opt-out reply — matched by the pure, tested `isOptOut`
+(`lib/data/opt-out.ts`): the exact `stop`/`unsubscribe`/`opt out` keywords, `stop`/`unsubscribe` prefixes, and natural
+phrasings anywhere (`stop emailing`, `remove me from`, `do not contact`, …), all behind a negation guard so
+"please don't stop emailing me" / "keep emailing" never opt out (biased to precision) — sets `leads.doNotContact` and
+resolves any parked `esc-outreach-<leadId>` draft, then returns — the lead can never be re-contacted (the suppression
+side lives in [outreach-inbound.md](./outreach-inbound.md)). It needs the `leadId` the inbound webhooks always carry.
 
 1. `load-deal` (memoized step): reads the deal + `settings` (`autonomyMode`, `guardrails.autoApproveLimit`) so the decision is stable across an Inngest replay. **No deal row ⇒ the lead's first reply**: it reads the lead instead and prepares a `create` at stage `created` (`price` off the settings ladder — the create-on-first-reply path in the banner above).
 2. Terminal guard: `isTerminalStage(deal.stage)` → skip. A late/duplicate reply on a `won`/`lost` deal must never re-open it.
@@ -111,7 +113,7 @@ committed close (reject emits nothing). This is the deliberate exception to C6's
 `buildProposal` is pure; its consumers:
 
 - **In-app print page** — `app/(workspace)/deals/[id]/proposal/page.tsx` (Server Component) → `components/workspace/deals/proposal-document.tsx`. The founder prints to PDF from the browser. Deliberately English-only (no `t()`): it is a client-facing document.
-- **Worker PDF email** — `sendProposal`: `buildProposal` → `buildProposalHtml` (standalone HTML, concrete colours, **no app CSS vars**) → `renderHtmlToPdf` (Playwright, `lib/demo-gen/render.ts`) → read the file → return **base64** from the step → `sendEmail` with a base64 attachment, `supportEmailHtml` (transactional: **no unsubscribe**), `idempotencyKey: proposal:<dealId>`. The `/tmp` html+pdf are unlinked inside the same step.
+- **Worker PDF email** — `sendProposal`: `buildProposal` → `buildProposalHtml` (standalone HTML, concrete colours, **no app CSS vars**) → `renderHtmlToPdf` (Playwright, `lib/demo-gen/render.ts`) → read the file → return **base64** from the step → `sendEmail` with a base64 attachment, `supportEmailHtml` (transactional: **no unsubscribe**), `idempotencyKey: proposal:<dealId>`. The `/tmp` html+pdf are unlinked inside the same step. The email cover + subject come from `proposalCover(client, pkg, demoLanguageForAddress(lead.formattedAddress))` — the client's market language, English by default (Vietnamese only for a VN address). The rendered PDF is English regardless (see the trap below).
 
 **The price ladder, and the reason this file exists:** `deal.price ?? pricing.businessWebsite ?? deal.value ?? 0`, each
 rung filtered by `pos()` (finite **and** > 0). Monthly care appears only when `pricing.monthlyGrowthCare` is positive —
@@ -134,7 +136,7 @@ a sitemap with an empty `<loc>`, and a `robots.txt` with no `Sitemap:` line.
 `app/demo/[leadId]/route.ts` prefers `getBuild(leadId)` when `status === 'ready'` and falls back to the raw generated
 demo — that is the entire user-visible payoff of a build.
 
-**`runSupport` (Mira).** Drafts a Vietnamese asset-request email; `autonomyMode === 'full'` sends it, every other mode
+**`runSupport` (Mira).** Drafts an asset-request email in the client's market language (`demoLanguageForAddress`); `autonomyMode === 'full'` sends it, every other mode
 parks `esc-support-<leadId>` for founder approval (`support/approved` → send + resolve). Transactional email
 (`supportEmailHtml`, `idempotencyKey: support:<leadId>`).
 
@@ -208,7 +210,7 @@ always ship.
 - **`sendProposal` casts the drizzle row: `buildProposal(deal as unknown as Deal, pricing)`.** The `deals` row shape and `lib/data/types`'s `Deal` are kept compatible by hand; a divergence compiles and fails at runtime.
 - **The per-agent cost overlay for `cipher` counts `generated_demos` rows, not builds** (it is in `DEMO_TASK`), while `AGENT_UNIT_RATE`'s comment calls it "per delivery build". The rate comment also says opus, but `cipherCoder.model` is `sonnet`. The numbers are estimates — do not "fix" one without fixing the story.
 - **`price` and `value` are different columns.** `value` drives the approval threshold, the forecast, and escalation severity; `price` is the negotiated quote — read by the proposal (`buildProposal`) and displayed by the deals screen (`fmt.money(d.price)`), nothing else. A deal with `price: 0` silently falls back to list price.
-- **Mira's onboarding email and the proposal cover letter are hardcoded Vietnamese**, while Echo writes in the lead's market language. An English-market client gets an English cold email and a Vietnamese onboarding email.
+- **The proposal PDF and the in-app print page stay English even when the cover email does not.** The post-sale funnel now localizes to the client's market language — the Closer's `suggested` reply, Mira's onboarding email, and `sendProposal`'s email cover + subject all follow `demoLanguageForAddress`, matching Echo's cold outreach. Only the rendered proposal document (`buildProposalHtml` / `proposal-document.tsx`) is English by design, so a VN-market client gets a Vietnamese cover email with an English PDF attachment.
 - **These functions are not pipeline-tracked**, so the "always emit your fact" rule does not apply — but there is also no sweeper. A terminally-failed deal-side function is visible **only** through its `onFailure` escalation. If you add a function here, add the `onFailure` escalation.
 
 **Corrections to older docs (all deleted now, but the claims circulate):** the chat widget is **not** rule-based —

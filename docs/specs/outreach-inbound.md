@@ -18,6 +18,7 @@
 | WhatsApp personal (Baileys) | `lib/integrations/whatsapp-personal.ts`, `scripts/whatsapp-personal-login.ts` |
 | Send/gate worker | `lib/inngest/functions/run-outreach.ts` |
 | Inbound parse + verify | `lib/integrations/{resend-inbound,whatsapp-inbound,telegram-inbound}.ts` |
+| Inbound abuse cap | `lib/integrations/inbound-rate-limit.ts` |
 | Inbound routes | `app/api/{inbound,whatsapp,telegram}/route.ts` |
 | Dead server actions | `lib/actions/{send-outreach,ingest-reply}.ts` (see **Traps**) |
 
@@ -73,9 +74,12 @@ messages the bot. It **never emits `reply/received`**.
   burner number.**
 - **Both personal channels carry a good-faith keyword opt-out, not CAN-SPAM machinery** (`plainOutreachText` = Echo's
   body + the demo URL + a `Reply STOP to opt out.` line — the two channels have no `List-Unsubscribe` header, so the
-  keyword is the whole opt-out). An inbound `STOP` is then honored end-to-end: the Closer sets the lead's `doNotContact`
-  flag (and clears the parked outreach draft), and `loadSendable` refuses that lead forever after — see **Outbound** and
-  `./deals-proposals-delivery.md`. **Only the email path carries CAN-SPAM machinery.** If you add a compliance
+  keyword is the whole opt-out). An inbound opt-out is then honored end-to-end: the Closer matches it with the pure,
+  tested `isOptOut` (`lib/data/opt-out.ts` — not just a bare `STOP` but broadened to natural phrasings like `take me
+  off your list` / `stop emailing me`, with a **negation guard** so `please don't stop` / `keep emailing` never opt out;
+  biased to precision because a false positive wrongly loses a lead), then sets the lead's `doNotContact` flag **and**
+  resolves any open parked outreach escalation (`esc-outreach-<leadId>`), so `loadSendable` refuses that lead forever
+  after and no stale draft can be approved into a send — see **Outbound** and `./deals-proposals-delivery.md`. **Only the email path carries CAN-SPAM machinery.** If you add a compliance
   requirement, it lands in `plainOutreachText` — there is nowhere else.
 
 ### Outbound email contract (`sendEmail`)
@@ -107,7 +111,8 @@ messages the bot. It **never emits `reply/received`**.
 `BETTER_AUTH_URL`) · `WHATSAPP_PHONE_NUMBER_ID` `WHATSAPP_ACCESS_TOKEN` `WHATSAPP_TEMPLATE_NAME`
 `WHATSAPP_TEMPLATE_LANG` `WHATSAPP_VERIFY_TOKEN` `WHATSAPP_APP_SECRET` · `TELEGRAM_BOT_TOKEN` `TELEGRAM_CHAT_ID`
 `TELEGRAM_WEBHOOK_SECRET` · `TELEGRAM_API_ID` `TELEGRAM_API_HASH` `TELEGRAM_USER_SESSION` ·
-`WHATSAPP_PERSONAL_AUTH_DIR` · `RESEND_INBOUND_SECRET` · `CLAUDE_AGENT_CONCURRENCY`.
+`WHATSAPP_PERSONAL_AUTH_DIR` · `RESEND_INBOUND_SECRET` · `INBOUND_PER_LEAD_MAX` `INBOUND_GLOBAL_MAX` ·
+`CLAUDE_AGENT_CONCURRENCY`.
 
 ## How it works
 
@@ -167,9 +172,15 @@ Shared shape (copy it for any new inbound channel):
    a deterministic `deal-<leadId>`; the Closer (`handle-reply`) then materializes the deal from it (see
    `./deals-proposals-delivery.md`). So there IS an inbound path to a deal for a discovered lead — the
    reply→deal→delivery half of the funnel is reachable.
-6. **Only an unknown sender (no matching lead) → 200 `ignored`, never 5xx** — a 5xx makes the provider retry forever. A
-   *known* lead is always emitted for, deal or not.
-7. `inngest.send({ name:'reply/received', id: \`reply/received:<dealId>:<providerMsgId>\` })` — `svix-id` / `wamid`
+6. **Abuse cap — `inboundRateLimited(lead.id)` (`lib/integrations/inbound-rate-limit.ts`), AFTER the lead match and
+   BEFORE the emit.** A per-lead **and** a global sliding-window counter; over *either* → 200 `rate-limited` with **no
+   emit**. The signature only proves Resend/Meta *forwarded* the message, not that the sender is genuine — the From
+   address / wa_id is spoofable by anyone who knows a lead's contact — so an unchecked spoofer could burn paid Closer
+   calls or grief a lead into `doNotContact` on repeat. 200 (not 5xx) so the provider does **not** retry the dropped
+   message. In-memory on the single VPS, resets on restart — best-effort, mirroring the `/api/chat` guard.
+7. **Only an unknown sender (no matching lead) → 200 `ignored`, never 5xx** — a 5xx makes the provider retry forever. A
+   *known* lead under the cap is always emitted for, deal or not.
+8. `inngest.send({ name:'reply/received', id: \`reply/received:<dealId>:<providerMsgId>\` })` — `svix-id` / `wamid`
    makes at-least-once delivery idempotent.
 
 `parseInboundEmail` **rejects any payload whose `type` is not received/inbound** — Resend posts `email.sent` /
@@ -285,6 +296,10 @@ Rationale + what-breaks live in `../invariants.md` — do not restate them here.
   `List-Unsubscribe` headers appear **only** when `unsubscribe` is passed.
 - `tests/integrations/{resend-inbound,whatsapp-inbound}.test.ts` — signature verification (good, tampered, wrong secret,
   rotated keys, missing headers) and parsing (incl. the non-inbound-type rejection and status-only events).
+- `tests/integrations/inbound-rate-limit.test.ts` — the per-lead cap (allow up to the cap, then drop within the
+  window), window recovery after it elapses, and independent per-lead keys (a noisy lead does not block a quiet one).
+- `tests/data/opt-out.test.ts` — `isOptOut`: bare/short keywords, natural phrasings (`take me off your list`, `stop emailing
+  me`), and the negation guard (`please don't stop`, `keep emailing`, plus unrelated replies → never opt out).
 - `tests/integrations/{whatsapp,telegram,telegram-inbound,personal-adapters}.test.ts` — `toE164Digits`, the send
   wrappers, and that the personal adapters degrade without importing their SDK when unconfigured.
 

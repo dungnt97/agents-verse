@@ -159,6 +159,8 @@ All of these live in `.env.local`.
 | `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` / `TELEGRAM_USER_SESSION` | `lib/integrations/telegram-user.ts` (`telegramUserConfigured`); the session is produced by `scripts/telegram-user-login.ts` | none | the `telegram-user` channel reports unconfigured |
 | `WHATSAPP_PERSONAL_AUTH_DIR` | `lib/integrations/whatsapp-personal.ts` (`whatsappPersonalConfigured`); `scripts/whatsapp-personal-login.ts` | none (login script: `./.wa-personal`) | the `whatsapp-personal` channel reports unconfigured. Configured means the dir exists **and** contains `creds.json`. |
 | `RESEND_INBOUND_SECRET` | `app/api/inbound/route.ts` (`POST`) | none | inbound email route returns **503** (disabled); replies stay founder-paste |
+| `INBOUND_PER_LEAD_MAX` | `lib/integrations/inbound-rate-limit.ts` (`perLead`); enforced by **both** webhooks (`app/api/inbound`, `app/api/whatsapp`) | `5` | at most 5 inbound replies **per lead** per 10-min window reach the Closer / STOP path; over-cap the webhook returns **200** with no emit (a 200, not 5xx, so the provider does not retry). In-memory, single VPS (resets on restart). Because the read is `Number(x) \|\| 5`, an empty value or `0` also yields 5 — the cap can't be disabled. |
+| `INBOUND_GLOBAL_MAX` | `lib/integrations/inbound-rate-limit.ts` (`globalCap`); same two webhooks | `60` | same, but the account-wide ceiling across all leads per 10-min window; empty/`0` ⇒ 60 (`Number(x) \|\| 60`). |
 
 **Nothing blocks a real send locally.** `docker-compose.override.yml` only flips Inngest to dev mode; a
 live `RESEND_API_KEY` + `OUTREACH_FROM` in `.env.local` will mail real leads from your laptop.

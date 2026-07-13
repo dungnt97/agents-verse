@@ -6,9 +6,25 @@ import { renderHtmlToPdf } from '../../demo-gen/render';
 import { buildProposal, type ProposalPricing } from '../../proposals/proposal';
 import { buildProposalHtml } from '../../proposals/proposal-html';
 import { sendEmail, supportEmailHtml, resendConfigured } from '../../integrations/resend';
+import { demoLanguageForAddress } from '../../demo-gen/locale';
 import { recordActivity } from '../activity-log';
 import { readFile, unlink } from 'node:fs/promises';
 import type { Deal } from '../../data/types';
+
+// The proposal PDF itself is English (the scope/terms in lib/proposals/proposal.ts). The email cover +
+// subject must match the client's market language — hardcoded Vietnamese was reaching English-market clients.
+function proposalCover(client: string, pkg: string, language: string): { subject: string; cover: string } {
+  if (language === 'Vietnamese') {
+    return {
+      subject: `Đề xuất thiết kế website — ${client} (${pkg})`,
+      cover: `Xin chào ${client},\n\nGửi anh/chị bản đề xuất + báo giá cho dự án website mới. Chi tiết nằm trong file PDF đính kèm.\n\nRất mong được đồng hành cùng anh/chị.`,
+    };
+  }
+  return {
+    subject: `Website design proposal — ${client} (${pkg})`,
+    cover: `Hi ${client},\n\nAttached is our proposal and quote for your new website project — the full details are in the PDF.\n\nWe'd love to work with you.`,
+  };
+}
 
 // Send-proposal (WORKER only — renders a PDF via Playwright + makes the outbound email call; relative
 // imports, no `server-only`). Founder-triggered (the web action is the approval gate) + key-gated on
@@ -77,13 +93,10 @@ export const sendProposal = inngest.createFunction(
     });
 
     await step.run('send', async () => {
-      const cover =
-        `Xin chào ${deal.client},\n\n` +
-        `Gửi anh/chị bản đề xuất + báo giá cho dự án website mới. Chi tiết nằm trong file PDF đính kèm.\n\n` +
-        `Rất mong được đồng hành cùng anh/chị.`;
+      const { subject, cover } = proposalCover(deal.client, deal.pkg, demoLanguageForAddress(lead?.formattedAddress));
       const result = await sendEmail({
         to,
-        subject: `Đề xuất thiết kế website — ${deal.client} (${deal.pkg})`,
+        subject,
         html: supportEmailHtml(cover),
         attachments: [{ filename: `proposal-${deal.id}.pdf`, content: pdfB64, contentType: 'application/pdf' }],
         idempotencyKey: `proposal:${deal.id}`,

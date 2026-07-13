@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasRealWebsite, isSocialOrDirectory } from '@/lib/discovery/website-presence';
+import { hasRealWebsite, isSocialOrDirectory, hasAuditableWebsite } from '@/lib/discovery/website-presence';
 
 describe('isSocialOrDirectory', () => {
   it('flags social / directory / messaging profiles (not a site they own)', () => {
@@ -44,5 +44,26 @@ describe('hasRealWebsite (true → the auto-hunter SKIPS the lead)', () => {
 
   it('TRUE only for a real, reachable, standalone site', () => {
     expect(hasRealWebsite('https://ruvenailspatx.com', true)).toBe(true);
+  });
+});
+
+describe('hasAuditableWebsite (false → the audit takes the greenfield path)', () => {
+  it('true for a real URL or a bare domain (not mis-filed as greenfield)', () => {
+    expect(hasAuditableWebsite('https://acme.com')).toBe(true);
+    expect(hasAuditableWebsite('acme.com')).toBe(true);
+    expect(hasAuditableWebsite('http://sub.acme.co.uk/path')).toBe(true);
+  });
+
+  it('false for the greenfield placeholder, empty, and unparseable values', () => {
+    expect(hasAuditableWebsite('(no site yet)')).toBe(false);
+    expect(hasAuditableWebsite('')).toBe(false);
+    expect(hasAuditableWebsite('   ')).toBe(false);
+    expect(hasAuditableWebsite(null)).toBe(false);
+    expect(hasAuditableWebsite(undefined)).toBe(false);
+  });
+
+  it('false for a dotless internal host (never a public site)', () => {
+    expect(hasAuditableWebsite('http://db:5432')).toBe(false);
+    expect(hasAuditableWebsite('localhost')).toBe(false);
   });
 });

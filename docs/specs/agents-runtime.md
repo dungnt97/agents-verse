@@ -154,11 +154,15 @@ Do not add it to `AGENTS` (that map is one primary per agent); import it where i
   limit would be per-function and silently raise the ceiling again (R3).
 - **`AGENT_MODEL_OPUS` unset is silent.** `resolveModel` falls back to the literal `"opus"`, the gateway rejects it,
   and every pass burns 5 runner retries × Inngest retries before failing as an opaque `claude exited 1`.
-- **The language split.** Echo writes in the recipient's **market language** (`language` input, fed by
-  `demoLanguageForAddress`), and the demo prompts interpolate `input.language`. But **Closer, Mira and Cipher hardcode
-  Vietnamese** in their prompt bodies (and hardcode "…, Vietnam" after the city). An English-market lead therefore
-  gets an English cold email, then a Vietnamese suggested reply, a Vietnamese onboarding email, and Vietnamese SEO
-  metadata. Fix means threading a `language` input into all three defs, not patching one.
+- **The language split — mostly closed.** Echo, **Closer and Mira** now all write in the recipient's **market
+  language**: each carries a `language` input, computed by `demoLanguageForAddress(lead.formattedAddress)` at the
+  Inngest boundary (`run-outreach`, `handle-reply`, `run-support`) — English by default, Vietnamese only for a VN
+  address — and their prompt bodies interpolate `${language}` rather than hardcoding "Vietnamese"/"…, Vietnam". The
+  demo prompts interpolate `input.language` the same way. The proposal email is localized too: `send-proposal` picks
+  its cover + subject from the client's language via `proposalCover()` (the PDF body was already English). **The one
+  remaining holdout is Cipher**, whose prompt still hardcodes Vietnamese (and "…, Vietnam" after the city), so an
+  English-market lead now gets an English cold email, English suggested reply, and English onboarding + proposal
+  emails — but still Vietnamese SEO metadata. Fixing it means threading a `language` input into Cipher the same way.
 - `board.ts` labels the `copy` lens "fluent local Vietnamese" in its `role` string. Harmless — `role` never reaches
   the model — but do not read it as the lens's actual behavior (the persona prompt uses `${input.language}`).
 - **Validation failure is indistinguishable from a gateway failure** in the retry loop: five attempts, backoff, then

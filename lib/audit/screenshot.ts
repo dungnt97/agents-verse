@@ -5,9 +5,15 @@
 
 // Minimal structural types so this file does not statically import playwright (keeps it out of
 // the web build graph); the real types resolve at runtime in the worker.
+interface PwRoute {
+  request(): { url(): string };
+  continue(): Promise<void>;
+  abort(): Promise<void>;
+}
 interface PwPage {
   setViewportSize(size: { width: number; height: number }): Promise<void>;
   goto(url: string, opts: { waitUntil: 'domcontentloaded'; timeout: number }): Promise<unknown>;
+  route(pattern: string, handler: (route: PwRoute) => void): Promise<void>;
   waitForTimeout(ms: number): Promise<void>;
   // No-arg in-page evaluate (returns a JSON-serializable value) — used to scroll, dismiss
   // overlays and poll image-load state without statically importing playwright's types.
@@ -167,6 +173,18 @@ async function shotAt(browser: PwBrowser, url: string, width: number, height: nu
   });
   const page = await context.newPage();
   try {
+    // Per-request SSRF guard: validating only the entry URL leaves Chromium free to follow a 3xx redirect
+    // or load a subresource pointing at an internal host (db/redis/inngest, cloud metadata) from inside the
+    // Docker network. Re-check EVERY request the page makes and abort any non-public target — this covers
+    // redirect hops and subresources, not just the first navigation.
+    await page.route('**/*', (route) => {
+      try {
+        assertSafeUrl(route.request().url());
+        void route.continue();
+      } catch {
+        void route.abort();
+      }
+    });
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
     await page.waitForTimeout(SETTLE_MS); // let above-the-fold paint settle (avoid networkidle hangs)
     await dismissOverlays(page);

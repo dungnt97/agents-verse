@@ -4,6 +4,7 @@ import { leads, deals } from '@/lib/db/schema';
 import { inngest } from '@/lib/inngest/client';
 import { USE_DB } from '@/lib/repositories/config';
 import { verifyResendSignature, parseInboundEmail } from '@/lib/integrations/resend-inbound';
+import { inboundRateLimited } from '@/lib/integrations/inbound-rate-limit';
 
 // Resend inbound-email webhook → emits `reply/received` so the Closer (handle-reply) auto-interprets a
 // client's reply WITHOUT the founder pasting it. Security surface: every request must carry a valid Svix
@@ -47,6 +48,10 @@ export async function POST(req: Request): Promise<Response> {
   // misdirected email never 500s a public webhook (Resend would retry on a 5xx).
   const [lead] = await db.select().from(leads).where(eq(leads.email, parsed.from)).limit(1);
   if (!lead) return new Response('ignored (no matching lead)', { status: 200 });
+  // The From address is only transport-verified (HMAC), not sender-authenticated — cap how many inbound
+  // replies per lead reach the (paid) Closer / can flip do-not-contact, so a spoofer can't burn spend or
+  // grief a lead. 200 (not 5xx) so the provider doesn't retry the dropped message.
+  if (inboundRateLimited(lead.id, Date.now())) return new Response('rate-limited', { status: 200 });
   // A reply from a known lead with no deal yet is the FIRST contact — the Closer creates the deal from it
   // (handle-reply), so use a deterministic dealId and always emit. A pre-existing deal keeps its own id.
   const [deal] = await db.select().from(deals).where(eq(deals.leadId, lead.id)).limit(1);
