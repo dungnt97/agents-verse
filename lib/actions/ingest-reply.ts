@@ -15,9 +15,11 @@ export interface IngestReplyResult {
   message: string;
 }
 
-// Founder pastes a client's reply for a deal → hand it to the Closer (worker) to interpret and either
+// Ingest a client's reply for a deal by hand → hand it to the Closer (worker) to interpret and either
 // auto-advance the deal or open an escalation. Web-side only: sends the Inngest event (the worker shells
-// `claude`). Inbound email webhook is a later phase; founder-paste is the ingest path for now.
+// `claude`). The automatic path is the inbound webhooks (/api/inbound, /api/whatsapp), which emit the same
+// `reply/received` event; this action is the manual escape hatch for a reply that arrived out of band, and
+// has NO UI calling it today — wire one up (or delete it) rather than assuming a paste box exists.
 // Auth-guarded + degrades gracefully without a database.
 export async function ingestReply(dealId: string, text: string): Promise<IngestReplyResult> {
   if (!USE_DB) return { ok: false, message: 'Reply handling requires the database (set USE_DB=true).' };

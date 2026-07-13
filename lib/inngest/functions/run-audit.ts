@@ -113,8 +113,9 @@ export const runAudit = inngest.createFunction(
           .insert(audits)
           .values({ leadId, ...mapped })
           .onConflictDoUpdate({ target: audits.leadId, set: { ...mapped } });
-        // M3(a): reflect the real audit on the lead headline + pipeline sort.
-        // site = measured current-site quality (avg of the 8 dims); score = redesign potential.
+        // The lead's headline numbers must come from the real audit, never a placeholder — they drive the
+        // pipeline sort. site = measured current-site quality (avg of the scored dims); score = redesign
+        // potential (the upside we can sell) = site + 40, capped at 95 so no lead ever looks perfect.
         const dims = Object.values(mapped.scores);
         const site = Math.round(dims.reduce((sum, n) => sum + n, 0) / dims.length);
         const score = Math.min(95, site + 40);

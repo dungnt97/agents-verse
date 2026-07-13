@@ -1,265 +1,209 @@
 # Deployment Guide — Self-hosted on a single VPS
 
-Agents Verse runs as **five Docker Compose services on one VPS**: `web` (Next.js app), `db` (PostgreSQL 17), `redis` (event store), `inngest` (job orchestrator), and `worker` (audit engine). Postgres, Redis, and Inngest are **not** exposed to the internet — only `web` reaches them over the internal compose network. The `worker` runs Playwright + Gemini vision analysis, keeping those heavy dependencies out of the main app container.
+**A runbook, not a reference.** It restates nothing that another doc owns:
+
+- Every env var (what reads it, its default, **which file it must live in**) → [`env-reference.md`](./env-reference.md).
+- Compose topology, worker-only runtimes, boot order, CI, verification gates → [`specs/ops-runtime.md`](./specs/ops-runtime.md).
+- The rules you must not break → [`invariants.md`](./invariants.md).
+
+The Compose services are `web`, `worker`, `db`, `redis`, `inngest`, `9router`. Only `web` is published to the host.
 
 ```
-            Internet ──TLS──▶ reverse proxy ──:3000──▶ web ──┐
-                                                              ├─→ db (internal, :5432)
-                                                              ├─→ redis (internal, :6379)
-                                                              └─→ inngest (internal, :3000)
-                                                    worker (no external ingress) ──┐
-                                                                                   ├─→ db
-                                                                                   ├─→ redis
-                                                                                   └─→ inngest
+   Internet ──TLS──▶ reverse proxy ──▶ web :3000 ──┬─→ db      (internal :5432)
+                                                   ├─→ inngest (internal :8288)
+                                                   └─→ 9router (internal :20128)
+   worker (no inbound port; outbound connect())  ──┴─→ same three
+   inngest ──→ redis (internal :6379) + db
+   9router dashboard: 127.0.0.1:20129 → container :20128 (localhost only)
 ```
 
----
+`worker` is the only container with Playwright/Chromium, Lighthouse, Gemini and the `claude` CLI, and the only one
+that registers Inngest functions (`lib/inngest/worker-entrypoint.ts` — `run-audit`, `run-demo-gen`,
+`orchestrate-pipeline`, `handle-reply`, `run-outreach`, `run-build`, `run-support`, `send-proposal`,
+`auto-discovery`). `web` only calls `inngest.send()`. **There is no `app/api/inngest` route.**
 
 ## 1. Prerequisites
 
-- A VPS (Ubuntu 22.04+ recommended). Sane floor: **2 vCPU / 4 GB RAM** (web + Postgres share the box).
-- **Docker Engine + Compose v2** installed.
-- A domain pointed at the VPS, and a reverse proxy for TLS (Caddy example below).
-- Firewall: allow only `22`, `80`, `443`. **Never** open `5432`.
+- A VPS (Ubuntu 22.04+). `worker` alone is capped at **4 GB** (`mem_limit: 4g`), so a 4 GB box cannot host it plus
+  `db`/`web`/`inngest`/`redis`/`9router`. Size for **≥ 8 GB RAM / 4 vCPU**, or lower `mem_limit` and set
+  `CLAUDE_AGENT_CONCURRENCY=1` / `AUDIT_CONCURRENCY=1`.
+- Docker Engine + Compose v2.
+- A domain pointed at the VPS + a reverse proxy for TLS (§5).
+- Firewall: allow only `22`, `80`, `443`. **Never** open `5432`, and never add `ports:` to `db`.
 
----
-
-## 2. Configure secrets (`.env.local`)
+## 2. The two env files (read `env-reference.md` first)
 
 ```bash
 git clone <your-repo> /opt/agents-verse && cd /opt/agents-verse
-cp .env.example .env.local
-chmod 600 .env.local            # secrets — keep it locked down
+cp .env.example .env.local && chmod 600 .env.local
+touch .env && chmod 600 .env
 ```
 
-Fill `.env.local`. The Postgres credentials and the `DATABASE_URL` **must match exactly**:
+- **`.env.local`** — app secrets, loaded via `env_file:` into `db`, `web`, `inngest`, `worker`.
+- **`./.env`** — compose's *interpolation* file. `${VAR}` in `docker-compose.yml` reads **this file or the shell,
+  never `.env.local`**, and a compose `environment:` entry always beats `env_file:`. These must live here or they
+  are silently empty: `JWT_SECRET`, `INITIAL_PASSWORD`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`,
+  `INNGEST_DATABASE_URL` — plus `ANTHROPIC_BASE_URL` / `AGENT_MODEL_SONNET` if you want to override the compose
+  defaults.
 
-```dotenv
-# Postgres (read by the `db` service on first boot)
-POSTGRES_USER=agentsverse
-POSTGRES_PASSWORD=<openssl rand -base64 32>
-POSTGRES_DB=agentsverse
+`JWT_SECRET` and `INITIAL_PASSWORD` are guarded with `:?` — **without `./.env`, every compose command fails**, even
+`docker compose up db`.
 
-# Single direct connection — app + migrations + seed. Host is the compose service name `db`.
-DATABASE_URL=postgresql://agentsverse:<same-password>@db:5432/agentsverse
+Generate values: `openssl rand -base64 32` (passwords), `openssl rand -hex 32` (auth secret, JWT), `openssl rand
+-hex 16` (Inngest keys). `DATABASE_URL` must match `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` exactly, host `db`.
 
-USE_DB=true                     # read Postgres (not the mock)
+## 3. One-time: connect the `9router` LLM gateway
 
-# Better Auth
-BETTER_AUTH_SECRET=<openssl rand -hex 32>
-BETTER_AUTH_URL=https://your-domain.com
-
-# Founder login (seeded once)
-FOUNDER_EMAIL=founder@agentsverse.ai
-FOUNDER_PASSWORD=<a strong password>
-
-# Lead discovery (optional)
-GOOGLE_MAPS_API_KEY=<key>
-DISCOVERY_DEFAULT_INDUSTRY=dentists
-DISCOVERY_DEFAULT_CITY=Austin TX
-DISCOVERY_DAILY_CAP=450
-
-# Real website audits (optional — requires Inngest + worker)
-GEMINI_API_KEY=<key>                           # Google Gemini API key for vision analysis
-GEMINI_MODEL=gemini-2.5-flash                  # Override Gemini model (optional)
-GOOGLE_PAGESPEED_API_KEY=<key>                 # PageSpeed Insights API (optional; falls back to GOOGLE_MAPS_API_KEY)
-INNGEST_EVENT_KEY=<key>                        # Inngest authentication (web ↔ server)
-INNGEST_SIGNING_KEY=<key>                      # Inngest job signing (server ↔ worker)
-INNGEST_BASE_URL=http://inngest:3000           # Inngest server URL (docker-compose internal)
-INNGEST_DEV=0                                  # 0 = production (self-hosted); 1 = local dev
-REDIS_URL=redis://redis:6379                   # Redis URL (docker-compose internal)
-AUDIT_CONCURRENCY=2                            # Global concurrency limit (Chromium OOM guard on 2GB worker)
-```
-
-> Generate strong values: `openssl rand -base64 32` (password), `openssl rand -hex 32` (auth secret), `openssl rand -hex 16` (Inngest keys).
-
-### Demo generation (Subsystem 3) — `9router` LLM gateway
-
-The demo-gen worker shells the `claude` CLI on a Claude subscription (no metered API key). Instead of holding a raw OAuth token in the worker (a rebuild drops it), the stack runs a **`9router`** service: the worker points `claude` at it (`ANTHROPIC_BASE_URL=http://9router:20128`, set in compose) and 9router persists + auto-refreshes the provider auth in its own `ninerouter_data` volume — and can fall back to a free Claude provider when the subscription quota is hit.
-
-One-time setup (the only interactive step):
+The worker shells the `claude` CLI against a Claude **subscription**, not a metered API key. `9router` holds and
+auto-refreshes that provider auth in its own volume, so a worker rebuild never drops a raw OAuth token.
 
 ```bash
-docker compose up -d 9router          # starts the gateway + dashboard on 127.0.0.1:20128
-# On a VPS the dashboard is localhost-only — tunnel to it: ssh -L 20128:127.0.0.1:20128 user@vps
+docker compose up -d 9router
+# dashboard is localhost-only — tunnel in:  ssh -L 20129:127.0.0.1:20129 user@vps
 ```
 
-1. Open `http://localhost:20128`, log in with `INITIAL_PASSWORD`.
-2. **Providers → Connect Claude Code** (OAuth → your subscription; primary opus tier).
-3. **Providers → Connect Kiro AI** → **AWS Builder ID** (free Amazon dev account; free Claude fallback).
-4. **Create an API key**, then put it + the model id in `.env.local`:
+1. Open `http://localhost:20129`, log in with `INITIAL_PASSWORD`.
+2. **Providers → Connect Claude Code** (OAuth → your subscription; the opus tier).
+3. Optional fallback: **Providers → Connect Kiro AI** → AWS Builder ID (free Claude provider).
+4. **Create an API key** → `.env.local` as `ANTHROPIC_AUTH_TOKEN`. Set `AGENT_MODEL_OPUS` to a model id from
+   `GET /v1/models` (`cc/…` = subscription, `kr/…` = Kiro free; a **combo** id gives automatic
+   subscription→free fallback).
+
+`AGENT_MODEL_OPUS` has **no compose default**: `resolveModel` in `lib/agents/runner.ts` then passes the bare tier
+name `opus` to `--model`, which a 9router gateway does not resolve — so every opus-tier `claude` call fails.
+Alternative to 9router: set `CLAUDE_CODE_OAUTH_TOKEN` and set `ANTHROPIC_BASE_URL=` (explicitly empty) **in
+`./.env`** — blanking it in `.env.local` has no effect.
+
+## 4. Deploy
 
 ```bash
-JWT_SECRET=<openssl rand -hex 32>              # 9router admin
-INITIAL_PASSWORD=<dashboard login>             # 9router first-run login
-ANTHROPIC_AUTH_TOKEN=<the 9router API key>     # the `claude` CLI sends this to the gateway
-AGENT_MODEL_OPUS=cc/claude-opus-4-8            # opus-tier id; see GET /v1/models for the list
-```
-
-Model ids are provider-prefixed (`cc/…` = Claude Code subscription, `kr/…` = Kiro free, e.g. `kr/claude-sonnet-4.5`). For automatic subscription→free fallback, create a 9router **combo** and point `AGENT_MODEL_OPUS` at its id. Recreate the worker after editing `.env.local` (`docker compose up -d --build worker`). Without 9router, set `CLAUDE_CODE_OAUTH_TOKEN` instead (clear `ANTHROPIC_BASE_URL` in the worker env).
-
-### Estimated monthly cost
-
-Self-generated secrets (`*_PASSWORD`, `BETTER_AUTH_SECRET`, `INNGEST_*`) are free. Paid items below — **prices verified June 2026**; re-check before committing budget. Google Maps is SKU-based (cost varies with the field mask requested) and the universal $200/month Maps credit was removed in 2025.
-
-Assumes a small operation (~1,000 leads discovered + ~500 audits / month):
-
-| Item | When | ~USD/month | Notes |
-|------|------|-----------|-------|
-| VPS (web + db + redis + inngest + worker) | now | $25–45 | needs ≥ 4GB RAM for Playwright/Chromium |
-| Google Places API (lead discovery) | now | $0–40 | new free tier: 5k Pro + 10k Essentials per SKU/month; overage ~$17–32/1k |
-| Gemini 2.5 Flash (audit vision) | now | ~$1 | ~$0.002/audit ($0.30 / $2.50 per 1M tokens) |
-| PageSpeed Insights | now | $0 | free |
-| **Subtotal — Subsystems 1+2 (built)** | | **~$30–90** | mostly VPS + Places |
-| Claude API (S3 demo design) | future | ~$0.04–0.10/demo | Sonnet 4.6 $3/$15; Haiku $1/$5 per 1M |
-| Imagen 4 Fast (S3 images) | future | ~$0.02/image | ~3–5 images/demo; render self-hosted (free) |
-| Resend (S4 outreach email) | future | $0–20 | free 3,000 emails/month; Pro $20 |
-
-- **To start (S1+S2): ~$30–90/month** — much of it is the VPS; Gemini + PageSpeed stay within free tiers at low volume.
-- **Full (S3+S4 at small volume): ~$60–170/month.** All API costs scale with volume.
-- Cap spend in the Google Cloud Console (the app also guards via `DISCOVERY_DAILY_CAP`).
-
----
-
-## 3. Deploy
-
-```bash
+ls docker-compose.override.yml      # MUST NOT EXIST on the VPS
 docker compose up -d --build
 ```
 
-What happens on boot:
+> **`docker-compose.override.yml` is auto-merged by every `docker compose` command run in the repo directory.** It
+> forces keyless `inngest dev` and `INNGEST_DEV=1`. It is gitignored, so a fresh `git clone` will not have it — but
+> an `rsync`/`scp` of your dev tree will. Delete it, or deploy with `docker compose -f docker-compose.yml …`.
 
-1. **`redis`** starts (Inngest event store).
-2. **`inngest`** (v1.27.0) starts with `--event-key`, `--signing-key`, `--postgres-uri`, `--redis-uri` flags (verify exact syntax for your Inngest version).
-3. **`db`** starts; `web` waits until it passes `pg_isready` healthcheck (`depends_on: service_healthy`), then confirms role/db are reachable via in-app `SELECT 1` retry loop.
-4. **`web` entrypoint** (`scripts/docker-entrypoint.sh`):
-   - `npm run db:migrate` applies `drizzle/migrations/` (**fail-fast**).
-   - `npm run db:seed` loads demo data + founder account (**idempotent + non-fatal**).
-   - `next start -p 3000`.
-5. **`worker`** starts and registers the `run-audit` function via `inngest.connect()` (outbound to Inngest server). Polls for audit events and runs Playwright + Gemini on each job.
+Boot order:
 
-First boot is slower (initdb + migrate + seed + scrypt); the `web` healthcheck `start_period` is 120s.
+1. `db` + `redis` start. `inngest` (v1.27.0) starts via `["inngest","start"]`, configured **entirely by env vars**
+   (`INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, `INNGEST_POSTGRES_URI`, `INNGEST_REDIS_URI`) — there are no CLI
+   flags to get right.
+2. `web` waits for the `db` healthcheck, then `scripts/docker-entrypoint.sh` runs: `SELECT 1` retry loop →
+   `npm run db:migrate` (**fail-fast**) → `npm run db:seed` (**non-fatal**) → `next start -p 3000`.
+3. `worker` connects outbound to `inngest` and registers every function in `lib/inngest/worker-entrypoint.ts`.
 
-Watch it:
+First boot is slow (initdb + migrate + seed/scrypt); the `web` healthcheck `start_period` is 120s.
+
 ```bash
+docker compose ps                  # all services should become healthy
 docker compose logs -f web
-docker compose logs -f worker                  # audit job progress
-docker compose ps                              # all services should become healthy
+docker compose logs -f worker      # expect "connected to Inngest; … functions registered"
+docker compose logs inngest
 ```
 
-**Verify Inngest is wired correctly:**
-```bash
-docker compose logs inngest                    # should show event-key/signing-key accepted
-docker compose logs worker | grep "Registered"  # should show run-audit function registered
-```
+## 5. Reverse proxy + TLS (Caddy)
 
----
-
-## 4. Reverse proxy + TLS (Caddy example)
-
-`/etc/caddy/Caddyfile`:
 ```
 your-domain.com {
     reverse_proxy 127.0.0.1:3000
 }
 ```
-Caddy auto-provisions Let's Encrypt TLS. (If the proxy runs on the host, bind the app to localhost
-only: change the `web` port mapping to `"127.0.0.1:3000:3000"` in `docker-compose.yml`.)
+Caddy auto-provisions Let's Encrypt. If the proxy runs on the host, bind the app to localhost: change the `web`
+port mapping to `"127.0.0.1:3000:3000"`.
 
----
+## 6. Smoke test
 
-## 5. Verify
+- `https://your-domain.com` → marketing site renders; `/login` → sign in with `FOUNDER_EMAIL` / `FOUNDER_PASSWORD`.
+  If login fails, the seed skipped the founder — set `FOUNDER_PASSWORD` and restart `web`.
+- `/leads` → "Run discovery" works once the provider named by `DISCOVERY_PROVIDER` is keyed.
+- `/audits?lead=<leadId>` → run a real audit. The list screens deep-link by `?lead=`; **there is no `/audits/[id]`
+  route** — it 404s. Watch `docker compose logs -f worker`; the score breakdown (speed/seo/mobile from the
+  performance pass + visual/cta/trust/content/conversion from vision) appears when the job finishes.
 
-- Open `https://your-domain.com` → marketing site renders.
-- `https://your-domain.com/login` → sign in with `FOUNDER_EMAIL` / `FOUNDER_PASSWORD`.
-- Workspace screens render from Postgres; `/leads` "Run discovery" works if `GOOGLE_MAPS_API_KEY` is set.
-- Navigate to `/audits/[any-lead-id]` and click "Run real audit" (button visible only if `USE_DB=true` and Inngest/Gemini keys are set). The audit should queue; monitor progress via `docker compose logs worker`. Results appear in the 8-dimension breakdown once the job completes.
+## 7. Estimated monthly cost
 
----
+Self-generated secrets are free. Everything below is an **estimate — re-verify before committing budget** (Google
+Maps is SKU-based; the universal $200/month Maps credit was removed in 2025). Assumes ~1,000 leads + ~500 audits/mo.
 
-## 6. Backups (now YOUR responsibility)
+| Item | ~USD/month | Notes |
+|---|---|---|
+| VPS (whole stack) | $40–80 | 8 GB tier; `worker` alone may take 4 GB |
+| Google Places (`DISCOVERY_PROVIDER=google`) | $0–40 | search bills at the cheap Pro SKU; only the enriched top-N hits Enterprise (~$7/1k). **Never add an Enterprise field to `DISCOVERY_FIELD_MASK`** |
+| Apify (`DISCOVERY_PROVIDER=apify`) | ~$1.5–3 / 1k results | pay-as-you-go, plus per-place cost for `APIFY_MAX_REVIEWS` + `APIFY_MAX_IMAGES` (both default 10). **Apify spend is not capped by any Google Cloud Console** — cap it in the Apify console |
+| Gemini (audit vision) | ~$1 | ~$0.002/audit. Mandatory for any lead with a website — the audit **fails** without `GEMINI_API_KEY` |
+| Performance audit | $0 | PageSpeed is free; `AUDIT_PROVIDER=lighthouse` runs it in the worker with no Google account at all |
+| Claude (demo-gen, outreach, build, support) | subscription only | the worker shells the `claude` CLI through 9router — no metered API spend |
+| Resend (outreach + inbound) | $0–20 | free tier 3,000 emails/month |
 
-A self-hosted DB has **no backups** until you create them — and a backup on the same VPS is not a
-backup. Use `scripts/backup.sh` (dumps the `db` service with `pg_dump -Fc` + local rotation):
+Cap Google spend in the Cloud Console; cap app-side volume with `DISCOVERY_DAILY_CAP` / `PIPELINE_DAILY_CAP`.
+
+## 8. Backups (your responsibility)
+
+A self-hosted DB has no backups until you make them, and a backup on the same VPS is not a backup.
+`scripts/backup.sh` dumps `db` with `pg_dump -Fc` and rotates locally; when `BACKUP_GPG_PASSPHRASE` +
+`RCLONE_REMOTE` are set it also encrypts (AES256) and uploads off-site. **Set both** — the dump contains the founder
+password hash and lead PII.
 
 ```bash
-# nightly via cron (crontab -e)
-0 3 * * *  cd /opt/agents-verse && ./scripts/backup.sh >> /var/log/av-backup.log 2>&1
-```
+# nightly (crontab -e)
+0 3 * * *  cd /opt/agents-verse && BACKUP_GPG_PASSPHRASE=… RCLONE_REMOTE=r2:av-backups ./scripts/backup.sh >> /var/log/av-backup.log 2>&1
 
-Then wire the **off-site upload** (and encrypt — dumps contain the founder password hash + lead PII).
-The script has a commented `gpg` + `rclone` example. Restore:
-```bash
-# copy a .dump into the db container and restore
+# restore
 docker compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists' < backups/agentsverse-YYYYMMDD-HHMMSS.dump
 ```
-Test-restore quarterly into a throwaway DB so you know the backups actually work.
 
----
+Test-restore into a throwaway DB quarterly.
 
-## 7. Security checklist
+## 9. Security checklist
 
-- [ ] `5432` is **not** published (no `ports:` on `db`) and firewall blocks it.
-- [ ] `POSTGRES_PASSWORD` is 32+ random chars; `BETTER_AUTH_SECRET` is 32-byte hex.
-- [ ] `.env.local` is `chmod 600`, owned by the deploy user, never committed.
-- [ ] TLS terminates at the reverse proxy; `BETTER_AUTH_URL` uses `https://`.
+- [ ] `db` has no `ports:`; the firewall blocks `5432`.
+- [ ] `docker-compose.override.yml` is absent on the VPS.
+- [ ] `.env.local` **and** `./.env` are `chmod 600`, owned by the deploy user, never committed.
+- [ ] TLS terminates at the proxy; `BETTER_AUTH_URL` uses `https://`.
+- [ ] The 9router dashboard stays bound to `127.0.0.1`.
 - [ ] Backups are encrypted and stored off the VPS.
 
----
-
-## 8. Update & rollback
+## 10. Update & rollback
 
 ```bash
-# update
-git pull && docker compose up -d --build      # migrations re-apply (idempotent); seed is idempotent
-
-# rollback app (data stays in the pgdata volume)
-git checkout <previous-tag> && docker compose up -d --build
+git pull && docker compose up -d --build                       # migrate + seed re-run, idempotent
+git checkout <previous-tag> && docker compose up -d --build    # rollback; data stays in the volumes
 ```
-Data lives in the named volume `pgdata`. **`docker compose down` keeps it; `docker compose down -v`
-DELETES it** — never use `-v` in production unless you mean to wipe the database.
 
----
+Data lives in the named volumes `pgdata`, `redisdata`, `ninerouter_data`. **`docker compose down` keeps them;
+`docker compose down -v` DELETES them** — wiping the database *and* the 9router provider auth. Never `-v` in production.
 
-## 9. Troubleshooting
+## 11. Troubleshooting
 
-| Symptom | Likely cause / fix |
+| Symptom | Cause / fix |
 |---|---|
-| `web` stuck "waiting for Postgres" then exits | `DATABASE_URL` host/creds don't match `POSTGRES_*`, or `db` unhealthy — `docker compose logs db`. |
-| Migration error on boot | Schema/migration mismatch — boot is fail-fast by design. Inspect `drizzle/migrations/`, fix, redeploy. |
-| Founder can't log in | Seed didn't run or password mismatch — `docker compose logs web` for `seed`, confirm `FOUNDER_PASSWORD`. |
-| `npm ci` fails in build | `package-lock.json` must be present (it's committed); don't delete it. |
-| Discovery returns "requires the database" / "API key not configured" | Set `USE_DB=true` and `GOOGLE_MAPS_API_KEY`. |
-| "Run real audit" button not visible / audit queues but never runs | `GEMINI_API_KEY` or `INNGEST_*` keys not set. Also check `docker compose logs worker` for function registration errors. Worker must call `inngest.connect()` and register `run-audit`. |
-| Audit job stuck in "running" state | Worker crashed or lost connection to Inngest. Check `docker compose logs worker` for errors (e.g., Playwright timeout, Gemini API error, Postgres connection drop). Logs show the root cause in the `audit_jobs.error` field. |
-| `worker` container OOM-killed | Global concurrency cap too high for available RAM. Lower `AUDIT_CONCURRENCY` (default 2) or increase worker `mem_limit` in compose. Each Chromium instance ~500MB. |
+| Any compose command errors `required variable JWT_SECRET is missing` | `./.env` is missing (§2). |
+| `web` loops "waiting for Postgres" then exits | `DATABASE_URL` doesn't match `POSTGRES_*`, or `db` is unhealthy (`docker compose logs db`). |
+| Migration error on boot | Boot is fail-fast by design. Fix `drizzle/migrations/`, redeploy. |
+| Founder can't log in | Seed skipped the founder because `FOUNDER_PASSWORD` was unset. Set it, restart `web`. |
+| Events never reach the worker | Inngest keys are empty because they went in `.env.local` instead of `./.env` (§2), or `INNGEST_BASE_URL` is wrong — it is **`http://inngest:8288`**. |
+| Worker registers nothing | `docker compose logs worker` for the connect() error. `web` cannot register functions; only `worker` can. |
+| Audit stuck "running", or fails instantly | `GEMINI_API_KEY` missing (vision throws → `audit_jobs.error`), or the worker crashed. `docker compose logs worker`. |
+| Demo-gen fails with `claude exited 1` | `AGENT_MODEL_OPUS` unset, or the 9router provider auth expired (§3). The gateway also returns transient 503s, which the runner retries. |
+| `worker` OOM-killed | Lower `AUDIT_CONCURRENCY` (Chromium) **and** `CLAUDE_AGENT_CONCURRENCY` (the `claude` CLI holding critique screenshots) — they peak together. Raising either needs more than the 4g `mem_limit`. |
+| `npm ci` fails in the image build | `package-lock.json` must stay committed. |
 
----
+## 12. Local development
 
-## 10. Local development (no Docker)
+**Mock mode (default, zero credentials):** `npm run dev` — `USE_DB` unset ⇒ the whole app runs on the mock singleton.
 
-**Option A: Mock data (default, no setup):**
-```bash
-cp .env.example .env.local      # defaults: USE_DB=false, INNGEST_DEV=0
-npm run dev                     # http://localhost:3000
-```
-All data comes from localStorage. Audits show mock results from the static fallback.
+**DB mode on the host:** set `DATABASE_URL` (host `localhost`) + `USE_DB=true` in `.env.local`, then
+`npm run db:migrate && npm run db:seed && npm run dev`.
 
-**Option B: With Postgres (to test discovery + DB persistence):**
-```bash
-cp .env.example .env.local      # DATABASE_URL=postgresql://...@localhost:5432/agentsverse, USE_DB=true
-npm run db:migrate && npm run db:seed
-npm run dev                     # http://localhost:3000
-```
+**Running the durable functions locally:** you **need the worker process**. Inngest functions are registered only in
+`lib/inngest/worker-entrypoint.ts` and there is no `app/api/inngest` serve route, so `npx inngest dev` on its own
+runs nothing. Either:
 
-**Option C: With Inngest local dev (to test real audits):**
-Requires Gemini + PageSpeed keys in `.env.local`. Also start Inngest local server in a separate terminal:
-```bash
-# Terminal 1: Inngest local dev server (watches for code changes, re-registers functions)
-npx inngest dev
+- `docker compose up -d` — the gitignored `docker-compose.override.yml` gives you keyless `inngest dev`; or
+- run `npx inngest dev` and `npx tsx lib/inngest/worker-entrypoint.ts` side by side with `INNGEST_DEV=1`. This needs
+  the worker's native deps on your host (Playwright browsers, the `claude` CLI on `PATH`).
 
-# Terminal 2: Next.js app
-cp .env.local               # set INNGEST_DEV=1, GEMINI_API_KEY, GOOGLE_PAGESPEED_API_KEY, etc.
-npm run dev                 # http://localhost:3000
-```
-The app sends audit events to the local Inngest server; functions register automatically. No separate worker container needed for local dev (the Inngest CLI runs everything in-process).
+`USE_DB` is hardcoded `"true"` in the compose `web`/`worker` `environment:` — `.env.local` cannot flip Docker back
+to mock mode.

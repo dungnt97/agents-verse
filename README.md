@@ -1,27 +1,34 @@
 # Agents Verse
 
-A demo-first **autonomous AI web agency** — an AI workforce of specialized agents that finds outdated business websites, audits them, generates redesign demos, and prepares outreach, all under founder oversight.
+A demo-first **autonomous AI web agency**. A roster of specialized AI agents hunts local businesses on Google Maps,
+audits the website they have (or the one they don't), builds a real redesign demo grounded in the venue's own photos
+and reviews, and prepares the outreach — all under founder oversight, with a human gate on anything that leaves the
+building.
 
-**Next.js 16 + React 19 + TypeScript (strict)**, now **full-stack**: self-hosted **PostgreSQL + Drizzle ORM + Better Auth + self-hosted Inngest**, deployable via **Docker Compose on a single VPS**. No managed services (no Supabase). It began as a buildless CDN-React prototype, since fully migrated and removed (preserved in git history).
+**Next.js 16 + React 19 + TypeScript (strict)**, full-stack and fully self-hosted: **PostgreSQL + Drizzle ORM +
+Better Auth + Inngest**, deployed with **Docker Compose on a single VPS**. No managed services.
 
 ## Dual-mode: `USE_DB`
 
-The app runs in two modes via one env flag — this is the key thing to understand:
+One env flag decides where the app reads from — this is the key thing to understand:
 
-- **Demo mode** (`USE_DB` unset/false, the default): runs entirely on the mock `AV` dataset in `lib/data/` — **no database, no credentials**. `npm run dev` just works. This is the showcase.
-- **DB mode** (`USE_DB=true` + a migrated & seeded Postgres): the same screens read **real data** through the server-only repository layer; auth is real (Better Auth); workspace actions (lead/deal/demo/request stage changes, escalation resolve, settings, lead discovery, audits) **persist to Postgres**.
+- **Demo mode** (`USE_DB` unset/false — the default): the app runs entirely on the mock dataset in `lib/data/`.
+  **No database, no credentials.** `npm run dev` just works. This is the showcase, and it is how CI runs.
+- **DB mode** (`USE_DB=true` + a migrated Postgres): the same screens read real data through the server-only
+  repository layer, auth is real, and every workspace action persists.
 
-Components never import the mock directly — pages are async Server Components that fetch the repository layer and pass props down.
+Pages are async Server Components that fetch the repository layer and pass plain props to client screens. Components
+never touch the database or the mock directly.
 
 ## Stack
 
-- **Next.js 16** (App Router, Turbopack, dynamic SSR) · **React 19** · **TypeScript** (strict)
-- **PostgreSQL** (self-hosted) + **Drizzle ORM** + **postgres-js** (single direct connection)
-- **Better Auth** (email/password, sessions in DB) — dual-mode with a cookie demo fallback
-- **Inngest** (self-hosted) for durable jobs — the Audit subsystem runs PageSpeed + Playwright + Gemini in a separate `worker` container
-- **No CSS framework** — a custom CSS-variable design system in `app/globals.css` (light/dark)
-- **i18n**: English + Tiếng Việt, switchable live
-- Client state via React Context (Theme / i18n / Toast / Auth / WorkspaceState / WorkspaceData)
+- **Next.js 16** (App Router, dynamic SSR) · **React 19** · **TypeScript** strict
+- **PostgreSQL** (self-hosted) + **Drizzle ORM** + postgres-js — one direct connection, no pooler
+- **Better Auth** — email/password, sessions in the DB; sign-up is disabled (the founder is the only account)
+- **Inngest** (self-hosted) for durable jobs. A separate `worker` container runs them; the web app only sends events.
+  Playwright, Lighthouse, Gemini and the `claude` CLI live **only** in the worker.
+- **No CSS framework** — a hand-built CSS-variable design system in `app/globals.css` (light + dark)
+- **i18n** — English + Tiếng Việt, switchable live
 
 ## Getting started
 
@@ -29,66 +36,75 @@ Components never import the mock directly — pages are async Server Components 
 
 ```bash
 npm install
-npm run dev        # → http://localhost:3000  (USE_DB unset → mock data)
+npm run dev        # → http://localhost:3000
 ```
 
-Go to `/login`, sign in with **any email + password** (demo), land on `/overview`. Toggle **EN/VI** and **light/dark** top-right.
+Sign in at `/login` with any email and password, land on `/overview`. Toggle EN/VI and light/dark from the top bar.
 
-### Full stack (Postgres + auth + audit), via Docker
+### Full stack (Postgres + auth + the agent pipeline)
 
 ```bash
-cp .env.example .env.local      # fill POSTGRES_*, a matching DATABASE_URL, BETTER_AUTH_SECRET, USE_DB=true
-docker compose up -d --build    # web + db + inngest + redis + worker
+cp .env.example .env.local     # app config: DATABASE_URL, USE_DB=true, BETTER_AUTH_SECRET, API keys…
+                               # NOTE: some vars must go in ./.env instead — see docs/env-reference.md
+docker compose up -d --build   # web + db + redis + inngest + 9router + worker
 ```
 
-The web container's entrypoint runs `migrate → seed → start`. Front it with a reverse proxy for TLS. Full instructions + the **required external keys** are in [`docs/deployment-guide.md`](./docs/deployment-guide.md).
+The web container's entrypoint runs migrate → seed → start. Front it with a reverse proxy for TLS.
+
+⚠️ `docker-compose.override.yml` is **auto-merged by every `docker compose` command in this directory** and forces a
+keyless dev Inngest. Delete it (or pass `-f docker-compose.yml`) before deploying for real.
+
+Full procedure: [`docs/deployment-guide.md`](./docs/deployment-guide.md). Every environment variable, what reads it,
+and which file it belongs in: [`docs/env-reference.md`](./docs/env-reference.md).
 
 ### Scripts
 
 | Command | Purpose |
-|---------|---------|
-| `npm run dev` / `build` / `start` | Dev / production build / serve |
-| `npm run typecheck` | `tsc --noEmit` — the primary gate (passes with no DB/keys) |
-| `npm run lint` | ESLint (`app`, `lib`, `components`) |
-| `npm run db:generate` | Drizzle: generate a migration from `lib/db/schema/*` |
-| `npm run db:migrate` / `db:seed` | Apply migrations / seed (need `DATABASE_URL` in `.env.local`) |
+|---|---|
+| `npm run dev` / `build` / `start` | Dev · production build · serve |
+| `npm run typecheck` | `tsc --noEmit` — **the primary gate**. Passes with no DB and no keys. |
+| `npm run test` | Vitest unit suite. No DB, no keys. |
+| `npm run test:db` | DB-mode suite (needs `DATABASE_URL`). A CI gate. |
+| `npm run test:e2e` | Playwright, against a running seeded app. Not in CI. |
+| `npm run lint` | ESLint. Has no `--max-warnings`, so it cannot fail — not a gate. |
+| `npm run db:generate` / `db:migrate` / `db:seed` | Drizzle migrations and the seed |
 
-## Build-out status
+## What works today
 
-| Area | State |
-|------|-------|
-| Foundation (DB client, schema, seed, repositories, dual-mode) | ✅ Done |
-| Lead Discovery (Google Places, 2-phase) | ✅ Code-complete (needs `GOOGLE_MAPS_API_KEY` to run) |
-| Real Auth (Better Auth), mutable-state→DB, Docker self-host | ✅ Done |
-| Audit subsystem (PageSpeed + Playwright + Gemini, durable via Inngest) | ✅ Code-complete (needs `GEMINI_API_KEY` + `GOOGLE_PAGESPEED_API_KEY` + worker stack) |
-| Workspace state machine (all interactions persist to Postgres) | ✅ Done |
-| Subsystem 3 (demo generation) | ✅ Code-complete (needs the `claude` CLI backend — 9router gateway or `CLAUDE_CODE_OAUTH_TOKEN` — + worker stack) |
-| Subsystem 4 (outreach/email) · 5 (deal/CRM) · 6 (delivery + inbound + Ledger) | ✅ Code-complete (outreach/onboarding/inbound key-gated on `RESEND_API_KEY` / `RESEND_INBOUND_SECRET`) |
+Discovery (Google Places or Apify), the website audit (hosted PageSpeed *or* self-hosted Lighthouse — no Google
+account required), demo generation, outreach across four channels, deal automation, delivery and the cost ledger are
+all built. Most are **key-gated** and degrade cleanly when a key is absent, so the demo never breaks.
 
-See [`docs/development-roadmap.md`](./docs/development-roadmap.md) for detail.
+Honest done-vs-pending, including the known gaps: [`docs/development-roadmap.md`](./docs/development-roadmap.md).
 
-## Routes
-
-- **Public:** `/` (landing), `/login`, info pages (`/about /careers /contact /cases /guarantees /status /privacy /terms /security`)
-- **Workspace** (auth-gated): `/overview`, `/command`, `/rooms` · `/rooms/[id]`, `/agents` · `/agents/[id]`, `/leads`, `/audits`, `/demos`, `/deals`, `/settings`, `/activity`, `/requests` (`?lead=` for detail context)
-
-## Project structure
+## Repo map
 
 ```
-app/                 # App Router: routes (async Server Components) + root layout + providers
-  (marketing)/ (workspace)/   # public + auth-gated screens
-  api/auth/[...all]/ api/inngest/   # Better Auth + (worker) Inngest
-components/workspace|landing|marketing|ui|brand   # screens + shared UI
+app/            App Router — marketing routes, the auth-gated workspace, API + demo route handlers
+components/     Screens and shared UI (workspace · landing · marketing · ui · brand)
 lib/
-  data/              # mock AV singleton (repository fallback) + format.ts (client-safe helpers)
-  db/                # Drizzle client + schema/* + seed.ts ; drizzle/migrations/
-  repositories/      # server-only data access (USE_DB → mock or Postgres)
-  auth/              # Better Auth server/client/session
-  actions/           # 'use server' mutations (state machine, discovery, audit-request)
-  audit/ inngest/    # Audit engine + durable worker (worker container only)
-  providers/ i18n/   # React context + localization
-Dockerfile  Dockerfile.worker  docker-compose.yml  scripts/   # deploy
-middleware.ts        # cheap Edge cookie gate (real gate = getCurrentUser in workspace layout)
+  data/         The mock AV singleton (the repository fallback) + client-safe formatting helpers
+  db/           Drizzle client, schema, seed          repositories/  server-only data access (USE_DB switch)
+  actions/      'use server' mutations                auth/          Better Auth
+  discovery/    Lead discovery + the market hunter    audit/         The website audit engines
+  agents/       The claude-CLI agent runtime          demo-gen/      Demo build, render, QA guards
+  inngest/      The durable functions + the worker    integrations/  Outreach channels + the LLM gateway
+  i18n/ providers/                                    proposals/
+docs/           Specs (see below)                     tests/         Vitest + Playwright
 ```
 
-Design + architecture docs live in [`docs/`](./docs); implementation plans (in Vietnamese) in [`plans/`](./plans).
+## Docs
+
+Start at [`docs/specs/architecture-map.md`](./docs/specs/architecture-map.md) — the module graph, the event bus, the
+route inventory, and which spec owns what.
+
+- [`docs/invariants.md`](./docs/invariants.md) — **the rules that break the repo when forgotten**, each with what
+  breaks and what (if anything) enforces it
+- [`docs/specs/`](./docs/specs) — one spec per subsystem: contracts, invariants, extension recipes, traps
+- [`docs/env-reference.md`](./docs/env-reference.md) — every env var and which file it must live in
+- [`docs/deployment-guide.md`](./docs/deployment-guide.md) — the VPS runbook
+- [`docs/product-vision.md`](./docs/product-vision.md) — the product thesis
+- [`docs/journals/`](./docs/journals) — dated session reflections. An archive; not a description of current behavior.
+
+`CLAUDE.md` is the contract for AI agents working in this repo. `plans/` holds implementation plans (in Vietnamese)
+and is gitignored — it is not in a fresh clone.

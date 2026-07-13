@@ -16,11 +16,13 @@ export const runDemoGen = inngest.createFunction(
     // so a pass that loses a multi-minute gateway spike gets re-attempted across Inngest's longer
     // (minutes) backoff windows — on top of runAgent's in-pass retries — before the run is failed.
     retries: 2,
-    // Two caps: the keyless entry caps THIS function's total concurrent generations (fn-scoped, the
-    // subscription/VPS-burst guard); the keyed entry serializes per lead. As the only claude-CLI fn
-    // today, the fn-scoped cap is effectively the global claude budget. When a second claude-CLI fn
-    // is added it must share this budget via an account/env-scoped concurrency key, not a second
-    // keyless fn-scoped limit (which would NOT be shared).
+    // Two caps: the keyless entry caps THIS function's concurrent generations (fn-scoped); the keyed
+    // entry serializes per lead so two requests for one lead never generate at once. A keyless limit is
+    // NOT shared across functions, and five worker functions now declare the same one from
+    // CLAUDE_AGENT_CONCURRENCY (demo-gen, build, outreach, support, reply) — so the true ceiling on
+    // concurrent `claude` CLI processes is 5 × CLAUDE_AGENT_CONCURRENCY. Size the env var against the
+    // VPS memory and the subscription burst budget with that multiplier in mind; a shared ceiling would
+    // require an account-scoped concurrency KEY on every one of them.
     concurrency: [
       { limit: Number(process.env.CLAUDE_AGENT_CONCURRENCY) || 2 },
       { limit: 1, key: 'event.data.leadId' },

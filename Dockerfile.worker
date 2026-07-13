@@ -16,8 +16,11 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends build-essential python3 \
   && rm -rf /var/lib/apt/lists/*
 RUN npm ci
-# Claude Code CLI for demo generation (Subsystem 3): the worker shells to `claude`, which runs on
-# the user's subscription via CLAUDE_CODE_OAUTH_TOKEN (set in .env.local) — no metered API key.
+# Claude Code CLI for demo generation and the other agent runs: the worker shells to `claude`, which runs
+# on the user's subscription — no metered API key. By default compose points it at the 9router gateway
+# (ANTHROPIC_BASE_URL=http://9router:20128 + ANTHROPIC_AUTH_TOKEN), which holds and auto-refreshes the
+# provider auth in its own volume so a worker rebuild can't drop it. Clearing ANTHROPIC_BASE_URL in ./.env
+# falls back to talking to Anthropic directly on CLAUDE_CODE_OAUTH_TOKEN.
 RUN npm i -g @anthropic-ai/claude-code
 COPY . .
 

@@ -4,9 +4,11 @@ import { autonomyModeEnum } from './enums';
 import { leads } from './leads';
 import { ACTIVE_RUN_STATUSES } from '../../inngest/pipeline-machine';
 
-// Funnel position a run currently occupies. Forward-compatible superset of the whole agency
-// pipeline (Discovery → Audit → Demo → Outreach → Sales-reply → Deal → Delivery); only `audit`
-// and `demo` are wired today — later subsystems reuse the same column without a new enum/migration.
+// Funnel position a run currently occupies. Forward-compatible superset of the whole agency pipeline
+// (Discovery → Audit → Demo → Outreach → Sales-reply → Deal → Delivery). The orchestrator drives
+// `audit` → `demo` → `outreach`, and `outreach` is the run's closing stage; `reply`, `deal` and
+// `delivery` are reserved — the post-sale work runs off deal events, decoupled from pipeline_runs —
+// so those subsystems can be wired into the run machine later without a new enum/migration.
 export const pipelineStageEnum = pgEnum('pipeline_stage', [
   'audit',
   'demo',
