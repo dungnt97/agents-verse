@@ -10,7 +10,7 @@
 | In scope | Out of scope (owner) |
 |---|---|
 | `lib/agents/pipelines/demo.ts` — `generateDemoHtml`, `STYLE_LANES`, `boardPassesClean` | The generic agent runtime (`runAgent`, `runBoard`, `AgentDef`, validators, registry, board) → `agents-runtime.md` |
-| `lib/demo-gen/*` — `prompt.ts`, `render.ts`, `layout-audit.ts`, `layout-defects.ts`, `webapp-qa.ts`, `qa-findings.ts`, `fetch-venue-photos.ts`, `locale.ts` | `pipeline_runs`, hops, gates, escalations → `pipeline-orchestrator.md` |
+| `lib/demo-gen/*` — `prompt.ts`, `render.ts`, `layout-audit.ts`, `layout-defects.ts`, `webapp-qa.ts`, `qa-findings.ts`, `fetch-venue-photos.ts`, `lead-to-input.ts`, `locale.ts` | `pipeline_runs`, hops, gates, escalations → `pipeline-orchestrator.md` |
 | `lib/inngest/functions/run-demo-gen.ts` (the durable function) | Where `mapsData.photos` / `phone` come from → `discovery.md` |
 | `lib/actions/run-demo-gen.ts` (`requestDemoGeneration` — the web trigger) | The `audits` row that IS the redesign brief → `audit.md` |
 | `app/demo/[leadId]/route.ts` (public serve + CSP) | Every env var's default/unset behavior → `../env-reference.md` |
@@ -60,7 +60,7 @@ travels through exactly **three layers**, and all three must be edited together 
 
 | Layer | Symbol | What it does |
 |---|---|---|
-| 1. Source | `lib/inngest/functions/run-demo-gen.ts` | The **only** producer of `DemoGenInput` in DB mode. Maps `phone: lead.phone`, `address: lead.formattedAddress`, `mapsData: lead.mapsData`, `language: demoLanguageForAddress(lead.formattedAddress)`, plus the `audits` row's `scores`/`problems`/`redesign`/`summary`. |
+| 1. Source | `leadToDemoGenInput` in `lib/demo-gen/lead-to-input.ts` (called by `lib/inngest/functions/run-demo-gen.ts`) | The **only** producer of `DemoGenInput` in DB mode — a pure `leads` + `audits` → `DemoGenInput` mapper, extracted from the worker function so it is unit-testable in isolation. Copies `phone: lead.phone`, `address: lead.formattedAddress`, `mapsData: lead.mapsData` **verbatim** (a null passes through untouched, never a placeholder), `language: demoLanguageForAddress(lead.formattedAddress)`, plus the `audits` row's `scores`/`problems`/`redesign`/`summary`. |
 | 2. Type | `DemoGenInput` in `lib/demo-gen/prompt.ts` | `phone?`, `address?`, `mapsData?` — all optional + nullable so demo mode stays green. |
 | 3. Prompt | `clientBlock` / `mapsFactsBlock` in `lib/demo-gen/prompt.ts` | Emits each fact with explicit NEVER-invent language. |
 
@@ -75,9 +75,12 @@ What the prompt actually says (do not soften these strings):
 - `craftConstraints` (shared by the build + revise passes) repeats it in the CONTENT rule: *"NEVER invent or alter a
   PHONE NUMBER or STREET ADDRESS … **if a fact isn't provided, omit it rather than fabricate**"*.
 
-**Nothing enforces any of this.** Typecheck and the unit suite pass with all three fields dropped. It **has
-regressed once** — the demo printed a fabricated phone number, fixed in `804138b`. Treat a change here as
-high-risk.
+**The `phone` + `address` path is now enforced** by `tests/demo-gen/lead-to-input.test.ts`: it asserts they
+survive `leadToDemoGenInput` verbatim and reach `buildBuildPrompt`, and that a null value passes through as null
+with no placeholder. Coverage stops at the build pass, though — no test exercises the revise or surgical-fix
+prompts, the `mapsFactsBlock` facts, or the Type layer, and typecheck plus the unit suite still pass with those
+lines dropped. It **has regressed once** — the demo printed a fabricated phone number, fixed in `804138b`. Treat a
+change here as high-risk.
 
 **Note the surgical fix passes never see the facts.** `buildLayoutFixPrompt` / `buildQaFixPrompt` do **not** include
 `clientBlock` — they get the current HTML plus "fix exactly these defects and NOTHING else". Real facts survive
@@ -170,7 +173,7 @@ Governed by the following — rationale, what-breaks and what-enforces live in `
 - **O6** — agent validators throw on empty/unusable output; they never return `''`.
 - **O7** — a deterministic guard keeps its fix only if the measured defect count strictly drops.
 - **R2** — do not raise `CLAUDE_AGENT_CONCURRENCY` or the render bounds without raising the worker `mem_limit`.
-- **R3** — a keyless fn-scoped Inngest concurrency limit is per-function, not a shared global budget.
+- **R3** — the `claude`-CLI functions share ONE account-scoped concurrency budget (`scope:'account', key:'"claude-agent"'`); a new one must reuse that scope+key.
 - **R4** — never call `closeBrowser()` from a new pass.
 - **R5** — in-page Playwright logic is a **string expression**, never a closure.
 - **R6** — keep `child.stdin.on('error', () => {})` in the runner.
@@ -181,12 +184,13 @@ Governed by the following — rationale, what-breaks and what-enforces live in `
 1. `lib/demo-gen/prompt.ts` — add the field to `DemoGenInput` (optional + nullable).
 2. Emit it in `clientBlock` (contact facts) or `mapsFactsBlock` (Maps facts) with explicit *use verbatim / never
    invent* wording, and omit the line entirely when the value is falsy.
-3. Map it from the `leads` / `audits` row in `lib/inngest/functions/run-demo-gen.ts` — **this is the step that gets
-   forgotten.**
+3. Map it from the `leads` / `audits` row in `leadToDemoGenInput` (`lib/demo-gen/lead-to-input.ts`) — **this is the
+   step that gets forgotten.**
 4. If it comes from discovery, extend `MapsData` (`lib/data/types.ts`), the Apify mapper, and the `set:{}` of
    `upsert-discovered-leads.ts` (F6) — otherwise re-discovery keeps the stale value.
 5. **Add tests**: one asserting the value reaches the built prompt (`tests/demo-gen/prompt.test.ts`) and one
-   asserting `run-demo-gen` maps it. O2 is otherwise enforced by nothing.
+   asserting `leadToDemoGenInput` maps it from the `leads`/`audits` row (`tests/demo-gen/lead-to-input.test.ts`,
+   the O2 guard). Outside those tests, O2 rests on convention.
 
 **Add a new pass.**
 1. Write a pure prompt builder in `lib/demo-gen/prompt.ts`. Reuse `clientBlock` + `outputRule` and pick
@@ -224,16 +228,17 @@ in `AgentModel`; `AGENT_MODEL_<TIER>` resolves automatically.
   data:; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'self'`. Any demo feature that needs `fetch`/XHR or a form
   submit **will not work and will not warn you** — it is contained LLM-authored HTML, by design (D6). The route's
   placeholder pages are still hard-coded Vietnamese.
-- **`sharp` is used but is NOT a declared dependency.** `layout-audit.ts` does `await import('sharp')` for the
-  pixel-accurate header-contrast probe; it resolves only transitively. The probe sits inside a `try/catch`, so a
-  missing `sharp` **silently disables header-contrast detection** with no error.
+- **`sharp`'s header-contrast probe fails silently.** `layout-audit.ts` does `await import('sharp')` for the
+  pixel-accurate header-contrast probe (`sharp` is now a declared dependency). The probe sits inside a `try/catch`,
+  so if `sharp` ever fails to load or throws it **silently disables header-contrast detection** with no error.
 - **Memory.** `render.ts` bounds exist because a 2 g worker was OOM-killed by photo-rich builds (`848bee0`):
   `HARD_MAX_PX` 13000, `SLICE_PX` 2600, `MAX_SLICES` 6, `DEVICE_SCALE_FACTOR` 0.75. The critique PNGs are held in
   memory by Chromium **and** the `claude` CLI simultaneously — they are the worker's peak-memory driver. Worker
   `mem_limit` is 4 g and is shared with the audit function's Chromium.
-- **`CLAUDE_AGENT_CONCURRENCY` is not a global budget.** `run-demo-gen` declares a keyless fn-scoped limit from it —
-  but so do `run-build`, `run-outreach`, `run-support` and `handle-reply`, and a keyless limit is per-function, not
-  shared. The real ceiling on concurrent `claude` processes is (number of such functions) × the env value (R3).
+- **`CLAUDE_AGENT_CONCURRENCY` caps ALL `claude`-CLI functions together, not each one.** They share ONE
+  account-scoped queue (R3), so the env value is the total ceiling on concurrent `claude` processes — raising it
+  lifts every claude function at once (mind the shared worker `mem_limit`, R2), and a new claude function that
+  forgets the shared `scope`+`key` escapes the budget.
 - **Double-click guard lives in the action, not the event.** `demo/requested` carries no dedup id (a lead may
   legitimately be re-generated), so `requestDemoGeneration` refuses when a `generating` row is younger than 45 min.
 - **`hasBlockingDefects` is exported and tested but unused by the pipeline** — the layout loop fires on any defect,
@@ -248,6 +253,7 @@ in `AgentModel`; `AGENT_MODEL_<TIER>` resolves automatically.
 | File | Covers |
 |---|---|
 | `tests/demo-gen/prompt.test.ts` | Prompt shape for every builder; `REVIEW_PERSONAS` keys; that the surgical prompts omit the creative playbook (no `STRUCTURE MANDATE`); that `mapsData` **rating / reviews / hours** reach the build prompt and that no facts block is emitted when `mapsData` is absent. |
+| `tests/demo-gen/lead-to-input.test.ts` | `leadToDemoGenInput` copies the real `phone`/`address` verbatim and passes a null through untouched; both reach `buildBuildPrompt` and an absent phone is omitted (the O2 fact-grounding guard). |
 | `tests/demo-gen/layout-defects.test.ts`, `qa-findings.test.ts` | Dedupe, major-first ordering, cap, `hasBlocking…`, `majorQaCount`. |
 | `tests/demo-gen/locale.test.ts` | `demoLanguageForAddress` both branches. |
 | `tests/agents/agent-defs.test.ts` | Each def's id/model/tools/limits and that its `buildPrompt` interpolates its inputs. |
@@ -256,8 +262,10 @@ in `AgentModel`; `AGENT_MODEL_<TIER>` resolves automatically.
 
 **Guarded by NOTHING — say it plainly:**
 
-- **No test asserts `phone` or `address` reaches any prompt**, and no test asserts `run-demo-gen` maps them from the
-  `leads` row. This is the highest-value missing test in the subsystem (O2, and it has regressed before).
+- **`phone`/`address` fact-grounding is now guarded** through the build pass by `tests/demo-gen/lead-to-input.test.ts`
+  (they reach `buildBuildPrompt` verbatim; a null is omitted) — but **no test asserts a fact survives the revise or
+  surgical-fix prompts**. Only the build pass is covered; those later passes rely on *change-nothing-else* alone (O2,
+  which has regressed before).
 - **No test covers venue photos at all**: not `fetchVenuePhotos`, not the `=w640` `judgeUrl` swap, not the
   `mapsFactsBlock` photo list, not `buildBuildPrompt`'s `VENUE PHOTOS` re-injection.
 - **No test imports any Inngest function** — `run-demo-gen` (its upserts, the `leads.demo` bump, the

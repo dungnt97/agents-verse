@@ -46,20 +46,20 @@ Because the worker imports it, the entire runtime closure of `run-discovery-core
 
 One pass = `runDiscoveryCore`, top to bottom:
 
-1. **Provider-key guard.** `DISCOVERY_PROVIDER` (`google` default) decides which credential is required. Missing → returns `{ found: 0, …, message: '<KEY> is not configured.' }`. It returns, it does not throw — and it lives in the **core**, not the action, because both callers need it.
+1. **Provider-key guard.** `DISCOVERY_PROVIDER` (`apify` default — only an explicit `google` selects Google) decides which credential is required. Missing → returns `{ found: 0, …, message: '<KEY> is not configured.' }`. It returns, it does not throw — and it lives in the **core**, not the action, because both callers need it.
 2. **Daily cap.** `resolveDailyCap(DISCOVERY_DAILY_CAP, auto, AUTO_DISCOVERY_DAILY_CAP)`. Then a live `count()` of today's `leads` rows with a non-null `place_id`. At/over the cap → return before any paid call. Under it, the cap also **clamps this pass's enrich budget**: `budget = min(ENRICH_TOP_N, cap − todayCount)`.
 3. **Market pick.** `auto: true` → `planNextMarket(settings.market_plan, hunted_markets)`; a `null` pick returns early ("Autonomous hunting is off or the market pool is empty"). Otherwise: typed `industry`/`city` → `DISCOVERY_DEFAULT_INDUSTRY`/`DISCOVERY_DEFAULT_CITY` → `'dentists'` / `'Austin TX'`. `MarketPick.regionCode` (geo-bias) exists only on the planner path.
 4. **Search + dedupe.** `searchBusinesses({ industry, city, regionCode })` (≤20 results) → `dedupePlaces` (within-batch fuzzy: name Jaccard ≥ 0.8 **and** address Jaccard ≥ 0.5) → `slice(0, budget)`.
 5. **Enrich the top-N.** Per place: `enrichPlace(id)` (website + phone) → if a website came back, `assessWebsite(url)` (the 0-100 heuristic score + `reachable`) and `scrapeEmail(url)`.
 6. **Orion qualifies the batch.** `orionQualify` → `{ value, priority, rationale }` per lead.
-7. **Map + upsert.** `mapPlaceToLead` → `upsertDiscoveredLeads` (`ON CONFLICT (place_id) DO UPDATE`, refreshing `website_uri`, `email`, `phone`, `site`, `website_score`, `formatted_address`, `business_status`, `maps_data`).
+7. **Map + upsert.** `mapPlaceToLead` → `upsertDiscoveredLeads` (`ON CONFLICT (place_id) DO UPDATE`, refreshing `website_uri`, `email`, `phone`, `website_score`, `formatted_address`, `business_status`, `maps_data`). `site` and `score` are set only on the INSERT and **never refreshed** — once the audit runs it owns both, so a re-discovery must not clobber the measured value.
 8. **Record the market** (auto runs only): upsert `hunted_markets` with `lastRunAt = now` and `leadsFound += upserted`.
 9. **Auto-chain** — see below.
 10. **Activity row**, then return `DiscoveryResult`.
 
 ### Providers
 
-| | `google` (default) | `apify` |
+| | `google` | `apify` (default) |
 |---|---|---|
 | Entry | `searchBusinessesGoogle` / `enrichPlaceGoogle` | `searchBusinessesApify` / `enrichPlaceApify` |
 | Backend | Google Places API (New), REST | Apify actor `compass~crawler-google-places`, `run-sync-get-dataset-items` |
@@ -104,28 +104,13 @@ The cron `autoDiscovery` (`triggers: [{ cron: AUTO_DISCOVERY_CRON }]`, default `
 - `planNextMarket` expands the founder's pool into every (country, metro, niche) combo in catalog order and picks the **least-recently-hunted** (never-hunted first, catalog order as the stable tie-break). Pure — history carries the timestamps, there is no clock in the module.
 - State: `hunted_markets` rows (upserted per auto pass) + `settings.market_plan`.
 
-> ### ⚠️ `settings.market_plan` HAS NO WRITER
+> ### Autonomous hunting starts OFF — enable it in Settings > Market Hunter
 >
-> Grep `marketPlan` across `lib/`, `app/`, `components/`: **only reads** (`auto-discovery.ts` and `run-discovery-core.ts`). There is **no settings UI, no server action, and no seed value** — `lib/actions/settings.ts` writes `autonomyMode`, `guardrails` and `pricing` only, and `seedConfig()` inserts the `settings` row without `market_plan`. The column is therefore `NULL`, readers fall back to `DEFAULT_MARKET_PLAN`, and `DEFAULT_MARKET_PLAN.enabled === false`.
+> `settings.market_plan` is seeded `NULL` (`seedConfig()` inserts the `settings` row without it), so both readers (`auto-discovery.ts`, `run-discovery-core.ts`) fall back to `DEFAULT_MARKET_PLAN`, whose `enabled === false`. Until the pool is populated and switched on, the cron no-ops.
 >
-> **Consequence: autonomous hunting can only be turned on by a manual SQL UPDATE.** The row seeded by `seedConfig()` is `id = 'default'`:
+> **The writer is `updateMarketPlan`** (`lib/actions/settings.ts`, guarded + dual-mode), driven by the **Market Hunter** section of `settings-screen.tsx`: pick countries and niches, flip the master switch. It filters the payload against `MARKET_CATALOG` / `MARKET_NICHES` (an out-of-catalog code or unknown niche is dropped) and **refuses to enable an empty pool**, so a stale or tampered plan can never turn hunting on for a market `planNextMarket` can't expand.
 >
-> ```sql
-> UPDATE settings
-> SET market_plan = '{"countries":["US"],"niches":["nail salons","dental clinics"],"enabled":true}'::jsonb,
->     updated_at  = now()
-> WHERE id = 'default';
-> ```
->
-> If the seed never ran, upsert instead (`autonomy_mode` and `updated_at` carry DB defaults):
->
-> ```sql
-> INSERT INTO settings (id, market_plan)
-> VALUES ('default', '{"countries":["US"],"niches":["nail salons"],"enabled":true}'::jsonb)
-> ON CONFLICT (id) DO UPDATE SET market_plan = EXCLUDED.market_plan, updated_at = now();
-> ```
->
-> `countries[]` must be ISO codes present in `MARKET_CATALOG` and `niches[]` strings present in `MARKET_NICHES` — anything else expands to no combos, `planNextMarket` returns `null`, and the cron no-ops. Hunting also needs `autonomy_mode ∈ {guarded, full}`, a running `worker` container, and the active provider's credential.
+> Hunting also needs `autonomy_mode ∈ {guarded, full}` (same Settings screen), a running `worker` container, and the active provider's credential.
 
 ### The auto-chain (who gets a pipeline)
 
@@ -149,7 +134,7 @@ Governed by (rationale, what-breaks and what-enforces live in [`../invariants.md
 - **M4** — do not weaken the `notExists(pipeline_runs …)` re-pipeline guard.
 - **D1** — any fetch of a lead-supplied URL goes through `safeFetch` / `assertPublicUrl`.
 - **D3** — Orion sanitizes attacker-influenceable directory text (`cleanField` + the data-framing prompt).
-- **F2** — `leads.company` is UNIQUE while the upsert conflicts only on `place_id`.
+- **F2** — company uniqueness is a *partial* index (`leads_company_manual_unique`, `WHERE place_id IS NULL`); discovery rows dedupe on the `place_id` conflict target. Keep the partial index and the upsert arbiter aligned.
 - **F3** — migrations are append-only; a new schema module must be exported from the barrel.
 - **F6** — a new provider field must be added to the `set:{}` of `upsertDiscoveredLeads`, not just the insert.
 
@@ -166,8 +151,7 @@ Governed by (rationale, what-breaks and what-enforces live in [`../invariants.md
 
 **Add a country or niche.** Append to `MARKET_CATALOG` / `MARKET_NICHES` in `market-catalog.ts`. `code` must be the ISO-3166 alpha-2 that Google accepts as `regionCode`. No migration. Update `tests/discovery/market-planner.test.ts` if you change catalog **order** — the no-history test asserts which combo comes first.
 
-**Turn ON autonomous hunting.** There is no UI. Run the SQL in the callout above, set `autonomy_mode` to `guarded` or `full` (the Settings screen does this), start the `worker`, and provide the provider credential. Optionally set `AUTO_DISCOVERY_CRON`, `DISCOVERY_DAILY_CAP`, `PIPELINE_DAILY_CAP`.
-*If you build the UI:* add a `'use server'` action in `lib/actions/settings.ts` that validates the payload against `MARKET_CATALOG` / `MARKET_NICHES` and writes `settings.marketPlan` — mirror `updateGuardrails`.
+**Turn ON autonomous hunting.** Open **Settings > Market Hunter**: pick countries and niches and flip the master switch (persisted by `updateMarketPlan`), then set `autonomy_mode` to `guarded` or `full` (same screen). Start the `worker` and provide the active provider's credential. Optionally set `AUTO_DISCOVERY_CRON`, `DISCOVERY_DAILY_CAP`, `PIPELINE_DAILY_CAP`.
 
 **Add an auto-chain eligibility gate.** New pure worker-safe module in `lib/discovery/` (mirror `contactability.ts`) → unit test it → AND it into the `.filter()` that builds `eligiblePlaceIds` in `run-discovery-core.ts`, using this pass's live `enrichment`/`assessment`. Keep the lead **saved** — gate the pipeline, not the upsert.
 
@@ -175,10 +159,10 @@ Governed by (rationale, what-breaks and what-enforces live in [`../invariants.md
 
 ## Traps
 
-- **`mapsData` is Apify-ONLY.** `toMapsData` exists only in `places-apify.ts`; `searchBusinessesGoogle` never sets the field. `run-demo-gen.ts` passes `lead.mapsData` to the demo pipeline (`lib/agents/pipelines/demo.ts`), which calls `fetchVenuePhotos(input.mapsData?.photos ?? [], …)`. So with **`DISCOVERY_PROVIDER=google` a demo gets zero real venue photos and zero real testimonials** — it falls back to stock imagery, silently defeating the headline feature. Same for `APIFY_MAX_IMAGES=0`.
+- **`mapsData` is Apify-ONLY — which is why Apify is the default provider.** `toMapsData` exists only in `places-apify.ts`; `searchBusinessesGoogle` never sets the field. `run-demo-gen.ts` passes `lead.mapsData` to the demo pipeline (`lib/agents/pipelines/demo.ts`), which calls `fetchVenuePhotos(input.mapsData?.photos ?? [], …)`. So opting into the non-default **`DISCOVERY_PROVIDER=google` gives a demo zero real venue photos and zero real testimonials** — it falls back to stock imagery, silently defeating the headline feature. Same for `APIFY_MAX_IMAGES=0`.
 - **The Apify provider ignores `regionCode`.** `searchBusinessesApify`'s opts type has no `regionCode`, and TypeScript's excess-property check does not fire on a passed variable — so the planner's geo-bias is dropped with no error. Under Apify the market is disambiguated by the metro string alone.
 - **The Apify `enrichmentCache` is module-level and never evicted.** `enrichPlaceApify(id)` returns `{ null, null }` unless `searchBusinessesApify` ran **in the same process** first, and the map grows for the life of the long-lived worker.
-- **`leads.company` is UNIQUE but the upsert conflicts only on `place_id`** (**F2**). Two different `place_id`s sharing a company name (a franchise across metros; two branches `dedupePlaces` keeps because the addresses differ) raise `23505 leads_company_unique`. The multi-row INSERT is one statement, so **the whole pass fails**: nothing saved, `hunted_markets` not written, and with `retries: 0` the next cron tick re-picks the same market and fails identically.
+- **Two same-named franchise branches coexist by design** (**F2**). Company uniqueness is a *partial* index (`leads_company_manual_unique`, `WHERE place_id IS NULL`), so it binds only manual/inbound rows. Discovery rows carry a `place_id` and fall outside the predicate — deduping on `place_id` instead — so two branches `dedupePlaces` keeps because their addresses differ now save side by side. (A full `UNIQUE(company)` used to raise `23505` on the multi-row INSERT and fail the entire pass; the partial index removes that failure mode.)
 - **A manual run has no app-side cap by default.** `DISCOVERY_DAILY_CAP` unset ⇒ `resolveDailyCap` returns `0` for `auto: false`. Only the autonomous path gets a floor.
 - **`hasRealWebsite` treats an unreachable site as "no website"** — a real site that was merely down during the probe becomes a target.
 - **The mock `AV` leads store bare domains** (no `http(s)://`), which the audit's greenfield gate reads as "no website". Discovery-sourced leads store whatever the provider returned in `website_uri`, and `url` falls back to the literal `'(no site yet)'`.
@@ -195,6 +179,6 @@ Governed by (rationale, what-breaks and what-enforces live in [`../invariants.md
 - `runDiscoveryCore`'s behavior. No test imports it — not the caps, not the enrich-budget clamp, not the market pick, not the auto-chain gates, not the re-pipeline guard, not the upsert. `tests/db/` has no discovery file either.
 - The contents of `DISCOVERY_FIELD_MASK` (**M1**) — a comment is the only defense.
 - `resolveDailyCap`'s negative/NaN handling (**M3**).
-- The `leads.company` collision (**F2**) — no unit test, no DB-mode test.
+- That two same-named franchise branches actually coexist under the partial `leads_company_manual_unique` index (**F2**) — no DB-mode test exercises it.
 - The cron's `retries: 0` / `concurrency: 1` config (**M2**).
 - That a new provider populates `mapsData`, or that a new column reaches the upsert's `set:{}` (**F6**).

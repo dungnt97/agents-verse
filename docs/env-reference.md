@@ -72,7 +72,9 @@ The last two ./.env-only vars have compose defaults (`http://9router:20128`, `cc
 | `INNGEST_SIGNING_KEY` | the `inngest` server container; the SDK picks it up implicitly in the worker. **No `process.env` read in our code.** | none | worker `connect()` is rejected | **BOTH** (same reason) |
 | `INNGEST_DATABASE_URL` | compose only → the container's `INNGEST_POSTGRES_URI` | none (empty ⇒ Inngest's own store) | Inngest state is not persisted in Postgres | **`./.env`**. May reuse `DATABASE_URL`. |
 | `AUDIT_CONCURRENCY` | `lib/inngest/functions/run-audit.ts` (`runAudit` concurrency) | `2` | 2 parallel audits | `.env.local` |
-| `CLAUDE_AGENT_CONCURRENCY` | `run-demo-gen`, `run-build`, `run-outreach`, `run-support`, `handle-reply` in `lib/inngest/functions/` | `2` | 2 parallel `claude` CLI runs per function | `.env.local`. Raising it without raising the worker `mem_limit` OOM-kills the worker. |
+| `CLAUDE_AGENT_CONCURRENCY` | `run-demo-gen`, `run-build`, `run-outreach`, `run-support`, `handle-reply` in `lib/inngest/functions/` | `2` | all five functions declare an identical account-scoped `claude-agent` key, so the value is one **shared** ceiling: 2 parallel `claude` CLI runs total across every claude function, not per function | `.env.local`. Raising it without raising the worker `mem_limit` OOM-kills the worker. |
+| `PIPELINE_RUN_TIMEOUT_MIN` | `lib/inngest/functions/reap-stale-runs.ts` (`TIMEOUT_MIN`) | `120` | a `pipeline_runs` row stuck in `running` past 120 min is reaped to `failed`, freeing the lead | `.env.local` |
+| `REAP_STALE_RUNS_CRON` | `lib/inngest/functions/reap-stale-runs.ts` (`CRON`) | `*/30 * * * *` | the stale-run sweep runs every 30 min. Prefix `TZ=` to localise. | `.env.local` |
 
 `INNGEST_REDIS_URI` / `INNGEST_POSTGRES_URI` are container-internal names set by compose — never put them
 in an env file.
@@ -83,7 +85,7 @@ in an env file.
 
 | VAR | read by | default | when UNSET | file |
 |---|---|---|---|---|
-| `DISCOVERY_PROVIDER` | `lib/discovery/places-client.ts` (`useApify`), `lib/discovery/run-discovery-core.ts` (`runDiscoveryCore`) | `google` | official Google Places API (New). Only the literal `apify` selects Apify. | `.env.local` |
+| `DISCOVERY_PROVIDER` | `lib/discovery/places-client.ts` (`useApify`), `lib/discovery/run-discovery-core.ts` (`runDiscoveryCore`) | `apify` | Apify Google Maps Scraper — it returns the venue photos + reviews demo-gen grounds the site in. Only the literal `google` selects the official Google Places API (New), which returns **no** photos/reviews, so demos lose real venue imagery. | `.env.local` |
 | `GOOGLE_MAPS_API_KEY` | `lib/discovery/places-client.ts` (`apiKey`) | none | `runDiscoveryCore` returns a "not configured" message (no throw) | `.env.local` |
 | `APIFY_API_TOKEN` | `lib/discovery/places-apify.ts` (`token`) | none | same graceful message when `DISCOVERY_PROVIDER=apify` | `.env.local` |
 | `APIFY_MAX_REVIEWS` | `lib/discovery/places-apify.ts` (`MAX_REVIEWS`) | **`10`** | 10 review texts scraped per place | `.env.local`. **An empty value means `0`**, not the default — `Number('')` is `0`. `0` ⇒ no real testimonials for demo-gen. |
@@ -145,7 +147,7 @@ All of these live in `.env.local`.
 | `RESEND_API_KEY` | `lib/integrations/resend.ts` (`resendConfigured`, `sendEmail`), `lib/actions/send-outreach.ts`, `lib/actions/email-proposal.ts` | none | nothing is sent; the pipeline still runs to demo | 
 | `OUTREACH_FROM` | same | none | required **together with** the key — either missing ⇒ not configured |
 | `OUTREACH_REPLY_TO` | `lib/integrations/resend.ts` (`sendEmail`); `run-outreach.ts` (`unsubscribeFor`) | `OUTREACH_FROM` | reply-to and the unsubscribe mailbox default to the From address |
-| `APP_URL` | `lib/inngest/functions/run-outreach.ts` + `run-build.ts` (`appUrl`) | `BETTER_AUTH_URL`, then `''` | demo links in outreach have no origin |
+| `APP_URL` | `lib/inngest/functions/run-outreach.ts` + `run-build.ts` (`appUrl`) | `BETTER_AUTH_URL`, then `''` | with neither set the origin is empty and `run-outreach`'s `loadSendable` **refuses to send** rather than mail a relative `/demo/<id>` dead link — so one of `APP_URL` / `BETTER_AUTH_URL` is **required for outreach to actually send** |
 | `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_ACCESS_TOKEN` | `lib/integrations/whatsapp.ts` (`whatsappConfigured`) | none | the `whatsapp` channel reports unconfigured |
 | `WHATSAPP_TEMPLATE_NAME` | `lib/integrations/outreach-channel.ts`; `run-outreach.ts` (`whatsappPreview`) | `agentsverse_demo` on send; the preview prints `(WHATSAPP_TEMPLATE_NAME unset)` | a cold WhatsApp first touch **must** be an approved template |
 | `WHATSAPP_TEMPLATE_LANG` | `lib/integrations/outreach-channel.ts` | `en` | English template |

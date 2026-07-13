@@ -11,7 +11,7 @@
 - `lib/inngest/start-pipeline-run.ts` — opens the run ticket + fires the first event (worker-safe, shared with the discovery auto-chain).
 - `lib/inngest/client.ts` — the Inngest client + **all** event payload interfaces.
 - `lib/inngest/worker-entrypoint.ts` — the registry: a function not listed here never runs.
-- `lib/db/schema/pipeline-runs.ts` (ledger + active-lead index), the `escalations` gate rows, `lib/actions/escalations.ts` (approve/reject/take-over), `lib/actions/start-pipeline.ts`, `lib/repositories/pipeline-runs.ts`, `lib/data/cost-meter.ts`, `lib/inngest/functions/auto-discovery.ts`.
+- `lib/db/schema/pipeline-runs.ts` (ledger + active-lead index), the `escalations` gate rows, `lib/actions/escalations.ts` (approve/reject/take-over), `lib/actions/start-pipeline.ts`, `lib/repositories/pipeline-runs.ts`, `lib/data/cost-meter.ts`, `lib/inngest/functions/auto-discovery.ts`, `lib/inngest/functions/reap-stale-runs.ts` (the stranded-run backstop).
 
 **Out of scope** — what each worker *does* inside its steps: `audit.md`, `demo-gen.md`, `outreach-inbound.md`, `discovery.md`. Everything **after** `outreach/sent` (reply → deal → proposal → delivery) is **deal-driven, not run-tracked**: `deals-proposals-delivery.md`.
 
@@ -47,6 +47,7 @@ Enums: `pipeline_stage` = `audit｜demo｜outreach｜reply｜deal｜delivery` (a
 | `support/approved` | `SupportApprovedData` | `approveSupportEscalation` | `run-support` |
 | `delivery/completed` | `DeliveryCompletedData` | `run-build` | **nobody** — no trigger consumes it |
 | cron | — | `AUTO_DISCOVERY_CRON` (UTC) | `auto-discovery` |
+| cron | — | `REAP_STALE_RUNS_CRON` | `reap-stale-runs` |
 
 ### Public functions
 
@@ -58,7 +59,7 @@ Enums: `pipeline_stage` = `audit｜demo｜outreach｜reply｜deal｜delivery` (a
 | `decideNextHop`, `decideResume`, `decideHalt`, `ACTIVE_RUN_STATUSES`, `FACT_FROM_STAGE`, `RESUME_HOP`, `STAGE_REQUEST_EVENT` | `lib/inngest/pipeline-machine.ts` | Pure; imported by the orchestrator, the schema (index predicate), the repos, and the unit tests. |
 | `computeCostMeter(runs, {costPerRun, dailyCap})` | `lib/data/cost-meter.ts` | Pure, client-safe. |
 
-Env vars this slice reads (**explained only in `../env-reference.md`**): `INNGEST_DEV`, `INNGEST_BASE_URL`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, `AUTO_DISCOVERY_CRON`, `PIPELINE_DAILY_CAP`, `CLAUDE_AGENT_CONCURRENCY`, `AUDIT_CONCURRENCY`.
+Env vars this slice reads (**explained only in `../env-reference.md`**): `INNGEST_DEV`, `INNGEST_BASE_URL`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, `AUTO_DISCOVERY_CRON`, `REAP_STALE_RUNS_CRON`, `PIPELINE_RUN_TIMEOUT_MIN`, `PIPELINE_DAILY_CAP`, `CLAUDE_AGENT_CONCURRENCY`, `AUDIT_CONCURRENCY`.
 
 ## How it works
 
@@ -99,6 +100,8 @@ Env vars this slice reads (**explained only in `../env-reference.md`**): `INNGES
 **6 — Cost ledger.** On the `done` hop only, `cost-check` counts all `pipeline_runs` started since **local** midnight and calls `computeCostMeter` with `settings.guardrails.costPerRun` (default `0.4`) and `settings.guardrails.dailyCostLimit` (default `50`). At ≥80 % (`nearCap`) it upserts a single `esc-cost-<YYYY-MM-DD>` escalation (`setWhere status <> 'dismissed'`), sev `high` at ≥100 %. It is an **ESTIMATE, not a bill** (the subscription has no per-token billing) and it **never halts a run** (invariant **M5**).
 
 **7 — Terminal safety.** If the orchestrator itself exhausts retries, its `onFailure` marks the run `failed` — otherwise it would sit `running` forever with no fact left to move it, and the active-lead index would block every future run for that lead.
+
+**8 — Stranded-run reaper (backstop).** Section 7's `onFailure` only fires when a function *finishes* failing. It cannot catch the case where a **worker process** dies mid-step (an OOM kill, a crash, a lost gateway that outlasts the retries): no `onFailure` runs at all, so the run keeps `status: 'running'` with no fact left to move it. `reap-stale-runs` (cron `REAP_STALE_RUNS_CRON`, `retries: 0`, keyless `concurrency: 1`) is the backstop: one `step.run` UPDATEs every run whose `status = 'running'` and whose `updatedAt` is older than `PIPELINE_RUN_TIMEOUT_MIN` to `failed`, freeing the lead from the active-lead index. It touches **only** `'running'` — never `'waiting_approval'` (a founder gate) or `'paused'` (the kill switch), whose holds are intentional and must not age out. It is the last resort, not the primary rule: invariant **C1** (every terminal worker path emits its fact) is what keeps runs from ever needing it.
 
 ## Invariants
 
@@ -149,13 +152,14 @@ Mirror Echo (`run-outreach`): deterministic escalation id `esc-<kind>-<entityId>
 
 - **`guarded` looks autonomous but does not send.** Inside the machine it is identical to `full`. The only difference is `run-outreach`'s send check. Do not "simplify" the two modes into one.
 - **A `pipeline` escalation with a NULL `run_id` strands its run.** Both `command-center.tsx` and `review-center.tsx` branch on `kind === 'pipeline' && !!e.runId`; a null `runId` (the FK is `ON DELETE SET NULL`) falls through to the generic `resolveEscalation` — the row resolves, the run stays `waiting_approval` forever, and the lead can never start a new run.
-- **There is NO sweeper.** Nothing reaps `pipeline_runs` by age. A run left `running` at a stage whose request event was never consumed (worker down, event dropped before registration) sits in the active set forever and the partial-unique index blocks every future run for that lead. This is why **C1** matters more than anything else in this file — `run-outreach` emits the failed fact on every non-sending exit: `loadSendable`'s skips (channel not configured, lead not found, already contacted, lead past `found`, no recipient, no ready demo), a previously-dismissed draft, and `onFailure`.
+- **The reaper is a backstop, not a licence to skip a fact.** `reap-stale-runs` (see "How it works") now fails a run left `running` at a stage whose request event was never consumed (worker down, event dropped before registration) — but only once it ages past `PIPELINE_RUN_TIMEOUT_MIN`. Until then the partial-unique index blocks every future run for that lead, so a run reaped instead of completed is still a lost stage-plus for that lead. This is why **C1** still matters more than anything else in this file — `run-outreach` emits the failed fact on every non-sending exit: `loadSendable`'s skips (channel not configured, no absolute app URL configured, lead not found, opted out via `doNotContact`, already contacted, lead past `found`, no recipient, no ready demo), a previously-dismissed draft, and `onFailure`.
 - **`run-outreach`'s SUCCESS emits are not `runId`-guarded.** `run-audit` and `run-demo-gen` wrap every fact emit in `if (runId)`; `run-outreach` does so on its skip paths and `onFailure`, but **not** on the two `emit-sent` steps (`outreach/requested` full-autonomy send, `outreach/approved` send) — they send `outreach/sent` with `runId: undefined` and an id falling back to `outreach/sent:<leadId>`. A one-off outreach from `lib/actions/send-outreach.ts` therefore still triggers `orchestrate-pipeline`, whose `decide` step queries `pipeline_runs` with an undefined id and whose concurrency key is undefined. Guard `runId` before adding logic there.
 - **`proposal/requested` is the only send with no event id** — a double-click can enqueue two proposal jobs; only Resend's `idempotencyKey: proposal:<dealId>` stops the duplicate email.
 - **`delivery/completed` has no consumer.** Emitting it does nothing today.
 - **The autonomy gate is read LIVE per hop.** `pipeline_runs.autonomy_snapshot` is record-only. Do not "fix" the orchestrator to read the snapshot.
 - **The cost check only runs on the `done` hop.** A day full of gated or failed runs never re-evaluates the cap. And the guardrail keys are `dailyCostLimit` / `costPerRun` — an earlier draft read `dailyCostCap`, so the founder's cap silently never applied.
 - **The machine is imported from both runtimes**: relatively by `lib/db/schema/pipeline-runs.ts` (worker/tsx, for the index predicate) and via `@/` by `lib/repositories/pipeline-runs.ts` (web, `server-only`). It must therefore never gain a `server-only` or `@/` dependency (**B1**).
+- **The `claude`-CLI functions share ONE concurrency budget.** `run-demo-gen`, `run-build`, `run-outreach`, `run-support`, and `handle-reply` each carry an identical `{ scope: 'account', key: '"claude-agent"', limit: CLAUDE_AGENT_CONCURRENCY }` as their **first** concurrency entry (a per-`leadId`/`dealId` key is the second). An account-scoped key is deliberately shared across every function that declares it, so the true global ceiling on concurrent `claude` CLI invocations is `CLAUDE_AGENT_CONCURRENCY` itself — **not** that limit multiplied once per function. Raising it without raising the worker's memory OOM-kills the worker. Do not confuse this shared key with the keyless fn-scoped `concurrency: 1` on `auto-discovery` / `reap-stale-runs`, which is per-function (**R3**).
 - **No global kill-switch exists**, despite what the deleted docs claimed. `pausePipelineRun(runId)` is per-run. Setting autonomy to `manual` does **not** stop in-flight runs — it only makes the **next** hop gate.
 - **The pipeline has no UI surface.** `startPipeline`, `pausePipelineRun`, `resumePipelineRun` and `getActivePipelineRuns` have zero callers in `app/` or `components/`. Runs start **only** from the discovery auto-chain (guarded/full, contactable lead, no real website, never previously piped, under `PIPELINE_DAILY_CAP`). Today the founder can only approve/reject/take-over a run's gate escalation; runs surface read-only through the agent overlay and the dashboard metrics.
 
@@ -173,7 +177,7 @@ Mirror Echo (`run-outreach`): deterministic escalation id `esc-<kind>-<entityId>
 
 **What does NOT guard it — say it plainly**
 
-- **No test executes any Inngest function.** `orchestrate-pipeline`, `run-audit`, `run-demo-gen`, `run-outreach`, `run-build`, `run-support`, `handle-reply`, `send-proposal`, `auto-discovery` are never executed by the suite. The machine's *decisions* are pinned; their *application* — the conditional stage writes, the park+escalate transaction, the event ids, the `cost-check` upsert, the `onFailure` handlers — has **zero automated coverage**.
+- **No test executes any Inngest function.** `orchestrate-pipeline`, `run-audit`, `run-demo-gen`, `run-outreach`, `run-build`, `run-support`, `handle-reply`, `send-proposal`, `auto-discovery`, `reap-stale-runs` are never executed by the suite. The machine's *decisions* are pinned; their *application* — the conditional stage writes, the park+escalate transaction, the event ids, the `cost-check` upsert, the reaper's age-out UPDATE, the `onFailure` handlers — has **zero automated coverage**.
 - `vitest.config.ts` excludes `lib/inngest/functions/**` and `lib/inngest/worker-entrypoint.ts` from coverage, so the gap is invisible in the coverage report.
 - Nothing links `ACTIVE_RUN_STATUSES` to the generated migration (**F1**); a unit test pins the array's value, not the DDL.
-- Nothing tests the escalation-id formats end to end (**C8**), the NULL-`runId` fall-through in the UI, or the absence of a sweeper.
+- Nothing tests the escalation-id formats end to end (**C8**) or the NULL-`runId` fall-through in the UI.

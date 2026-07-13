@@ -2,7 +2,7 @@
 
 > The generic `claude`-CLI runtime every LLM agent runs on. Owner-of-truth for: `lib/agents/*` — the runner
 > (spawn/retry/model resolution), the `AgentDef` contract, validators, the registry, the review board, the agent
-> roster, and the real concurrency ceiling of the claude-CLI Inngest functions.
+> roster, and the shared concurrency budget of the claude-CLI Inngest functions.
 
 Not owned here: the demo pipeline itself (`lib/agents/pipelines/demo.ts` + `lib/demo-gen/*`) → `demo-gen.md`.
 The Inngest functions that call these agents → `pipeline-orchestrator.md`, `outreach-inbound.md`,
@@ -108,7 +108,8 @@ Governed by (full text + what-breaks + what-enforces in [`../invariants.md`](../
 - **B2** — web (`app/**`, `components/**`, `lib/actions/**`) never imports `lib/agents/*`; it only `inngest.send`s.
 - **O6** — **validators MUST THROW on empty/unusable output, never return `''`.** Returning `''` feeds an empty spec
   downstream and silently defeats the retry loop.
-- **R3** — a keyless fn-scoped Inngest `concurrency` limit is **per function, not shared**.
+- **R3** — every claude-CLI function shares ONE account-scoped concurrency budget (`scope:'account',
+  key:'"claude-agent"'`); a keyless fn-scoped limit would be per-function and escape it.
 - **R6** — the `child.stdin.on('error', () => {})` handler stays.
 - **R2** — do not raise `CLAUDE_AGENT_CONCURRENCY` (or `AUDIT_CONCURRENCY`) without raising the worker `mem_limit`.
 - **D3** — `MAX_REPLY_CHARS` is capped at every ingest boundary and the Closer prompt keeps its `<reply>` data fence.
@@ -143,14 +144,14 @@ Do not add it to `AGENTS` (that map is one primary per agent); import it where i
 
 ## Traps
 
-- **CONCURRENCY REALITY.** Five Inngest functions each declare `{ limit: Number(process.env.CLAUDE_AGENT_CONCURRENCY) || 2 }`
-  — `run-demo-gen`, `run-build`, `run-outreach`, `run-support`, `handle-reply`. A **keyless fn-scoped limit is
-  per-function**, so the true ceiling is **5 × N (default 10)** concurrent `claude` CLIs against a 4g worker, not N.
-  `.env.example` ("max parallel `claude` CLI runs **across** the worker functions") states the opposite and is
-  **wrong**. The `run-demo-gen.ts` comment is stale in the same direction: it calls itself "the only claude-CLI fn
-  today" (four others now declare the same limit), though it does correctly warn that a second keyless fn-scoped
-  limit would NOT be shared. A real global cap needs an account/env-scoped concurrency **key**. Adding a sixth
-  claude function raises the ceiling again.
+- **CONCURRENCY BUDGET.** All five claude-CLI Inngest functions — `run-demo-gen`, `run-build`, `run-outreach`,
+  `run-support`, `handle-reply` — declare an **identical** first concurrency entry:
+  `{ scope: 'account', key: '"claude-agent"', limit: Number(process.env.CLAUDE_AGENT_CONCURRENCY) || 2 }`. The shared
+  account-scoped key makes them ONE queue, so the true ceiling is **N** (default 2) concurrent `claude` CLIs against
+  the 4g worker — not 5 × N. Each also carries a second, keyed entry (`event.data.leadId`, or `event.data.dealId`
+  for `handle-reply`) with `limit: 1` that serializes work per lead/deal. The pitfall is a **new** claude function:
+  it MUST reuse the same `scope:'account', key:'"claude-agent"'` to stay inside the budget — a keyless fn-scoped
+  limit would be per-function and silently raise the ceiling again (R3).
 - **`AGENT_MODEL_OPUS` unset is silent.** `resolveModel` falls back to the literal `"opus"`, the gateway rejects it,
   and every pass burns 5 runner retries × Inngest retries before failing as an opaque `claude exited 1`.
 - **The language split.** Echo writes in the recipient's **market language** (`language` input, fed by
@@ -189,9 +190,9 @@ Guarded today (`tests/agents/`, all pure, no DB and no keys):
   `coverage.exclude`. That means `resolveModel`, the argv assembly, the stdin write, the JSON envelope parse, the
   `<thinking>` strip, the SIGKILL timeout, the 5-attempt backoff, the stdout-on-failure diagnostics, the stdin EPIPE
   handler and `runBoard`'s drop-on-failure are **all unverified**. Change them by reading, not by trusting a suite.
-- The **concurrency ceiling** (R3) — nothing asserts it, and two comments in the repo state it wrongly.
+- The **concurrency budget** (R3) — no test pins that the five claude functions share one account-scoped key, so a
+  new function that omits the key (escaping the budget) would pass the suite.
 - **B1/B2** for this directory — the worker-safety import walker
   (`tests/discovery/run-discovery-core-worker-safety.test.ts`) only walks the discovery entries; nothing walks
   `run-demo-gen`, `run-outreach`, `run-build`, `run-support` or `handle-reply`, so a `server-only` or `@/` import
   added anywhere under `lib/agents/` passes typecheck, passes the suite, and crashes the worker at boot.
-- No test asserts an agent's prompt carries the **real** phone/address (O2) — see `demo-gen.md`.

@@ -70,7 +70,7 @@ Two files, and they are not interchangeable: `.env.local` (loaded via `env_file:
 
 ### The worker's function registry
 
-All Inngest functions are registered in one place — the `functions: [...]` array of `lib/inngest/worker-entrypoint.ts`: `runAudit`, `runDemoGen`, `orchestratePipeline`, `handleReply`, `runOutreach`, `runBuild`, `runSupport`, `sendProposal`, `autoDiscovery`. **There is no `app/api/inngest` route** — `npx inngest dev` alone runs nothing; the worker process must be up. The web app only ever `inngest.send()`s.
+All Inngest functions are registered in one place — the `functions: [...]` array of `lib/inngest/worker-entrypoint.ts`: `runAudit`, `runDemoGen`, `orchestratePipeline`, `handleReply`, `runOutreach`, `runBuild`, `runSupport`, `sendProposal`, `autoDiscovery`, `reapStaleRuns`. All but `autoDiscovery` and `reapStaleRuns` are event-triggered; both are **cron**-scheduled. `reapStaleRuns`'s schedule and its stale-run timeout are env-tunable (documented in `../env-reference.md`). **There is no `app/api/inngest` route** — `npx inngest dev` alone runs nothing; the worker process must be up. The web app only ever `inngest.send()`s.
 
 ---
 
@@ -92,7 +92,7 @@ Full rules with what-breaks + what-enforces: [`../invariants.md`](../invariants.
 | **B2** | Web code never imports `lib/audit/*`, `lib/agents/*`, `lib/demo-gen/*`, `lib/inngest/functions/*`. |
 | **R1** | Keep the audit `concurrency` array with both entries (global cap + per-lead key). |
 | **R2** | Do not raise `AUDIT_CONCURRENCY` / `CLAUDE_AGENT_CONCURRENCY` without raising `mem_limit`. |
-| **R3** | A keyless fn-scoped Inngest concurrency limit is **per function**, not shared. |
+| **R3** | The `claude`-CLI functions share ONE account-scoped concurrency budget (`scope:'account', key:'"claude-agent"'`); a new claude function must reuse that same scope+key, not a keyless fn-scoped limit. |
 | **F3** | Migrations are append-only; never hand-edit applied SQL. |
 
 ---
@@ -118,7 +118,7 @@ Full rules with what-breaks + what-enforces: [`../invariants.md`](../invariants.
 1. Create `lib/inngest/functions/<name>.ts` — **relative imports only, no `server-only`, no `@/`, no `next/*`** (**B1**).
 2. Add its event payload interface to `lib/inngest/client.ts`.
 3. Register it in the `functions: [...]` array of `lib/inngest/worker-entrypoint.ts` — nothing else registers functions.
-4. Give it a concurrency guard: `CLAUDE_AGENT_CONCURRENCY` for `claude`-CLI work, `AUDIT_CONCURRENCY` for Chromium work. Remember **R3** — that limit is per function, so each one you add *raises* the real ceiling.
+4. Give it a concurrency guard. For `claude`-CLI work, reuse the shared account-scoped entry every claude function declares (`scope:'account', key:'"claude-agent"'`, capped at `CLAUDE_AGENT_CONCURRENCY`) so it stays inside the ONE shared budget — **R3** — and does *not* lift that ceiling. For Chromium work, a keyless `AUDIT_CONCURRENCY` limit is per function, so each Chromium function you add *raises* that ceiling.
 5. Emit its fact event on **every** terminal path, including `onFailure` (see `../invariants.md` C1/C2).
 6. **Add its entry file to `ENTRY_FILES` in `tests/discovery/run-discovery-core-worker-safety.test.ts`** — otherwise its tsx-safety is enforced by nothing (see Tests).
 7. `docker compose up -d --build worker`.
@@ -169,5 +169,5 @@ Full rules with what-breaks + what-enforces: [`../invariants.md`](../invariants.
 - **`coverage` and `test:e2e` are not in CI.** Their thresholds and assertions gate nothing.
 - **No `docker build` or `docker compose config` runs in CI.** A broken `Dockerfile.worker`, a malformed compose file, or a service that fails to boot is caught only on a real deploy.
 - **No secret/dependency scanning** of any kind.
-- **The worker-safety walker covers only its `ENTRY_FILES`, not the whole worker.** `tests/discovery/run-discovery-core-worker-safety.test.ts` (`ENTRY_FILES`) statically walks the *runtime* import closure of `lib/discovery/run-discovery-core.ts`, `lib/inngest/functions/auto-discovery.ts`, and `lib/inngest/start-pipeline-run.ts` and fails on any reachable `server-only` / `@/` / `next/*` import. Every other registered function — `run-audit`, `run-demo-gen`, `orchestrate-pipeline`, `handle-reply`, `run-outreach`, `run-build`, `run-support`, `send-proposal` — is **unguarded**: a worker-unsafe import in their closure typechecks clean, tests clean, and only explodes when the container boots. **Any new worker function must add its entry file to `ENTRY_FILES`.**
+- **The worker-safety walker covers only its `ENTRY_FILES`, not the whole worker.** `tests/discovery/run-discovery-core-worker-safety.test.ts` (`ENTRY_FILES`) statically walks the *runtime* import closure of `lib/discovery/run-discovery-core.ts`, `lib/inngest/functions/auto-discovery.ts`, and `lib/inngest/start-pipeline-run.ts` and fails on any reachable `server-only` / `@/` / `next/*` import. Every other registered function — `run-audit`, `run-demo-gen`, `orchestrate-pipeline`, `handle-reply`, `run-outreach`, `run-build`, `run-support`, `send-proposal`, `reap-stale-runs` — is **unguarded**: a worker-unsafe import in their closure typechecks clean, tests clean, and only explodes when the container boots. **Any new worker function must add its entry file to `ENTRY_FILES`.**
 - **The web/worker import boundary (B2) is enforced by nothing** — no lint rule, no test, no bundler externals. It is clean today by convention alone.

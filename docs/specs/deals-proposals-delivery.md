@@ -6,17 +6,30 @@
 
 ## ⚠ Read this before you build anything here
 
-**No code path ever CREATES a `deals` row.** The only `insert(deals)` in the repo is `lib/db/seed.ts` — and it lives in
-`seedDemoData()`, which is opt-in behind `SEED_DEMO_DATA=true` (the DB-integration-test fixture). In a real DB the
-`deals` table is **empty and unfillable**:
+**The reply → deal → delivery half is reached by an inbound reply, not by the acquisition pipeline.**
+`lib/inngest/pipeline-machine.ts` (`decideNextHop`) deliberately ends the lead-acquisition funnel at `outreach/sent`
+→ `{ kind: 'done' }` and never hops to reply/deal/delivery — deals are decoupled from `pipeline_runs`. The bridge into
+this subsystem is a client reply.
 
-- `lib/inngest/pipeline-machine.ts` (`decideNextHop`) terminates the acquisition funnel at `outreach/sent` → `{ kind: 'done' }`. It never hops to reply/deal/delivery.
-- Both inbound webhooks map sender → `leads` → `deals` and **200-ignore** when no deal row matches (`app/api/inbound/route.ts`, `app/api/whatsapp/route.ts`).
-- `handleReply` early-returns `deal not found`. `runBuild` / `runSupport` / `sendProposal` all start from a `dealId`.
+**`handleReply` (worker) CREATES the deal from a lead's FIRST reply.** When `reply/received` fires for a known lead
+that has no deal yet, the `load-deal` step reads the lead and materializes the deal — every NOT NULL column sourced from
+a real signal, never a fabricated number:
 
-So **the entire reply → deal → delivery half of the funnel is unreachable for a real discovered lead.** Any doc, prompt,
-or demo script claiming "discover → audit → demo → outreach → reply → deal → delivery runs end-to-end" is describing
-something the code cannot do. Building the missing hop is the highest-value work in this subsystem — recipe below.
+- `id` = the deterministic `deal-<leadId>` the inbound webhooks mint (a lead that already has a deal keeps that deal's own id).
+- `leadId`, `client` (= `lead.company`), `industry`, `city` — copied off the lead.
+- `pkg` = a placeholder label (`Business Website`) the founder renames.
+- `price` = `settings.pricing.businessWebsite` when positive, else `lead.value` — the settings pricing ladder, then Orion's estimate.
+- `value` = `lead.value` (Orion's estimate); it drives the approval threshold and the forecast.
+- `probability` = a starting CRM estimate the founder refines (never a claimed business fact).
+- `stage` = `created` (leads to `quoted`; a first reply is never auto-advanced).
+- `aiRec` / `conf` = the Closer's `suggested` reply + confidence; `reply` (jsonb) = the actual inbound message, never `{}`.
+- Nullable `escReason` / `production` stay unset.
+
+The new deal is **surfaced, not advanced**: `apply` inserts it (`onConflictDoNothing`, so a redelivered reply is a no-op)
+and opens `esc-reply-<dealId>` for founder review. Both inbound webhooks now emit `reply/received` for a known lead even
+with no deal ([outreach-inbound.md](./outreach-inbound.md) owns that side). So the reply → deal → delivery half **is
+reachable for a real discovered lead** — the only other `insert(deals)` is `seedDemoData()`'s opt-in fixture
+(`lib/db/seed.ts`, behind `SEED_DEMO_DATA=true`).
 
 ## Boundary
 
@@ -65,14 +78,19 @@ Their durability contract is an `onFailure` escalation, not a fact.
 
 ### 1. Reply → deal move (`handleReply`, worker)
 
-1. `load-deal` (memoized step): reads the deal + `settings` (`autonomyMode`, `guardrails.autoApproveLimit`) so the decision is stable across an Inngest replay.
+**Opt-out short-circuit (before any deal work).** An unambiguous opt-out reply (`stop`, `unsubscribe`, `opt out`, … —
+an exact keyword match, so "please don't stop emailing me" is never misread) sets `leads.doNotContact` and resolves any
+parked `esc-outreach-<leadId>` draft, then returns — the lead can never be re-contacted (the suppression side lives in
+[outreach-inbound.md](./outreach-inbound.md)). It needs the `leadId` the inbound webhooks always carry.
+
+1. `load-deal` (memoized step): reads the deal + `settings` (`autonomyMode`, `guardrails.autoApproveLimit`) so the decision is stable across an Inngest replay. **No deal row ⇒ the lead's first reply**: it reads the lead instead and prepares a `create` at stage `created` (`price` off the settings ladder — the create-on-first-reply path in the banner above).
 2. Terminal guard: `isTerminalStage(deal.stage)` → skip. A late/duplicate reply on a `won`/`lost` deal must never re-open it.
 3. `interpret` (its own step, so an apply failure never re-spends the LLM call): `runAgent(closerSales, { deal, legalNextStages, text })` — sonnet, zod-validated `{ kind, interpretation, suggested, recommendedStage, conf }`. `recommendedStage` is a `DealStage` **or `'hold'`**.
 4. `decideReplyOutcome` — the only gate that matters. First match wins:
    `'hold'` → escalate · illegal transition → escalate · `won` while `autonomyMode !== 'full'` → escalate ·
    `requiresApproval({value, conf, autonomyMode, threshold})` → escalate · else **advance**.
    `requiresApproval` = `manual` always gates; `review`/`guarded` gate at/above the value threshold; **any** mode gates when `conf < DEAL_CONF_FLOOR`.
-5. `apply`: an advance is a conditional `UPDATE … WHERE id = ? AND stage = <the stage we decided from>` with `.returning()`. **Zero rows ⇒ the deal moved under us ⇒ fall through to the escalate branch** (the reply is surfaced, never dropped). The escalate branch is one transaction: write `reply`/`aiRec`/`conf`/`escReason` onto the deal + upsert `esc-reply-<dealId>` (kind `sales`).
+5. `apply`: **a prepared `create` inserts the deal** (`onConflictDoNothing`) + opens `esc-reply-<dealId>` in one transaction and returns — a brand-new deal is surfaced for review, never auto-advanced. Otherwise an advance is a conditional `UPDATE … WHERE id = ? AND stage = <the stage we decided from>` with `.returning()`. **Zero rows ⇒ the deal moved under us ⇒ fall through to the escalate branch** (the reply is surfaced, never dropped). The escalate branch is one transaction: write `reply`/`aiRec`/`conf`/`escReason` onto the deal + upsert `esc-reply-<dealId>` (kind `sales`).
 6. Only an advance **to `won`** emits `deal/won` (`id: deal/won:<dealId>`).
 
 `onFailure` re-uses the same `esc-reply-<dealId>` row with `conf: 0` — a verified reply whose interpretation terminally
@@ -143,17 +161,21 @@ Governed by (one-line imperative; rationale + what-enforces live in [`../invaria
 - **D3** — `MAX_REPLY_CHARS` is capped at every ingest boundary; the Closer prompt keeps its `<reply>` data fence.
 - **D9** — commercial mail carries `List-Unsubscribe`, transactional mail must not; every send carries a stable `idempotencyKey`.
 - **M5** — the cost meter is an estimate, never a bill, never a blocker.
-- **R3** — `CLAUDE_AGENT_CONCURRENCY` is per-function, not global: `handleReply`, `runBuild` and `runSupport` each declare their own limit from it (`sendProposal` hardcodes `{ limit: 2 }` and never reads the env var).
+- **R3** — the `claude`-CLI functions share **one** account-scoped budget (`{ scope: 'account', key: '"claude-agent"', limit: CLAUDE_AGENT_CONCURRENCY }`), so that env var is the global ceiling, not a per-function limit; `handleReply`/`runBuild`/`runSupport` each add their own per-lead/deal serialization. `sendProposal` is the exception — it hardcodes `{ limit: 2 }` and never reads the env var.
 
 ## Extension recipes
 
-### To build the missing "reply → deal" hop (the load-bearing gap)
+### To extend the reply → deal hop (the reply-driven creator already ships)
 
-1. Decide the trigger: a new `deal/created` emitted from a positive `reply/received`, or a founder "Create deal" action on a `replied` lead. A reply-driven creator must run in the **worker** (it needs the Closer to judge intent); a founder action lives in `lib/actions/`.
+`handleReply` already materializes a deal from a lead's first reply (the banner + §1); the inbound routes already emit
+`reply/received` for a known lead with no deal (a truly unknown sender is still 200-ignored). The remaining unbuilt
+variant is a **founder-initiated** "Create deal" on a `replied` lead. If you add one:
+
+1. A founder action lives in `lib/actions/` (a reply-driven creator would run in the **worker**, which is what `handleReply` already is). Do not duplicate the worker path from web.
 2. Insert into `deals` with **every NOT NULL column** populated (see Contracts). `price`/`value` must come from real signals (`leads.value` from Orion, or founder input) — never a constant. `probability` feeds the dashboard forecast; `0` silently zeroes it. `reply` is `NOT NULL` jsonb — seed it with the actual inbound message, not `{}`.
 3. Start the deal at `pricing` or `created` (both lead to `quoted`). Do not start at `quoted` unless a quote really went out.
-4. Make it idempotent per lead: one deal per lead is the implicit assumption everywhere (`dealByLead`, `builds.leadId`). Use a deterministic id and `onConflictDoNothing`, or add a unique index on `leadId` + a migration.
-5. Only after a deal exists does anything else fire — re-point the inbound routes (they currently 200-ignore an unknown sender) and confirm the pipeline machine's `outreach/sent → done` decision still holds (or extend it; that is [pipeline-orchestrator.md](./pipeline-orchestrator.md)'s file).
+4. Make it idempotent per lead: one deal per lead is the implicit assumption everywhere (`dealByLead`, `builds.leadId`). Reuse the `deal-<leadId>` id + `onConflictDoNothing` that `handleReply` and the inbound routes already share.
+5. Confirm the pipeline machine's `outreach/sent → done` decision still holds (or extend it; that is [pipeline-orchestrator.md](./pipeline-orchestrator.md)'s file) — deals stay decoupled from `pipeline_runs`.
 6. Tests: extend `tests/db/deal-automation.test.ts` (DB mode) for the insert + the NOT NULL columns, and add a unit test for whatever pure "should this reply create a deal?" predicate you introduce.
 
 ### To add a deal stage
@@ -213,8 +235,8 @@ configured threshold), `tests/db/closer-reply.test.ts` (`ingestReply` event + de
 
 **Guarded by NOTHING** — say it out loud:
 
-- **No test imports `handle-reply`, `run-build`, `run-support`, or `send-proposal`.** `lib/inngest/functions/**` is excluded from coverage by design. Every worker orchestration rule above (the conditional `.returning()` fallback, the `setWhere: status <> 'ready'` demotion guard, the `onFailure` escalations, the `deal/won` fan-out) is convention only.
+- **No test imports `handle-reply`, `run-build`, `run-support`, or `send-proposal`.** `lib/inngest/functions/**` is excluded from coverage by design. Every worker orchestration rule above (the create-on-first-reply insert, the opt-out short-circuit, the conditional `.returning()` fallback, the `setWhere: status <> 'ready'` demotion guard, the `onFailure` escalations, the `deal/won` fan-out) is convention only.
 - **No test renders a proposal PDF** or asserts the base64 attachment / `idempotencyKey` reaches Resend from `sendProposal`.
 - **Nothing enforces the worker-tsx safety of `lib/proposals/`** — the import-closure walker (`tests/discovery/run-discovery-core-worker-safety.test.ts`) walks only its `ENTRY_FILES`: `run-discovery-core.ts`, `auto-discovery.ts`, `start-pipeline-run.ts`. None of this subsystem's functions are in that closure.
-- **Nothing tests deal creation**, because there is none.
+- **Nothing tests deal creation** — `handleReply`'s create-on-first-reply insert exists now, but no test drives it (it rides the untested worker orchestration above).
 - `lib/actions/ingest-reply.ts` has **no UI caller** — it exists only for `tests/db/closer-reply.test.ts`.

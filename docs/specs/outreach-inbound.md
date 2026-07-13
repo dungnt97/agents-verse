@@ -44,8 +44,8 @@ falls back to `email`**.
 |---|---|---|---|---|---|
 | `email` (default) | Resend REST | `lead.email` | Echo's `{subject, body}` wrapped by `outreachEmailHtml` | yes | **yes** (header + footer) |
 | `whatsapp` | WhatsApp Cloud API (Meta Graph) | `lead.phone` | the **approved template** named by `WHATSAPP_TEMPLATE_NAME`, params `{{1}}=company`, `{{2}}=demoUrl` — *not* Echo's draft | yes | **no** |
-| `telegram-user` | GramJS / MTProto **userbot** on a personal account | `lead.phone` (or an `@username`) | free-form text: Echo's body + the demo URL | **no** | **no** |
-| `whatsapp-personal` | Baileys (WhatsApp Web multi-device) on a personal account | `lead.phone` | free-form text: Echo's body + the demo URL | **no** | **no** |
+| `telegram-user` | GramJS / MTProto **userbot** on a personal account | `lead.phone` (or an `@username`) | free-form text: Echo's body + the demo URL + a `Reply STOP to opt out.` line | **no** | **keyword** (`STOP`) |
+| `whatsapp-personal` | Baileys (WhatsApp Web multi-device) on a personal account | `lead.phone` | free-form text: Echo's body + the demo URL + a `Reply STOP to opt out.` line | **no** | **keyword** (`STOP`) |
 
 Recipient selection is `recipientForChannel(lead)`: `email` → `lead.email`; **every other channel → `lead.phone`**.
 Phone normalisation is **per-adapter, not shared** — there is no single choke point:
@@ -71,8 +71,11 @@ messages the bot. It **never emits `reply/received`**.
   banned. Use a secondary account, keep volume low.
 - **`whatsapp-personal`:** an unofficial client, **against WhatsApp's ToS**; Meta bans cold/bulk numbers fast. **Use a
   burner number.**
-- **Both personal channels send free-form text with NO unsubscribe/opt-out line** (`plainOutreachText` = Echo's body +
-  the demo URL, nothing else). **Only the email path carries CAN-SPAM machinery.** If you add a compliance
+- **Both personal channels carry a good-faith keyword opt-out, not CAN-SPAM machinery** (`plainOutreachText` = Echo's
+  body + the demo URL + a `Reply STOP to opt out.` line — the two channels have no `List-Unsubscribe` header, so the
+  keyword is the whole opt-out). An inbound `STOP` is then honored end-to-end: the Closer sets the lead's `doNotContact`
+  flag (and clears the parked outreach draft), and `loadSendable` refuses that lead forever after — see **Outbound** and
+  `./deals-proposals-delivery.md`. **Only the email path carries CAN-SPAM machinery.** If you add a compliance
   requirement, it lands in `plainOutreachText` — there is nowhere else.
 
 ### Outbound email contract (`sendEmail`)
@@ -96,7 +99,7 @@ messages the bot. It **never emits `reply/received`**.
 | `outreach/requested` | in | `OutreachRequestedData { leadId, runId? }` | the orchestrator (`STAGE_REQUEST_EVENT` / `RESUME_HOP`) | `run-outreach` |
 | `outreach/approved` | in | `OutreachApprovedData { leadId, subject, body, runId? }` | `approveOutreachEscalation` | `run-outreach` |
 | `outreach/sent` | out | `OutreachSentData { leadId, runId?, outcome?:'ok'\|'failed' }` | `run-outreach` (`emit-sent` ×2, `emit-skip` ×3, `onFailure`) + `rejectOutreachEscalation` / `takeOverEscalation` | the orchestrator (closing fact) |
-| `reply/received` | out | `ReplyReceivedData { dealId, leadId?, text }` | `/api/inbound`, `/api/whatsapp` (and the dead `ingestReply`) | `handle-reply` |
+| `reply/received` | out | `ReplyReceivedData { dealId, leadId?, text }` — the two webhooks always populate `leadId` (the Closer needs it to create the deal / honor an opt-out) | `/api/inbound`, `/api/whatsapp` (and the dead `ingestReply`) | `handle-reply` |
 
 ### Env vars (names only — meaning + placement live in `../env-reference.md`)
 
@@ -110,12 +113,16 @@ messages the bot. It **never emits `reply/received`**.
 
 ### Outbound (`run-outreach`)
 
-Triggers: `outreach/requested` **and** `outreach/approved`. `retries: 1`; concurrency = a keyless
-`CLAUDE_AGENT_CONCURRENCY` (default 2) limit **plus** `{limit:1, key:'event.data.leadId'}`.
+Triggers: `outreach/requested` **and** `outreach/approved`. `retries: 1`; concurrency = the shared
+account-scoped `claude`-agent budget (`{scope:'account', key:'"claude-agent"', limit:CLAUDE_AGENT_CONCURRENCY}`,
+default 2 — one queue across all five `claude`-CLI functions, not a per-function ceiling) **plus**
+`{limit:1, key:'event.data.leadId'}` per-lead serialization.
 
 1. **`loadSendable(leadId)`** — one guard shared by both trigger paths. It skips (never throws) when: the active channel
-   is unconfigured (`outreachChannelConfigured()`), the lead is missing, `lead.demo === 'sent'`, `lead.stage !==
-   'found'`, there is no recipient for the channel, or there is no `ready` row in `generated_demos`.
+   is unconfigured (`outreachChannelConfigured()`), no absolute public origin is set (`APP_URL`/`BETTER_AUTH_URL` both
+   unset — a relative `/demo/<id>` link would be dead), the lead is missing, `lead.doNotContact` is set (opted out — a
+   hard suppression that survives across runs), `lead.demo === 'sent'`, `lead.stage !== 'found'`, there is no recipient
+   for the channel, or there is no `ready` row in `generated_demos`.
 2. **Draft.** On `whatsapp` the draft is `whatsappPreview(...)` — a *deterministic* description of the template and its
    resolved params, because the approved template's wording is what the prospect receives and an Echo email draft would
    be reviewed then thrown away. Every other channel: `step.run('draft')` → `runAgent(echoOutreach, …)`, memoized,
@@ -154,9 +161,14 @@ Shared shape (copy it for any new inbound channel):
    only replay defense there (and the email route's `svix-timestamp` is checked *before* parsing, the WhatsApp
    message timestamp only after).
 4. `if (!USE_DB) return 200`.
-5. Map sender → `leads` → `deals`. Email matches `leads.email`; WhatsApp matches `regexp_replace(leads.phone,
-   '[^0-9]','','g')` against the wa_id digits (discovery stores phones formatted).
-6. **Unknown sender / no deal → 200 `ignored`, never 5xx** — a 5xx makes the provider retry forever.
+5. Map sender → `leads`, then look up that lead's `deals` row. Email matches `leads.email`; WhatsApp matches
+   `regexp_replace(leads.phone, '[^0-9]','','g')` against the wa_id digits (discovery stores phones formatted). A known
+   lead with **no deal yet** — the normal case for a freshly-discovered lead's first reply — is still emitted for, using
+   a deterministic `deal-<leadId>`; the Closer (`handle-reply`) then materializes the deal from it (see
+   `./deals-proposals-delivery.md`). So there IS an inbound path to a deal for a discovered lead — the
+   reply→deal→delivery half of the funnel is reachable.
+6. **Only an unknown sender (no matching lead) → 200 `ignored`, never 5xx** — a 5xx makes the provider retry forever. A
+   *known* lead is always emitted for, deal or not.
 7. `inngest.send({ name:'reply/received', id: \`reply/received:<dealId>:<providerMsgId>\` })` — `svix-id` / `wamid`
    makes at-least-once delivery idempotent.
 
@@ -187,12 +199,14 @@ Rationale + what-breaks live in `../invariants.md` — do not restate them here.
 - **D3** — cap inbound text at `MAX_REPLY_CHARS` + the Closer's data fence. (The WhatsApp parser does **not** cap
   today — see **Traps**; D3's "every ingest boundary" wording overstates the code.)
 - **D4** — only genuine inbound events may reach the Closer.
-- **D8** — cold official WhatsApp must be a template; the personal channels are ban/ToS risk, no unsubscribe line.
+- **D8** — cold official WhatsApp must be a template; the personal channels are ban/ToS risk, carrying only a keyword
+  (`STOP`) opt-out, not `List-Unsubscribe` headers.
 - **D9** — commercial mail carries `List-Unsubscribe`, transactional must not; every real send carries an
   `idempotencyKey`.
 - **O3** — only `autonomyMode === 'full'` sends unattended; any new channel must replicate the gate.
 - **O5** — never cold-contact a lead whose `stage !== 'found'` or `demo === 'sent'`; never resurrect a dismissed draft.
-- **R3** — a keyless fn-scoped Inngest concurrency limit is per-function, not shared across functions.
+- **R3** — the five `claude`-CLI functions share ONE account-scoped concurrency budget; a new `claude` function
+  must reuse the same `scope`+`key` (`'account'` / `'"claude-agent"'`), never a keyless fn-scoped limit.
 
 ## Extension recipes
 
@@ -228,9 +242,11 @@ Rationale + what-breaks live in `../invariants.md` — do not restate them here.
 
 ## Traps
 
-- ⚠ **`APP_URL` (and `BETTER_AUTH_URL`) unset ⇒ every outreach message ships a broken link.** `appUrl()` returns `''`,
-  so the demo URL becomes the *relative* `/demo/<leadId>`. Nothing guards it: the email sends, the WhatsApp template
-  interpolates it into `{{2}}`, and the prospect gets a dead link. Check this before the first real send.
+- ⚠ **`APP_URL` (and `BETTER_AUTH_URL`) unset ⇒ outreach silently sends NOTHING.** A relative `/demo/<leadId>` link is
+  a dead link, so `loadSendable` now refuses the send and returns a skip (`appUrl()` = `''` fails its `^https?://`
+  check) rather than mail a broken link. The failure mode flipped from "every message ships a dead link" to "every run
+  skips at the guard" — set an absolute public origin before the first real send or nothing goes out. `appUrl()` also
+  trims a trailing slash so the link is `<origin>/demo/<id>`, never `<origin>//demo/<id>`.
 - ⚠ **Dead code — there is no founder-paste UI.** `lib/actions/send-outreach.ts` (`sendOutreach`) and
   `lib/actions/ingest-reply.ts` (`ingestReply`) have **zero callers outside `tests/db/`**; `ingest-reply.ts` says so
   itself ("has NO UI calling it today — wire one up (or delete it)"). In production `outreach/requested` comes from the
@@ -263,7 +279,8 @@ Rationale + what-breaks live in `../invariants.md` — do not restate them here.
 
 - `tests/integrations/outreach-channel.test.ts` — channel parsing (incl. unknown → `email`), `recipientForChannel`,
   `outreachChannelConfigured`, and the dispatch of all four channels (email carries subject/body/unsubscribe/
-  idempotency; whatsapp sends the template with `[company, demoUrl]`; both personal channels send free-form text).
+  idempotency; whatsapp sends the template with `[company, demoUrl]`; both personal channels send free-form text ending
+  in a `Reply STOP to opt out.` line).
 - `tests/integrations/resend-send-email.test.ts` — degradation without keys, `Idempotency-Key`, and that
   `List-Unsubscribe` headers appear **only** when `unsubscribe` is passed.
 - `tests/integrations/{resend-inbound,whatsapp-inbound}.test.ts` — signature verification (good, tampered, wrong secret,
@@ -280,5 +297,6 @@ Rationale + what-breaks live in `../invariants.md` — do not restate them here.
 - **No test hits the three route handlers.** Only the pure verifier/parser helpers they call are tested — the
   freshness window, the 200-for-unknown-sender rule, the `!USE_DB` early return, and the phone-digits SQL match are
   untested.
-- **Nothing asserts the demo URL is absolute**, that a personal-channel message carries no unsubscribe line, or that
-  the WhatsApp template params are in the order the approved template expects.
+- **Nothing asserts the demo URL is absolute** (`loadSendable`'s `APP_URL`/`BETTER_AUTH_URL` guard has no run-outreach
+  test) or that the WhatsApp template params are in the order the approved template expects. (The outreach-channel test
+  *does* now assert both personal channels append the `Reply STOP to opt out.` line.)

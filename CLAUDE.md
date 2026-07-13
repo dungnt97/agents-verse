@@ -55,7 +55,8 @@ often, and those are the rules that actually get violated.
 3. **B3** — A `'use client'` file **never** value-imports `lib/repositories/*`, `lib/db/*`, `lib/actions/guard.ts`,
    `lib/auth/session.ts` or `next/headers`. (`import type` is fine.)
 4. **C1** — Every terminal path of a pipeline worker function **emits its fact event** (`ok` or `failed`), including
-   every early return. A run left `running` blocks that lead from any future run **forever**. There is no sweeper.
+   every early return. A run left `running` blocks that lead from a new run until the `reap-stale-runs` cron fails it
+   (a slow backstop that discards the in-flight work — not a substitute for emitting the fact).
 5. **C2** — Run-scoped event ids are keyed by **`runId`, never `leadId`** (Inngest dedupes for ~24h).
 6. **D1** — Any fetch or navigation of a **lead-supplied URL** goes through `safeFetch` / `assertSafeUrl`. Never a
    bare `fetch()`. Those URLs are attacker-influenceable and we fetch them from inside the Docker network.

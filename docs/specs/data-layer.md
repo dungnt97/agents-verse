@@ -90,14 +90,14 @@ collide on the PK.
 |---|---|---|
 | `rooms` | `schema/agents.ts` | seed (`seedConfig`) — org chart, not mock data |
 | `agents` | `schema/agents.ts` | seed (`seedConfig`); live status/task/cost is **overlaid at read**, never stored |
-| `leads` | `schema/leads.ts` | `upsertDiscoveredLeads` (worker), `actions/leads.ts`, `actions/requests.ts`, worker `run-demo-gen` (`demo:'review'`) and `run-outreach` (`demo:'sent'`) |
+| `leads` | `schema/leads.ts` | `upsertDiscoveredLeads` (worker), `actions/leads.ts`, `actions/requests.ts`, `actions/demos.ts` (`demo` via `updateDemoStatus`), worker `run-demo-gen` (`demo:'review'`), `run-outreach` (`demo:'sent'`), and `handle-reply` (`doNotContact:true` on an opt-out reply) |
 | `demo_requests` | `schema/leads.ts` | `actions/requests.ts` (public form) |
 | `audits` | `schema/pipeline.ts` | worker `run-audit` (upsert by `leadId`) |
 | `audit_screenshots` | `schema/pipeline.ts` | worker `run-audit` |
 | `audit_jobs` | `schema/audit.ts` | worker `run-audit` **and the web action** — `requestAudit` (`actions/run-audit.ts`) upserts a `queued` row before sending the event. Web reads via `repositories/audit-jobs.ts` |
-| `demos` | `schema/pipeline.ts` | seed (`SEED_DEMO_DATA` only) + `actions/demos.ts` — **see Traps** |
+| `demos` | `schema/pipeline.ts` | seed (`SEED_DEMO_DATA` only) — legacy mock-shaped table; `updateDemoStatus` now writes `leads.demo`, not this. **See Traps** |
 | `generated_demos` | `schema/pipeline.ts` | worker `run-demo-gen`, **plus** `requestDemoGeneration` (`actions/run-demo-gen.ts`), which pre-marks `generating` (that row is also the double-click guard). **This** is what the Demos screen reads in DB mode |
-| `deals` | `schema/pipeline.ts` | **updated** by `actions/deals.ts`, `actions/escalations.ts`, worker `handle-reply`. **No code path inserts a deal** — the only INSERT is the seed (`SEED_DEMO_DATA`), so with the production default the Deals screen stays empty forever |
+| `deals` | `schema/pipeline.ts` | worker `handle-reply` **inserts** a deal from a lead's first inbound reply (deterministic id `deal-<leadId>`, stage `created`) when none exists, so the reply→deal→delivery funnel is reachable for discovered leads. **Updated** thereafter by `actions/deals.ts`, `actions/escalations.ts`, and `handle-reply`. The seed also inserts fixtures under `SEED_DEMO_DATA` |
 | `builds` | `schema/builds.ts` | worker `run-build` |
 | `escalations` | `schema/ops.ts` | worker (`orchestrate-pipeline`, `run-outreach`, `handle-reply`, `run-support`, `send-proposal`) + `actions/escalations.ts` + `actions/deals.ts` |
 | `activity` | `schema/ops.ts` | worker (`lib/inngest/activity-log.ts`) |
@@ -117,7 +117,7 @@ Enums (`pgEnum`): `lead_stage`, `demo_status`, `deal_stage`, `req_status`, `esca
 
 | Constraint | Where | Why it exists |
 |---|---|---|
-| `leads.company` UNIQUE | `schema/leads.ts` | Lets `createLead` / `convertRequestToLead` use `onConflictDoNothing` as a concurrency-safe dedupe. |
+| `leads_company_manual_unique` — partial unique on `company` `WHERE place_id IS NULL` | `schema/leads.ts` | Dedupes **manual/inbound** leads by name — `createLead` / `convertRequestToLead` use `onConflictDoNothing` as a concurrency-safe dedupe. Discovery rows carry a `place_id`, fall outside the predicate, and dedupe on `place_id` instead, so two same-named franchise branches coexist. |
 | `leads.place_id` UNIQUE | `schema/leads.ts` | The conflict target for `upsertDiscoveredLeads` — re-running discovery refreshes a lead instead of duplicating it. |
 | `pipeline_runs_active_lead_idx` (partial unique on `leadId WHERE status IN (…)`) | `schema/pipeline-runs.ts` | The **only** enforcement of "at most one in-flight run per lead". Its predicate is generated in TS from `ACTIVE_RUN_STATUSES` (imported from `lib/inngest/pipeline-machine`). |
 
@@ -155,7 +155,7 @@ Governed by — see `../invariants.md` for what breaks and what enforces each:
 - **D5** — `disableSignUp: true` stays.
 - **U8** — `app/(workspace)/layout.tsx` is the real auth gate; middleware is a forgeable bounce.
 - **F1** — `ACTIVE_RUN_STATUSES` is load-bearing DDL.
-- **F2** — `leads.company` is UNIQUE but the discovery upsert conflicts only on `place_id`.
+- **F2** — `leads.company` uniqueness is a **partial** index (`WHERE place_id IS NULL`); the discovery upsert conflicts only on `place_id`. Keep the predicate and the `place_id` arbiter aligned.
 - **F3** — migrations are append-only; a new schema module must be added to the barrel.
 - **F4** — `audits` columns stay NOT NULL; job lifecycle stays in `audit_jobs`.
 - **F5** — all audit writes are upserts keyed by `leadId`; there is no audit history.
@@ -206,12 +206,14 @@ duplicate concurrent runs per lead slip through. Nothing links the two for you.
 
 ## Traps
 
-- **`updateDemoStatus` is a 0-row no-op in production.** It updates the legacy `demos` table `WHERE demos.id = demoId`.
-  But in DB mode the Demos screen is *derived* — `getDemos()` / `demoByLead()` build rows from
-  `generated_demos ⋈ leads ⋈ audits`, the row id is `'demo-' + lead.id`, and the **displayed status comes from
-  `leads.demo`**. With `SEED_DEMO_DATA=false` (the production default) `demos` is empty: the action updates nothing,
-  returns `{ ok: true }`, and the screen never changes. Only the worker writes `leads.demo` (`run-demo-gen` → `review`,
-  `run-outreach` → `sent`). The DB suite hides this because it seeds `demos` fixtures whose ids happen to match.
+- **`updateDemoStatus` writes `leads.demo` keyed by `leadId` — not the legacy `demos` table.** In DB mode the Demos
+  screen is *derived*: `getDemos()` / `demoByLead()` build rows from `generated_demos ⋈ leads ⋈ audits`, the row id is
+  `'demo-' + lead.id`, and the **displayed status comes from `leads.demo`**. An earlier version updated
+  `demos WHERE id = demoId`, which touched zero rows under the production default (`SEED_DEMO_DATA=false`, so `demos`
+  is empty): the action returned `{ ok: true }` while the founder's click changed nothing. The action now runs
+  `UPDATE leads SET demo = … WHERE id = leadId` and revalidates `/demos` + `/overview`. The worker writes the same
+  column (`run-demo-gen` → `review`, `run-outreach` → `sent`); `handle-reply` sets `doNotContact` on an opt-out. Keep
+  any new demo-status write keyed by `leadId`, or it reintroduces the 0-row no-op.
 - **The `metrics` table is dead.** `getMetrics()` (`lib/repositories/ops.ts`) computes every KPI live with
   COUNT/SUM/derive over `leads`/`audits`/`generated_demos`/`deals`/`escalations`/`pipeline_runs`, including a derived
   `bottleneck`. Nothing reads `metrics`; only `seedDemoData()` writes it. Do not "fix" a KPI by writing to it.
@@ -257,8 +259,9 @@ duplicate concurrent runs per lead slip through. Nothing links the two for you.
 - **The DB suite runs with `SEED_DEMO_DATA` fixtures**, so it exercises a database shape production never has. That is
   exactly what hides the `updateDemoStatus` no-op above.
 - **`upsertDiscoveredLeads` is covered only in the DB suite** (`tests/db/repositories.test.ts` — insert, then
-  re-upsert by `placeId` without duplicating), which never runs in CI. Nothing covers the `leads.company` UNIQUE vs
-  `place_id` conflict-target mismatch (F2): one discovered row whose company name already exists raises a unique
-  violation that is caught nowhere, so the whole multi-row insert fails.
+  re-upsert by `placeId` without duplicating), which never runs in CI. Nothing exercises the partial-index boundary
+  directly (F2): a discovered row (`place_id IS NOT NULL`) sits outside `leads_company_manual_unique`, so a same-named
+  franchise branch no longer collides on the multi-row insert — but no test pins that the index predicate and the
+  `place_id` conflict target stay aligned.
 - **Nothing links `ACTIVE_RUN_STATUSES` to its migration** (F1). A test pins the array's value; no test notices when the
   index predicate drifts from it.
