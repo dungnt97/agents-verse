@@ -70,8 +70,22 @@ export const handleReply = inngest.createFunction(
       });
     },
   },
-  async ({ event, step }) => {
-    const { dealId, text, leadId } = event.data as ReplyReceivedData;
+  // The cast bridges Inngest's inferred event/step types to the simplified surface the extracted handler
+  // uses; safe because it just forwards the real step, whose step results carry no Date fields to round-trip.
+  (ctx) => handleReplyRun({ event: { data: ctx.event.data as ReplyReceivedData }, step: ctx.step as unknown as HandleReplyStep }),
+);
+
+// Minimal Inngest step surface the handler uses — lets it be unit-tested with a passthrough step and a
+// mocked runAgent against a real Postgres, without spinning up the Inngest runtime.
+export interface HandleReplyStep {
+  run<T>(id: string, fn: () => Promise<T>): Promise<T>;
+  sendEvent(id: string, event: unknown): Promise<unknown>;
+}
+
+// The handler body, extracted so the reply→deal materialization and the STOP opt-out (the two behaviors
+// with no coverage before) are testable in isolation. Behaviour is unchanged from the inline handler.
+export async function handleReplyRun({ event, step }: { event: { data: ReplyReceivedData }; step: HandleReplyStep }) {
+    const { dealId, text, leadId } = event.data;
 
     // Opt-out short-circuit — before any deal work. A "STOP" reply permanently suppresses future outreach
     // to this lead and resolves any parked draft, so it can never be re-contacted. Only fires on an
@@ -293,5 +307,4 @@ export const handleReply = inngest.createFunction(
     }
 
     return { dealId, applied, recommendedStage: closer.recommendedStage, conf: closer.conf };
-  },
-);
+}
