@@ -6,11 +6,14 @@
 import type {
   AVData, Room, Agent, Lead, Metrics, Escalation, ActivityItem,
   AgentDetail, RoomProject, TimelineItem,
-  Redesign, ScoreProfile, Demo, AuditResult,
+  ScoreProfile, Demo, AuditResult,
   Deal, DemoRequest,
 } from './types';
 // Pure presentation helpers live in one place (client-safe); the mock AV re-uses them.
 import { fmt, statusMap, stages, SCORE_LABELS, DEMO_STATUS, DEAL_STAGE, REQ_STATUS, hueFor } from './format';
+// Per-niche redesign briefs (nail salon vs law firm vs plumber) so the synthesized audit/demo fits the actual
+// business instead of every lead getting the healthcare "Book an appointment" default.
+import { nicheBrief, nicheChanges } from '../discovery/niche-briefs';
 
 /* =========================================================================
    BASE (data.js)
@@ -260,15 +263,6 @@ function roomMetrics(roomId: string): [string, string | number][] {
    DATA3 — Audits + demos
    ========================================================================= */
 
-const REDESIGN: Record<string, Redesign> = {
-  Healthcare:  { style:'Clean clinical-modern with warm trust cues', sections:['Booking-first hero','Services with outcomes','Doctors & credentials','Patient reviews','Insurance & FAQ','One-tap contact'], cta:'Book an appointment — sticky on mobile', content:'Reassuring, outcome-led, local', template:'Clinic demo template' },
-  Wellness:    { style:'Editorial, calm, spa-luxe', sections:['Atmospheric hero','Treatment menu','Pricing & packages','Therapist profiles','Gallery','Online booking'], cta:'Book your session', content:'Sensory, premium, unhurried', template:'Spa demo template' },
-  Hospitality: { style:'Appetite-driven, vivid, mobile-first', sections:['Photo hero','Live menu','Reservations','Reviews','Location & hours','Order online'], cta:'Reserve a table', content:'Mouth-watering, local, social', template:'Restaurant demo template' },
-  'Real Estate':{ style:'Confident corporate with strong imagery', sections:['Search hero','Featured listings','Agent team','Sold results','Testimonials','Valuation CTA'], cta:'Get a free valuation', content:'Authoritative, results-led', template:'Realty demo template' },
-  Logistics:   { style:'Industrial-clean, trust & scale', sections:['Capability hero','Services','Coverage map','Case results','Certifications','Quote request'], cta:'Request a quote', content:'Reliable, precise, B2B', template:'Logistics demo template' },
-  Fitness:     { style:'Energetic, bold, conversion-led', sections:['Motion hero','Classes & plans','Pricing','Trainer profiles','Results','Free-trial CTA'], cta:'Start a free trial', content:'Motivating, direct, local', template:'Gym demo template' },
-};
-
 const SCORE_PROFILES: Record<string, ScoreProfile> = {
   'atlas-d': { visual:28, mobile:22, cta:30, trust:35, seo:48, speed:52, content:40, conversion:25 },
   'lumi':    { visual:44, mobile:40, cta:38, trust:46, seo:50, speed:58, content:42, conversion:36 },
@@ -292,7 +286,7 @@ const PROBLEMS: string[] = [
 // ACTUAL lead's company/scores rather than falling back to a mock placeholder.
 export function buildAuditFor(l: Lead): AuditResult {
   const scores = SCORE_PROFILES[l.id] || { visual:l.site-6, mobile:l.site-10, cta:l.site-4, trust:l.site, seo:l.site+8, speed:l.site+14, content:l.site, conversion:l.site-12 };
-  const red = REDESIGN[l.industry] || REDESIGN.Healthcare;
+  const red = nicheBrief(l.industry);
   return {
     ...l, scores, problems: PROBLEMS, redesign: red,
     confidence: Math.min(97, 70 + Math.round((l.score - l.site) / 2)),
@@ -308,15 +302,6 @@ function audit(leadId: string): AuditResult {
 function auditedLeads(): Lead[] {
   return leads.filter(l => ['audited','demo','contacted','replied','won'].includes(l.stage));
 }
-
-const CHANGES: Record<string, string[]> = {
-  Healthcare:['Booking-first hero with sticky mobile CTA','Trust row: reviews, credentials, insurance','Services rewritten around patient outcomes','One-tap call & directions'],
-  Wellness:['Atmospheric full-bleed hero','Clear treatment menu with pricing','Online booking in two taps','Therapist profiles for trust'],
-  Hospitality:['Appetite-driven photo hero','Live, scannable menu','One-tap reservations everywhere','Reviews + map above the fold'],
-  'Real Estate':['Search-led hero','Featured listings carousel','Sold-results proof section','Free-valuation lead capture'],
-  Logistics:['Capability-led hero','Coverage map + service grid','Certifications & case results','Quote request form'],
-  Fitness:['High-energy motion hero','Class schedule & plans','Transparent pricing','Free-trial capture'],
-};
 
 const NOTES: Record<string, string> = {
   'atlas-d':'Went clinical-modern with warm accents. Confidence held at 88 after Visual QA — held one round for mobile spacing.',
@@ -334,7 +319,7 @@ const demos: Demo[] = leads.filter(l => l.demo !== 'none').map(l => {
     agents:(l.id==='lumi'||l.id==='atlas-d'||l.id==='green')?['nova','kira']:(l.id==='nova-r')?['atlas','nova']:['nova'],
     generated:({'atlas-d':'2h ago','lumi':'40m ago','green':'3h ago','nova-r':'5h ago','urbanfit':'1d ago','mekong':'30m ago','cedar':'1h ago'} as Record<string,string>)[l.id]||'today',
     demoUrl:'demo.agentsverse.ai/'+l.id, clientStatus:l.demo, value:l.value,
-    changes: CHANGES[l.industry] || CHANGES.Healthcare,
+    changes: nicheChanges(l.industry),
     notes: NOTES[l.id] || 'Generated from the audit and brand direction. Awaiting the next step in the workflow.',
     checklist: {
       'Responsive layout':true, 'Clear primary CTA':true, 'Strong hero section':true,
@@ -343,7 +328,7 @@ const demos: Demo[] = leads.filter(l => l.demo !== 'none').map(l => {
     outreach: {
       subject:`A new homepage concept for ${l.company}`,
       // Curly quotes in body match source data3.js:87
-      body:`Hi ${l.company.split(' ')[0]} team — we rebuilt your homepage as a working demo (no charge, no obligation). It loads fast, works on mobile, and makes “${(REDESIGN[l.industry]||REDESIGN.Healthcare).cta.toLowerCase()}” effortless. Take a look and tell us what you think.`,
+      body:`Hi ${l.company.split(' ')[0]} team — we rebuilt your homepage as a working demo (no charge, no obligation). It loads fast, works on mobile, and makes “${nicheBrief(l.industry).cta.toLowerCase()}” effortless. Take a look and tell us what you think.`,
     },
   };
 });
