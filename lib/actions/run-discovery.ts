@@ -5,7 +5,10 @@ import { getCurrentUser } from '@/lib/auth/session';
 import { USE_DB } from '@/lib/repositories/config';
 import { runDiscoveryCore, type DiscoveryResult } from '@/lib/discovery/run-discovery-core';
 
-export type { DiscoveryResult };
+// A 'use server' module may export only async server actions at runtime. Re-exporting a type from here
+// (`export type { DiscoveryResult }`) makes Turbopack's server-action transform emit a runtime reference to
+// the erased binding — the page then dies with "DiscoveryResult is not defined" in the production SSR build
+// (dev erases it, so it looks fine locally). Consumers import the type from run-discovery-core, where it lives.
 
 // Web action for a founder-triggered discovery pass (the "Discover leads" button, and `{auto:true}` to
 // test the Guided-auto planner from the UI). Auth-gate + USE_DB guard, then delegate the real work to the
