@@ -39,11 +39,18 @@ interface ApifyPlace {
   openingHours?: { day?: string; hours?: string }[];
   categories?: string[];
   price?: string | null;
+  imageUrls?: string[]; // venue photos (Google-hosted); present when maxImages > 0
 }
 
 // Number of review texts to scrape per place (for real testimonials). Each review adds Apify cost, so it
 // is capped + env-tunable; 0 skips review text entirely (rating/hours/categories still come for free).
-const MAX_REVIEWS = Math.max(0, Number(process.env.APIFY_MAX_REVIEWS ?? 5));
+// Bumped past the ~5 we feature so demo-gen has a real pool to CURATE the strongest testimonials from.
+const MAX_REVIEWS = Math.max(0, Number(process.env.APIFY_MAX_REVIEWS ?? 10));
+// Which reviews to pull. 'mostRelevant' = Google's surfaced, detailed reviews (best raw material for
+// testimonials); tunable to newest/highestRanking/lowestRanking.
+const REVIEWS_SORT = (process.env.APIFY_REVIEWS_SORT || 'mostRelevant').trim();
+// Real venue photos per place (demo-gen curates + embeds the best). Each image adds Apify cost; 0 skips.
+const MAX_PHOTOS = Math.max(0, Number(process.env.APIFY_MAX_IMAGES ?? 10));
 
 // Pull the rich business facts out of a scraped place into the shared MapsData shape. Everything is
 // optional — omit anything the scrape didn't return so demo-gen only ever sees real values.
@@ -55,6 +62,9 @@ function toMapsData(p: ApifyPlace): MapsData | null {
   const hours = (p.openingHours ?? [])
     .filter((h) => h?.day && h?.hours)
     .map((h) => `${h.day}: ${h.hours}`);
+  const photos = (p.imageUrls ?? [])
+    .filter((u): u is string => typeof u === 'string' && u.startsWith('http'))
+    .slice(0, MAX_PHOTOS);
   const data: MapsData = {
     rating: typeof p.totalScore === 'number' ? p.totalScore : null,
     reviewsCount: typeof p.reviewsCount === 'number' ? p.reviewsCount : null,
@@ -62,9 +72,10 @@ function toMapsData(p: ApifyPlace): MapsData | null {
     hours,
     categories: p.categories ?? (p.categoryName ? [p.categoryName] : []),
     priceLevel: p.price ?? null,
+    photos,
   };
   // Drop the whole blob if nothing useful was captured.
-  const hasAny = data.rating != null || data.reviewsCount != null || reviews.length || hours.length || (data.categories?.length ?? 0);
+  const hasAny = data.rating != null || data.reviewsCount != null || reviews.length || hours.length || photos.length || (data.categories?.length ?? 0);
   return hasAny ? data : null;
 }
 
@@ -98,6 +109,8 @@ export async function searchBusinessesApify(opts: {
         language: 'en',
         skipClosedPlaces: true,
         maxReviews: MAX_REVIEWS, // real review texts for testimonials (0 = skip, saves cost)
+        reviewsSort: REVIEWS_SORT, // pull the strongest/most-relevant reviews to curate from
+        maxImages: MAX_PHOTOS, // real venue photos for the demo (0 = skip, saves cost)
       }),
       signal: AbortSignal.timeout(RUN_TIMEOUT_MS),
     },

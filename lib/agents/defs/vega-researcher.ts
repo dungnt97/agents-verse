@@ -10,6 +10,8 @@ import { makeTextValidator } from '../validators';
 export interface ResearchInput {
   input: DemoGenInput;
   oldSitePngs: string[];
+  /** Real venue photos (local temp files + embed URLs) for Vega to view + curate the best. */
+  venuePhotos?: { path: string; url: string }[];
 }
 
 export const vegaResearcher: AgentDef<ResearchInput, string> = {
@@ -17,9 +19,9 @@ export const vegaResearcher: AgentDef<ResearchInput, string> = {
   role: 'Website Critic — research the client brand + niche references',
   model: 'opus',
   tools: ['Read'],
-  // Multi-turn vision research over a large full-page screenshot; headroom for a slow first token.
+  // Multi-turn vision research over a large full-page screenshot + venue photos; headroom for a slow first token.
   limits: { timeoutMs: 360_000, maxTurns: 8 },
-  buildPrompt: ({ input, oldSitePngs }) => buildResearchPrompt(input, oldSitePngs),
+  buildPrompt: ({ input, oldSitePngs, venuePhotos }) => buildResearchPrompt(input, oldSitePngs, venuePhotos),
   // Empty output THROWS so runAgent retries (the caller treats a research failure as best-effort and
   // falls back to an empty brief; a bare trim would return '' without ever retrying the gateway blip).
   validate: makeTextValidator(),

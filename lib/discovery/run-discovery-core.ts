@@ -6,6 +6,7 @@ import { dedupePlaces } from './dedup';
 import { mapPlaceToLead, type DiscoveredLeadInsert } from './map-place-to-lead';
 import { orionQualify } from './orion-qualify';
 import { hasContact } from './contactability';
+import { hasRealWebsite } from './website-presence';
 import { upsertDiscoveredLeads } from './upsert-discovered-leads';
 import { planNextMarket, DEFAULT_MARKET_PLAN, type MarketPick, type MarketPlan } from './market-planner';
 import { startPipelineRun } from '../inngest/start-pipeline-run';
@@ -148,10 +149,13 @@ export async function runDiscoveryCore(input: { industry?: string; city?: string
       });
   }
 
-  // Auto-chain: under guarded/full, kick a pipeline for each freshly discovered CONTACTABLE lead so
-  // discovery flows straight into audit→demo→outreach. Bounded by a per-day run cap (autonomous runs get
-  // a built-in floor when PIPELINE_DAILY_CAP is unset) so a big batch can't exhaust the Claude-CLI burst
-  // budget; each start no-ops if a run is already active for the lead.
+  // Auto-chain: under guarded/full, kick a pipeline for each freshly discovered lead worth pursuing so
+  // discovery flows straight into audit→demo→outreach. Two gates decided from THIS pass's live enrichment
+  // (not a re-query): (1) CONTACTABLE — a phone or email, else there's no way to send the demo; (2) NO REAL
+  // WEBSITE — skip businesses that already run a working standalone site (only a demo for those with no web
+  // presence, a social-only link, or a dead site). Non-eligible leads are still saved (visible in the list)
+  // but not auto-pipelined. Bounded by a per-day run cap (autonomous runs get a built-in floor when
+  // PIPELINE_DAILY_CAP is unset) so a big batch can't exhaust the Claude-CLI burst budget.
   let started = 0;
   const [s] = await db.select().from(settings).limit(1);
   const mode = (s?.autonomyMode as AutonomyMode | undefined) ?? 'guarded';
@@ -165,14 +169,20 @@ export async function runDiscoveryCore(input: { industry?: string; city?: string
         .where(gte(pipelineRuns.startedAt, startOfDay));
       remaining = Math.max(0, pipelineCap - Number(todayRuns));
     }
-    const placeIds = rows.map((r) => r.placeId).filter((v): v is string => !!v);
-    if (remaining > 0 && placeIds.length) {
+    const eligiblePlaceIds = enriched
+      .filter(
+        (e) =>
+          hasContact({ phone: e.enrichment.phone, email: e.email }) &&
+          !hasRealWebsite(e.enrichment.websiteUri, e.assessment?.reachable ?? false),
+      )
+      .map((e) => e.place.id);
+    if (remaining > 0 && eligiblePlaceIds.length) {
       const fresh = await db
-        .select({ id: leads.id, phone: leads.phone, email: leads.email })
+        .select({ id: leads.id })
         .from(leads)
         .where(
           and(
-            inArray(leads.placeId, placeIds),
+            inArray(leads.placeId, eligiblePlaceIds),
             eq(leads.stage, 'found'),
             // Never auto-start a lead that has ALREADY been through a pipeline. A success advances the lead
             // past 'found' (the stage filter drops it), but a FAILED or founder-REJECTED run leaves it at
@@ -182,11 +192,7 @@ export async function runDiscoveryCore(input: { industry?: string; city?: string
             notExists(db.select({ n: sql`1` }).from(pipelineRuns).where(eq(pipelineRuns.leadId, leads.id))),
           ),
         );
-      // Only chase leads we can actually reach: spending demo generation (opus) on a business with no
-      // phone or email is wasted — there's no way to send them the demo. Non-contactable leads are still
-      // saved (visible in the list) but not auto-pipelined.
-      const contactable = fresh.filter(hasContact);
-      for (const l of contactable.slice(0, remaining)) {
+      for (const l of fresh.slice(0, remaining)) {
         const r = await startPipelineRun(l.id, mode);
         if (r.ok) started++;
       }

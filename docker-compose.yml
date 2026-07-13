@@ -149,7 +149,11 @@ services:
         condition: service_started
     restart: unless-stopped
     stop_grace_period: 30s     # let SIGTERM close the browser + drain the pool
-    mem_limit: 2g
+    # Chromium (rendering tall demo pages) + the `claude` CLI (holding full-page critique screenshots) peak
+    # together during demo generation; 2g OOM-killed the build on photo-rich pages. 4g gives headroom — set
+    # CLAUDE_AGENT_CONCURRENCY=1 in .env.local if the VPS can't spare it, and keep the render bounds in
+    # lib/demo-gen/render.ts (downscaled, height-capped slices) which cut the peak.
+    mem_limit: 4g
 
 volumes:
   pgdata:

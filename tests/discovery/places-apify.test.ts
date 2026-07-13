@@ -51,7 +51,7 @@ describe('searchBusinessesApify', () => {
       businessStatus: 'OPERATIONAL',
       primaryType: 'Dental clinic',
       // categoryName seeds categories even with no rating/reviews scraped.
-      mapsData: { rating: null, reviewsCount: null, reviews: [], hours: [], categories: ['Dental clinic'], priceLevel: null },
+      mapsData: { rating: null, reviewsCount: null, reviews: [], hours: [], categories: ['Dental clinic'], priceLevel: null, photos: [] },
     });
   });
 
@@ -120,6 +120,7 @@ describe('searchBusinessesApify — rich Maps facts (mapsData)', () => {
       ],
       categories: ['Nail salon', 'Spa'],
       price: '$$',
+      imageUrls: ['https://lh3.googleusercontent.com/p/photo-a=w1920-h1080-k-no', 'https://lh3.googleusercontent.com/p/photo-b=w800'],
     },
   ];
 
@@ -133,6 +134,7 @@ describe('searchBusinessesApify — rich Maps facts (mapsData)', () => {
       hours: ['Monday: 9 AM to 7 PM', 'Sunday: Closed'],
       categories: ['Nail salon', 'Spa'],
       priceLevel: '$$',
+      photos: ['https://lh3.googleusercontent.com/p/photo-a=w1920-h1080-k-no', 'https://lh3.googleusercontent.com/p/photo-b=w800'],
     });
   });
 

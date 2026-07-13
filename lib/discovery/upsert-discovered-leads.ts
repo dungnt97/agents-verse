@@ -23,6 +23,9 @@ export async function upsertDiscoveredLeads(
         websiteScore: sql`excluded.website_score`,
         formattedAddress: sql`excluded.formatted_address`,
         businessStatus: sql`excluded.business_status`,
+        // Refresh the rich Maps facts (rating/reviews/hours/photos) too, so a re-discovery of a not-yet-
+        // pipelined lead picks up newly-captured photos/reviews instead of keeping the first stale blob.
+        mapsData: sql`excluded.maps_data`,
       },
     });
   return rows.length;
