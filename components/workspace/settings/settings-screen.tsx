@@ -10,8 +10,6 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/brand/icon';
-import { Mark } from '@/components/brand/mark';
-import { AgentAvatar } from '@/components/ui/agent-avatar';
 import { useI18n } from '@/lib/i18n/i18n-provider';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { AUTONOMY } from '@/components/workspace/autonomy-control';
@@ -112,41 +110,6 @@ function Panel({ title, desc, children }: { title: string; desc?: string; childr
       {children}
     </div>
   );
-}
-
-function Seg({
-  opts, val, set,
-}: {
-  opts: string[]; val: string; set: (v: string) => void;
-}) {
-  return (
-    <div className="row" style={{ gap: 4, background: 'var(--surface-muted)', padding: 3, borderRadius: 9 }}>
-      {opts.map(o => (
-        <button
-          key={o}
-          onClick={() => set(o)}
-          style={{
-            padding: '6px 12px', borderRadius: 7, fontSize: 12.5, fontWeight: 500,
-            background: val === o ? 'var(--surface-elev)' : 'transparent',
-            color: val === o ? 'var(--ink)' : 'var(--ink-3)',
-            boxShadow: val === o ? 'var(--sh-xs)' : 'none',
-            transition: '.15s',
-          }}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------
-   AgentConfig state shape
-   ------------------------------------------------------------------------- */
-
-interface AgentCfg {
-  enabled: boolean;
-  review: boolean;
 }
 
 /* -------------------------------------------------------------------------

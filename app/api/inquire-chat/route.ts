@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { assistantConfigured, connectAssistant, parseTextDeltas, type ChatTurn } from '@/lib/integrations/assistant';
 import { slidingWindowLimiter } from '@/lib/integrations/chat-rate-limit';
 import { buildInquirySystemPrompt } from '@/lib/integrations/inquiry-chat-prompt';
-import { demoLanguageForAddress } from '@/lib/demo-gen/locale';
+import { demoLanguageForAddress } from '@/lib/data/locale';
 import { USE_DB } from '@/lib/repositories/config';
 import { db } from '@/lib/db/client';
 import { leads, audits } from '@/lib/db/schema';

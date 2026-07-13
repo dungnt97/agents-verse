@@ -4,7 +4,7 @@ import { db } from '../../db/client';
 import { deals, settings, escalations, leads } from '../../db/schema';
 import { runAgent } from '../../agents/runner';
 import { closerSales } from '../../agents/defs/closer-sales';
-import { demoLanguageForAddress } from '../../demo-gen/locale';
+import { demoLanguageForAddress } from '../../data/locale';
 import { isOptOut } from '../../data/opt-out';
 import {
   decideReplyOutcome,

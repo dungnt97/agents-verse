@@ -4,7 +4,7 @@ import { db } from '../../db/client';
 import { deals, leads, escalations, settings } from '../../db/schema';
 import { runAgent } from '../../agents/runner';
 import { miraSupport } from '../../agents/defs/mira-support';
-import { demoLanguageForAddress } from '../../demo-gen/locale';
+import { demoLanguageForAddress } from '../../data/locale';
 import { sendEmail, supportEmailHtml, resendConfigured } from '../../integrations/resend';
 import type { AutonomyMode } from '../../data/deal-stage-machine';
 

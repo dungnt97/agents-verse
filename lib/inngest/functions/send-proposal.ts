@@ -6,7 +6,7 @@ import { renderHtmlToPdf } from '../../demo-gen/render';
 import { buildProposal, type ProposalPricing } from '../../proposals/proposal';
 import { buildProposalHtml } from '../../proposals/proposal-html';
 import { sendEmail, supportEmailHtml, resendConfigured } from '../../integrations/resend';
-import { demoLanguageForAddress } from '../../demo-gen/locale';
+import { demoLanguageForAddress } from '../../data/locale';
 import { recordActivity } from '../activity-log';
 import { readFile, unlink } from 'node:fs/promises';
 import type { Deal } from '../../data/types';

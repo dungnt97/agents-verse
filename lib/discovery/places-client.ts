@@ -12,7 +12,9 @@ import type { MapsData } from '../data/types';
 
 const PLACES_BASE = 'https://places.googleapis.com/v1';
 
-const DISCOVERY_FIELD_MASK = [
+// Exported so a test can PIN the cost boundary: the discovery mask must never contain an Enterprise-SKU
+// field (see M1). Every entry here bills at the cheap Pro rate on every search call.
+export const DISCOVERY_FIELD_MASK = [
   'places.id',
   'places.displayName',
   'places.formattedAddress',
@@ -21,7 +23,7 @@ const DISCOVERY_FIELD_MASK = [
   'places.primaryType',
 ].join(',');
 
-const ENRICH_FIELD_MASK = ['id', 'websiteUri', 'internationalPhoneNumber'].join(',');
+export const ENRICH_FIELD_MASK = ['id', 'websiteUri', 'internationalPhoneNumber'].join(',');
 
 export interface DiscoveredPlace {
   id: string;

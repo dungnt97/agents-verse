@@ -1,4 +1,4 @@
-import { demoLanguageForAddress } from './locale';
+import { demoLanguageForAddress } from '../data/locale';
 import type { DemoGenInput } from './prompt';
 import type { leads, audits } from '../db/schema';
 

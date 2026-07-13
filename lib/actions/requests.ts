@@ -72,6 +72,15 @@ export async function convertRequestToLead(id: string): Promise<MutationResult> 
   const [req] = await db.select().from(demoRequests).where(eq(demoRequests.id, id)).limit(1);
   if (!req) return { ok: false, message: 'Request not found.' };
 
+  // A demo INQUIRY already knows its exact lead (the one we sent the demo to). Don't dedupe-by-name or
+  // create a duplicate — just mark it converted so the founder works the existing lead.
+  if (req.leadId) {
+    await db.update(demoRequests).set({ status: 'converted' }).where(eq(demoRequests.id, id));
+    revalidatePath('/requests');
+    revalidatePath('/leads');
+    return { ok: true };
+  }
+
   const existing = await db.select({ id: leads.id }).from(leads).where(eq(leads.company, req.business)).limit(1);
   if (existing.length === 0) {
     await db

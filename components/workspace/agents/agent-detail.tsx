@@ -12,7 +12,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { useI18n } from '@/lib/i18n';
 import { useWorkspaceData } from '@/lib/providers/workspace-data-provider';
 import { ROOM_ICON } from '@/components/floor-map';
-import type { Agent, AgentDetail as AgentDetailData } from '@/lib/data/types';
+import type { AgentDetail as AgentDetailData } from '@/lib/data/types';
 import { AGENT_BRIEFS } from '@/lib/data/agent-briefs';
 import type { ToastKind } from '@/lib/providers/toast-provider';
 // Side-effect import: merges rooms.* + agents.* keys into AV_DICT

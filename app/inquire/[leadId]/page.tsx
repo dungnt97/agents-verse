@@ -1,5 +1,5 @@
 import { getLeadPublicContext } from '@/lib/repositories/leads';
-import { demoLanguageForAddress } from '@/lib/demo-gen/locale';
+import { demoLanguageForAddress } from '@/lib/data/locale';
 import { InquiryScreen } from '@/components/inquire/inquiry-screen';
 
 // Public page a prospect reaches from the "Interested?" button on their demo. Trusted first-party page
